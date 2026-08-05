@@ -1,0 +1,62 @@
+/* Généré par scripts/gen-theme.ts. Ne pas modifier à la main. */
+:root {
+  color-scheme: dark;
+  --cairn-surface-page: #0D1214;
+  --cairn-surface-card: #161E22;
+  --cairn-surface-raised: #212C31;
+  --cairn-surface-recessed: #070A0B;
+  --cairn-line-hairline: #5C6E75;
+  --cairn-line-strong: #7C9099;
+  --cairn-text-primary: #E3EAEC;
+  --cairn-text-secondary: #B0BDC2;
+  --cairn-text-muted: #8A989E;
+  --cairn-text-onAccent: #0D1214;
+  --cairn-accent-default: #6BCFAB;
+  --cairn-accent-pressed: #54B492;
+  --cairn-accent-subtle: #12241F;
+  --cairn-state-danger: #DE868C;
+  --cairn-state-success: #A5BD72;
+  --cairn-state-warning: #DFA85F;
+  --cairn-overlay: rgba(5, 8, 9, 0.74);
+  --cairn-tag-ambre: #DFB369;
+  --cairn-tag-braise: #DB8452;
+  --cairn-tag-airelle: #D4737C;
+  --cairn-tag-bruyere: #A98BC4;
+  --cairn-tag-fjord: #6E9AC4;
+  --cairn-tag-aurore: #5DC6A4;
+  --cairn-tag-lichen: #A5BD72;
+  --cairn-tag-fer: #96A0A6;
+  --cairn-tag-bouleau: #D2CCBD;
+  --cairn-tag-granit: #8393A0;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --cairn-surface-page: #DCE3E4;
+  --cairn-surface-card: #F0F4F5;
+  --cairn-surface-raised: #FAFCFC;
+  --cairn-surface-recessed: #C6D0D2;
+  --cairn-line-hairline: #94A3A8;
+  --cairn-line-strong: #5F6E73;
+  --cairn-text-primary: #161C1E;
+  --cairn-text-secondary: #333D40;
+  --cairn-text-muted: #4E585C;
+  --cairn-text-onAccent: #FAFCFC;
+  --cairn-accent-default: #155C4A;
+  --cairn-accent-pressed: #114E3F;
+  --cairn-accent-subtle: #CBDFD8;
+  --cairn-state-danger: #8E2A33;
+  --cairn-state-success: #465A20;
+  --cairn-state-warning: #77490F;
+  --cairn-overlay: rgba(22, 28, 30, 0.45);
+  --cairn-tag-ambre: #6F4E0F;
+  --cairn-tag-braise: #8A3D1A;
+  --cairn-tag-airelle: #89303A;
+  --cairn-tag-bruyere: #59417A;
+  --cairn-tag-fjord: #2A5079;
+  --cairn-tag-aurore: #125C4A;
+  --cairn-tag-lichen: #495C25;
+  --cairn-tag-fer: #4F585D;
+  --cairn-tag-bouleau: #5A5548;
+  --cairn-tag-granit: #3C4750;
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+
+  // Les scripts tournent sous Node, pas sous React Native. Le tsconfig racine
+  // impose `customConditions: ["react-native"]`, ce qui empêche de résoudre
+  // `node:fs` et compagnie. D'où cette configuration séparée, qui a aussi le
+  // mérite d'empêcher les globales Node de fuiter dans le code de l'application.
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true
+  },
+
+  // theme.ts est inclus explicitement : c'est la source que gen-theme lit, et
+  // elle vit hors de ce répertoire.
+  "include": ["**/*.ts", "**/*.mts", "../src/ui/theme.ts"]
+}

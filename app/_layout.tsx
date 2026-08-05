@@ -1,0 +1,200 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Pressable, View } from 'react-native'
+import { Stack, useRouter, useSegments } from 'expo-router'
+import * as SplashScreen from 'expo-splash-screen'
+import { StatusBar } from 'expo-status-bar'
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useFonts } from 'expo-font'
+import { Grenze_500Medium, Grenze_600SemiBold } from '@expo-google-fonts/grenze'
+import { Alegreya_400Regular, Alegreya_500Medium } from '@expo-google-fonts/alegreya'
+import { Archivo_400Regular, Archivo_500Medium } from '@expo-google-fonts/archivo'
+
+import { AuthProvider, useAuth } from '@/auth/AuthProvider'
+import { QueryProvider } from '@/db/QueryProvider'
+import { isSupabaseConfigured } from '@/db/supabase'
+import { ThemeProvider, useTheme } from '@/ui/ThemeProvider'
+import { VaultProvider } from '@/vault/VaultProvider'
+import { Button, Card, Logotype, Txt } from '@/ui/components'
+import { radius, space } from '@/ui/theme'
+
+// L'écran de démarrage reste affiché jusqu'à ce que les polices ET le réglage de
+// thème soient connus. Le masquer plus tôt donnerait un rendu en police système
+// puis un saut typographique, ou un éclair de thème inversé.
+void SplashScreen.preventAutoHideAsync()
+
+export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    Grenze_500Medium,
+    Grenze_600SemiBold,
+    Alegreya_400Regular,
+    Alegreya_500Medium,
+    Archivo_400Regular,
+    Archivo_500Medium,
+  })
+
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <QueryProvider>
+          <AuthProvider>
+            {/* Le coffre est sous le fournisseur de requêtes : son état
+                conditionne des requêtes, et refermer doit pouvoir laisser
+                expirer les entrées de cache correspondantes. */}
+            <VaultProvider>
+              {/* Une police introuvable ne doit pas bloquer l'application sur
+                  l'écran de démarrage : on continue avec la police système. */}
+              <Boot fontsReady={fontsLoaded || Boolean(fontError)} />
+            </VaultProvider>
+          </AuthProvider>
+        </QueryProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
+  )
+}
+
+function Boot({ fontsReady }: { fontsReady: boolean }) {
+  const { theme, ready: themeReady } = useTheme()
+  const { session, loading: authLoading } = useAuth()
+  const router = useRouter()
+  const segments = useSegments()
+
+  const canPaint = fontsReady && themeReady
+
+  useEffect(() => {
+    if (canPaint) void SplashScreen.hideAsync()
+  }, [canPaint])
+
+  // Aiguillage entre la zone authentifiée et les écrans de connexion.
+  useEffect(() => {
+    if (!canPaint || authLoading || !isSupabaseConfigured) return
+    const inAuthGroup = segments[0] === '(auth)'
+    if (!session && !inAuthGroup) router.replace('/sign-in')
+    else if (session && inAuthGroup) router.replace('/')
+  }, [canPaint, authLoading, session, segments, router])
+
+  const needsSetup = !isSupabaseConfigured
+  const [setupDismissed, setSetupDismissed] = useState(false)
+
+  /**
+   * L'ordre des deux éléments de configuration n'est pas interchangeable, et
+   * chacun a besoin du sien.
+   *
+   * Le bandeau réduit vient AVANT la pile pour occuper sa propre place dans la
+   * colonne et pousser le contenu : en superposition il masquait la barre
+   * d'actions de l'éditeur, bouton retour compris.
+   *
+   * Le voile complet vient APRÈS la pile, parce qu'entre frères superposés c'est
+   * le dernier rendu qui est peint au-dessus. Placé avant, il passait sous la
+   * pile et devenait invisible.
+   */
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.surface.page }}>
+      <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
+
+      {needsSetup && setupDismissed ? (
+        <SetupBanner onPress={() => setSetupDismissed(false)} />
+      ) : null}
+
+      {/* Une pile, pas un Slot : l'éditeur de note est poussé par-dessus les
+          onglets et doit pouvoir revenir en arrière. */}
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: theme.surface.page },
+        }}
+      />
+
+      {needsSetup && !setupDismissed ? (
+        <SetupOverlay onDismiss={() => setSetupDismissed(true)} />
+      ) : null}
+    </View>
+  )
+}
+
+/** Rappel discret, en flux normal, une fois le voile écarté. */
+function SetupBanner({ onPress }: { onPress: () => void }) {
+  const { theme } = useTheme()
+  const insets = useSafeAreaInsets()
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Afficher les consignes de configuration"
+      onPress={onPress}
+      style={{
+        marginTop: insets.top + space.sm,
+        marginHorizontal: space.md,
+        marginBottom: space.xs,
+        minHeight: 48,
+        justifyContent: 'center',
+        paddingHorizontal: space.md,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: theme.accent.default,
+        backgroundColor: theme.accent.subtle,
+      }}
+    >
+      <Txt variant="caption" tone="accent">
+        Mode démonstration, aucun projet Supabase configuré. Toucher pour la marche à suivre.
+      </Txt>
+    </Pressable>
+  )
+}
+
+/**
+ * Affiché tant que .env n'est pas rempli. Mieux vaut une consigne claire qu'un
+ * écran blanc ou une pile d'erreurs réseau incompréhensibles.
+ *
+ * Écartable volontairement : sans projet Supabase, un voile opaque rendrait la
+ * coquille et les thèmes impossibles à inspecter. Le bandeau ci-dessus prend le
+ * relais pour que l'avertissement ne disparaisse pas pour autant.
+ */
+function SetupOverlay({ onDismiss }: { onDismiss: () => void }) {
+  const { theme } = useTheme()
+
+  const step = useCallback(
+    (n: string, text: string) => (
+      <View key={n} style={{ flexDirection: 'row', gap: space.sm }}>
+        <Txt variant="label" tone="accent">
+          {n}
+        </Txt>
+        <Txt variant="body" tone="secondary" style={{ flex: 1 }}>
+          {text}
+        </Txt>
+      </View>
+    ),
+    [],
+  )
+
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: theme.surface.page,
+        justifyContent: 'center',
+        padding: space.xl,
+        gap: space.md,
+      }}
+    >
+      <Card style={{ gap: space.md }}>
+        <Logotype />
+        <Txt variant="title">Configuration à terminer</Txt>
+        <Txt variant="body" tone="secondary">
+          L’application ne sait pas encore à quel projet Supabase parler.
+        </Txt>
+        {step('1', 'Créer un projet gratuit sur supabase.com.')}
+        {step('2', 'Copier .env.example vers .env, y coller l’URL et la clé anon du projet.')}
+        {step('3', 'Appliquer supabase/migrations/ dans l’éditeur SQL du tableau de bord.')}
+        {step('4', 'Relancer le serveur de développement.')}
+        <Txt variant="caption" tone="muted">
+          Le détail figure dans le README, section Mise en route.
+        </Txt>
+      </Card>
+      <Button label="Regarder l’interface quand même" variant="ghost" onPress={onDismiss} />
+    </View>
+  )
+}

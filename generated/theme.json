@@ -1,0 +1,113 @@
+{
+  "dark": {
+    "surface-page": "#0D1214",
+    "surface-card": "#161E22",
+    "surface-raised": "#212C31",
+    "surface-recessed": "#070A0B",
+    "line-hairline": "#5C6E75",
+    "line-strong": "#7C9099",
+    "text-primary": "#E3EAEC",
+    "text-secondary": "#B0BDC2",
+    "text-muted": "#8A989E",
+    "text-onAccent": "#0D1214",
+    "accent-default": "#6BCFAB",
+    "accent-pressed": "#54B492",
+    "accent-subtle": "#12241F",
+    "state-danger": "#DE868C",
+    "state-success": "#A5BD72",
+    "state-warning": "#DFA85F",
+    "overlay": "rgba(5, 8, 9, 0.74)",
+    "tag-ambre": "#DFB369",
+    "tag-braise": "#DB8452",
+    "tag-airelle": "#D4737C",
+    "tag-bruyere": "#A98BC4",
+    "tag-fjord": "#6E9AC4",
+    "tag-aurore": "#5DC6A4",
+    "tag-lichen": "#A5BD72",
+    "tag-fer": "#96A0A6",
+    "tag-bouleau": "#D2CCBD",
+    "tag-granit": "#8393A0"
+  },
+  "light": {
+    "surface-page": "#DCE3E4",
+    "surface-card": "#F0F4F5",
+    "surface-raised": "#FAFCFC",
+    "surface-recessed": "#C6D0D2",
+    "line-hairline": "#94A3A8",
+    "line-strong": "#5F6E73",
+    "text-primary": "#161C1E",
+    "text-secondary": "#333D40",
+    "text-muted": "#4E585C",
+    "text-onAccent": "#FAFCFC",
+    "accent-default": "#155C4A",
+    "accent-pressed": "#114E3F",
+    "accent-subtle": "#CBDFD8",
+    "state-danger": "#8E2A33",
+    "state-success": "#465A20",
+    "state-warning": "#77490F",
+    "overlay": "rgba(22, 28, 30, 0.45)",
+    "tag-ambre": "#6F4E0F",
+    "tag-braise": "#8A3D1A",
+    "tag-airelle": "#89303A",
+    "tag-bruyere": "#59417A",
+    "tag-fjord": "#2A5079",
+    "tag-aurore": "#125C4A",
+    "tag-lichen": "#495C25",
+    "tag-fer": "#4F585D",
+    "tag-bouleau": "#5A5548",
+    "tag-granit": "#3C4750"
+  },
+  "tags": {
+    "ambre": {
+      "label": "Ambre",
+      "dark": "#DFB369",
+      "light": "#6F4E0F"
+    },
+    "braise": {
+      "label": "Braise",
+      "dark": "#DB8452",
+      "light": "#8A3D1A"
+    },
+    "airelle": {
+      "label": "Airelle",
+      "dark": "#D4737C",
+      "light": "#89303A"
+    },
+    "bruyere": {
+      "label": "Bruyère",
+      "dark": "#A98BC4",
+      "light": "#59417A"
+    },
+    "fjord": {
+      "label": "Fjord",
+      "dark": "#6E9AC4",
+      "light": "#2A5079"
+    },
+    "aurore": {
+      "label": "Aurore",
+      "dark": "#5DC6A4",
+      "light": "#125C4A"
+    },
+    "lichen": {
+      "label": "Lichen",
+      "dark": "#A5BD72",
+      "light": "#495C25"
+    },
+    "fer": {
+      "label": "Fer",
+      "dark": "#96A0A6",
+      "light": "#4F585D"
+    },
+    "bouleau": {
+      "label": "Bouleau",
+      "dark": "#D2CCBD",
+      "light": "#5A5548"
+    },
+    "granit": {
+      "label": "Granit",
+      "dark": "#8393A0",
+      "light": "#3C4750"
+    }
+  },
+  "css": "/* Généré par scripts/gen-theme.ts. Ne pas modifier à la main. */\n:root {\n  color-scheme: dark;\n  --cairn-surface-page: #0D1214;\n  --cairn-surface-card: #161E22;\n  --cairn-surface-raised: #212C31;\n  --cairn-surface-recessed: #070A0B;\n  --cairn-line-hairline: #5C6E75;\n  --cairn-line-strong: #7C9099;\n  --cairn-text-primary: #E3EAEC;\n  --cairn-text-secondary: #B0BDC2;\n  --cairn-text-muted: #8A989E;\n  --cairn-text-onAccent: #0D1214;\n  --cairn-accent-default: #6BCFAB;\n  --cairn-accent-pressed: #54B492;\n  --cairn-accent-subtle: #12241F;\n  --cairn-state-danger: #DE868C;\n  --cairn-state-success: #A5BD72;\n  --cairn-state-warning: #DFA85F;\n  --cairn-overlay: rgba(5, 8, 9, 0.74);\n  --cairn-tag-ambre: #DFB369;\n  --cairn-tag-braise: #DB8452;\n  --cairn-tag-airelle: #D4737C;\n  --cairn-tag-bruyere: #A98BC4;\n  --cairn-tag-fjord: #6E9AC4;\n  --cairn-tag-aurore: #5DC6A4;\n  --cairn-tag-lichen: #A5BD72;\n  --cairn-tag-fer: #96A0A6;\n  --cairn-tag-bouleau: #D2CCBD;\n  --cairn-tag-granit: #8393A0;\n}\n\n:root[data-theme=\"light\"] {\n  color-scheme: light;\n  --cairn-surface-page: #DCE3E4;\n  --cairn-surface-card: #F0F4F5;\n  --cairn-surface-raised: #FAFCFC;\n  --cairn-surface-recessed: #C6D0D2;\n  --cairn-line-hairline: #94A3A8;\n  --cairn-line-strong: #5F6E73;\n  --cairn-text-primary: #161C1E;\n  --cairn-text-secondary: #333D40;\n  --cairn-text-muted: #4E585C;\n  --cairn-text-onAccent: #FAFCFC;\n  --cairn-accent-default: #155C4A;\n  --cairn-accent-pressed: #114E3F;\n  --cairn-accent-subtle: #CBDFD8;\n  --cairn-state-danger: #8E2A33;\n  --cairn-state-success: #465A20;\n  --cairn-state-warning: #77490F;\n  --cairn-overlay: rgba(22, 28, 30, 0.45);\n  --cairn-tag-ambre: #6F4E0F;\n  --cairn-tag-braise: #8A3D1A;\n  --cairn-tag-airelle: #89303A;\n  --cairn-tag-bruyere: #59417A;\n  --cairn-tag-fjord: #2A5079;\n  --cairn-tag-aurore: #125C4A;\n  --cairn-tag-lichen: #495C25;\n  --cairn-tag-fer: #4F585D;\n  --cairn-tag-bouleau: #5A5548;\n  --cairn-tag-granit: #3C4750;\n}\n"
+}
