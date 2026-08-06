@@ -3,9 +3,12 @@ import { Pressable, ScrollView, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Feather from '@expo/vector-icons/Feather'
-import { usePurgeNote, usePurgeNotes, useRestoreNote, useTrashedNotes } from '@/db/queries'
+import { usePurgeNote, usePurgeNotes, useRestoreNote } from '@/db/queries'
+import { useTrashedNoteList } from '@/db/select'
 import { useTheme } from '@/ui/ThemeProvider'
 import { Card, Inscription, Seam, Txt } from '@/ui/components'
+import { IconButton } from '@/ui/IconButton'
+import { RuneLoader } from '@/ui/RuneLoader'
 import { radius, space } from '@/ui/theme'
 
 /**
@@ -20,26 +23,18 @@ export default function Trash() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
 
-  const trashed = useTrashedNotes()
+  const { notes, isLoading } = useTrashedNoteList()
   const restore = useRestoreNote()
   const purge = usePurgeNote()
   const purgeMany = usePurgeNotes()
   const [confirming, setConfirming] = useState<string | null>(null)
   const [emptying, setEmptying] = useState(false)
 
-  const notes = trashed.data ?? []
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface.page, paddingTop: insets.top }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.sm }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Retour"
-          onPress={() => router.back()}
-          style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Feather name="arrow-left" size={22} color={theme.text.primary} />
-        </Pressable>
+        <IconButton icon="arrow-left" label="Retour" onPress={() => router.back()} />
       </View>
 
       <ScrollView
@@ -77,12 +72,8 @@ export default function Trash() {
           </Card>
         ) : null}
 
-        {trashed.isLoading ? (
-          <Card style={{ paddingVertical: space.xxl, alignItems: 'center' }}>
-            <Txt variant="body" tone="muted">
-              Chargement.
-            </Txt>
-          </Card>
+        {isLoading ? (
+          <RuneLoader message="On fouille la corbeille…" />
         ) : notes.length === 0 ? (
           <Card style={{ alignItems: 'center', paddingVertical: space.xxl, gap: space.sm }}>
             <Feather name="trash-2" size={24} color={theme.text.muted} />

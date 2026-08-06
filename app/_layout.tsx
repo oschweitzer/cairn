@@ -15,6 +15,8 @@ import { isSupabaseConfigured } from '@/db/supabase'
 import { ThemeProvider, useTheme } from '@/ui/ThemeProvider'
 import { VaultProvider } from '@/vault/VaultProvider'
 import { Button, Card, Logotype, Txt } from '@/ui/components'
+import { ToastProvider } from '@/ui/Toast'
+import { TooltipProvider } from '@/ui/Tooltip'
 import { radius, space } from '@/ui/theme'
 
 // L'écran de démarrage reste affiché jusqu'à ce que les polices ET le réglage de
@@ -41,9 +43,17 @@ export default function RootLayout() {
                 conditionne des requêtes, et refermer doit pouvoir laisser
                 expirer les entrées de cache correspondantes. */}
             <VaultProvider>
-              {/* Une police introuvable ne doit pas bloquer l'application sur
-                  l'écran de démarrage : on continue avec la police système. */}
-              <Boot fontsReady={fontsLoaded || Boolean(fontError)} />
+              {/* Infobulles et accusés de réception se peignent au-dessus de
+                  toute l'application, d'où leur place tout en haut de l'arbre :
+                  une bulle rendue sur place serait rognée par la première strate
+                  qui coupe ce qui dépasse, et il y en a partout. */}
+              <TooltipProvider>
+                <ToastProvider>
+                  {/* Une police introuvable ne doit pas bloquer l'application sur
+                      l'écran de démarrage : on continue avec la police système. */}
+                  <Boot fontsReady={fontsLoaded || Boolean(fontError)} />
+                </ToastProvider>
+              </TooltipProvider>
             </VaultProvider>
           </AuthProvider>
         </QueryProvider>
@@ -96,13 +106,26 @@ function Boot({ fontsReady }: { fontsReady: boolean }) {
       ) : null}
 
       {/* Une pile, pas un Slot : l'éditeur de note est poussé par-dessus les
-          onglets et doit pouvoir revenir en arrière. */}
+          onglets et doit pouvoir revenir en arrière.
+
+          Les deux écrans qui s'ouvrent sur autre chose qu'une liste ont leur
+          propre transition. Déclarer une partie des routes seulement est prévu :
+          celles qui ne le sont pas gardent la transition par défaut de la
+          plateforme, elles ne disparaissent pas de la pile. */}
       <Stack
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: theme.surface.page },
         }}
-      />
+      >
+        {/* La note monte à sa place plutôt que d'arriver par le côté : on ouvre
+            une pierre de la pile, on ne passe pas à l'écran suivant. */}
+        <Stack.Screen name="note/[id]" options={{ animation: 'fade_from_bottom' }} />
+        {/* Le coffre est le seul écran peint sur la strate creusée. Un fondu
+            laisse la lumière changer sur place, ce qu'un glissement latéral
+            raconterait mal : on ne va pas à côté, on entre dans la roche. */}
+        <Stack.Screen name="vault" options={{ animation: 'fade' }} />
+      </Stack>
 
       {needsSetup && !setupDismissed ? (
         <SetupOverlay onDismiss={() => setSetupDismissed(true)} />

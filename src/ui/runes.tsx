@@ -90,6 +90,21 @@ const BOX_W = 12
 const BOX_H = 20
 
 /**
+ * Géométrie brute, pour les rendus qui ne peuvent pas passer par `<Rune>` :
+ * la gravure sur la pierre levée plus bas, et l'attente animée de
+ * src/ui/RuneLoader.tsx, dont le trait change de couleur et doit donc être un
+ * chemin animé plutôt qu'un chemin ordinaire.
+ *
+ * Le tracé reste défini ici, en un seul endroit. Le recopier ailleurs le
+ * laisserait dériver à la première retouche.
+ */
+export const runeBox = { width: BOX_W, height: BOX_H } as const
+
+export function runePath(name: RuneName): string {
+  return PATHS[name]
+}
+
+/**
  * Une rune. `size` est la hauteur souhaitée, la largeur en découle.
  *
  * L'épaisseur du trait suit la taille par défaut, sinon une rune agrandie

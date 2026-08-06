@@ -4,6 +4,7 @@ import { displayTitle, isEmptyNote } from '@/db/noteLogic'
 import type { NoteWithRelations } from '@/db/select'
 import { useTheme } from './ThemeProvider'
 import { Txt } from './components'
+import { Tooltip } from './Tooltip'
 import { radius, space } from './theme'
 
 /**
@@ -224,32 +225,35 @@ export function NoteCard({
           {selected ? <Feather name="check" size={14} color={theme.text.onAccent} /> : null}
         </View>
       ) : (
-        /* Frère du corps, pas enfant : voir le commentaire sur le conteneur. */
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={note.is_pinned ? 'Désépingler' : 'Épingler'}
-          accessibilityState={{ selected: note.is_pinned }}
-          onPress={onTogglePin}
-          // Glyphe discret, zone tactile élargie par hitSlop : le geste reste
-          // confortable sans alourdir la carte visuellement.
-          hitSlop={space.md}
-          style={{
-            position: 'absolute',
-            top: space.sm,
-            right: space.sm,
-            width: 32,
-            height: 32,
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2,
-          }}
+        /* Frère du corps, pas enfant : voir le commentaire sur le conteneur.
+           C'est l'enveloppe d'infobulle qui porte le placement, le bouton se
+           contentant de remplir la case qu'elle lui donne. */
+        <Tooltip
+          label={note.is_pinned ? 'Désépingler' : 'Épingler'}
+          style={{ position: 'absolute', top: space.sm, right: space.sm, zIndex: 2 }}
         >
-          <Feather
-            name="bookmark"
-            size={16}
-            color={note.is_pinned ? theme.accent.default : theme.text.muted}
-          />
-        </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={note.is_pinned ? 'Désépingler' : 'Épingler'}
+            accessibilityState={{ selected: note.is_pinned }}
+            onPress={onTogglePin}
+            // Glyphe discret, zone tactile élargie par hitSlop : le geste reste
+            // confortable sans alourdir la carte visuellement.
+            hitSlop={space.md}
+            style={{
+              width: 32,
+              height: 32,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Feather
+              name="bookmark"
+              size={16}
+              color={note.is_pinned ? theme.accent.default : theme.text.muted}
+            />
+          </Pressable>
+        </Tooltip>
       )}
     </View>
   )

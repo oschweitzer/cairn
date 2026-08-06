@@ -6,8 +6,10 @@ import { useUpdateNote } from '@/db/queries'
 import { useNoteList } from '@/db/select'
 import { useTheme } from '@/ui/ThemeProvider'
 import { Card, Inscription, Txt } from '@/ui/components'
+import { IconButton } from '@/ui/IconButton'
 import { MasonryGrid } from '@/ui/MasonryGrid'
 import { NoteCard, estimateCardHeight } from '@/ui/NoteCard'
+import { RuneLoader } from '@/ui/RuneLoader'
 import { radius, space } from '@/ui/theme'
 
 export default function Archive() {
@@ -21,14 +23,7 @@ export default function Archive() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface.page, paddingTop: insets.top }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.sm }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Retour"
-          onPress={() => router.back()}
-          style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Feather name="arrow-left" size={22} color={theme.text.primary} />
-        </Pressable>
+        <IconButton icon="arrow-left" label="Retour" onPress={() => router.back()} />
       </View>
 
       <ScrollView
@@ -37,11 +32,7 @@ export default function Archive() {
         <Inscription>Archive</Inscription>
 
         {isLoading ? (
-          <Card style={{ paddingVertical: space.xxl, alignItems: 'center' }}>
-            <Txt variant="body" tone="muted">
-              Chargement.
-            </Txt>
-          </Card>
+          <RuneLoader message="On ouvre l’archive…" />
         ) : notes.length === 0 ? (
           <Card style={{ alignItems: 'center', paddingVertical: space.xxl, gap: space.sm }}>
             <Feather name="archive" size={24} color={theme.text.muted} />

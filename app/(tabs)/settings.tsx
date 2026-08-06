@@ -6,6 +6,8 @@ import { useAuth } from '@/auth/AuthProvider'
 import { useVault } from '@/vault/VaultProvider'
 import { useTheme, type ThemePreference } from '@/ui/ThemeProvider'
 import { Button, Card, Inscription, Screen, Seam, Txt } from '@/ui/components'
+import { useToast } from '@/ui/Toast'
+import { Glyph } from '@/ui/glyphs'
 import { radius, space } from '@/ui/theme'
 
 const OPTIONS: { value: ThemePreference; label: string; icon: 'moon' | 'sun' | 'smartphone' }[] = [
@@ -21,7 +23,7 @@ function NavRow({
   hint,
 }: {
   href: '/archive' | '/trash' | '/vault'
-  icon: 'archive' | 'trash-2' | 'lock'
+  icon: 'archive' | 'trash-2' | 'chest'
   label: string
   hint: string
 }) {
@@ -42,7 +44,13 @@ function NavRow({
         backgroundColor: pressed ? theme.surface.raised : 'transparent',
       })}
     >
-      <Feather name={icon} size={18} color={theme.text.secondary} />
+      {/* Le coffre porte le même glyphe qu'en tête de grille : deux dessins pour
+          un seul endroit se lisent comme deux endroits. */}
+      {icon === 'chest' ? (
+        <Glyph name="chest" size={18} color={theme.text.secondary} />
+      ) : (
+        <Feather name={icon} size={18} color={theme.text.secondary} />
+      )}
       <View style={{ flex: 1 }}>
         <Txt variant="label">{label}</Txt>
         <Txt variant="caption" tone="muted">
@@ -64,8 +72,53 @@ function NavRow({
  */
 function VaultSettings() {
   const { theme } = useTheme()
-  const { biometrics, biometricsEnabled, setBiometricsEnabled, disable } = useVault()
+  const { biometrics, biometricsEnabled, setBiometricsEnabled, disable, confirmWithBiometrics } =
+    useVault()
   const [confirming, setConfirming] = useState(false)
+  const router = useRouter()
+  const toast = useToast()
+
+  /**
+   * Garde les deux gestes qui désarment le coffre.
+   *
+   * Sans elle, le coffre avait une porte de service : n'importe qui tenant
+   * l'appareil déverrouillé pouvait remplacer le code et lire ce qu'il gardait,
+   * sans jamais le connaître. Le capteur ferme cette porte pour le curieux, et
+   * la laisse ouverte pour le propriétaire.
+   *
+   * Sur un appareil sans capteur — le web en particulier — il n'y a rien à
+   * demander et le geste passe. C'est assumé : refuser faute de capteur
+   * enfermerait dehors quelqu'un qui a simplement oublié son code, ce qui est
+   * exactement le contraire du but.
+   */
+  const guard = async (reason: string): Promise<boolean> => {
+    const verdict = await confirmWithBiometrics(reason)
+    if (verdict === 'refused') {
+      toast('Identité non confirmée, le code reste en place.', { tone: 'danger' })
+      return false
+    }
+    return true
+  }
+
+  /**
+   * Efface le code puis emmène tout de suite à la saisie du nouveau.
+   *
+   * L'attente avant la redirection n'est pas une politesse : tant que le secret
+   * n'est pas effacé, l'écran du coffre affiche encore le pavé de
+   * déverrouillage. Y arriver une image trop tôt ferait clignoter l'écran qu'on
+   * cherche justement à éviter, celui qui demande le code qu'on a oublié.
+   */
+  const replaceCode = async () => {
+    if (!(await guard('Remplacer le code du coffre'))) return
+    await disable()
+    router.push('/vault')
+  }
+
+  const removeCode = async () => {
+    if (!(await guard('Supprimer le code du coffre'))) return
+    await disable()
+    setConfirming(false)
+  }
 
   return (
     <Card style={{ gap: space.md }}>
@@ -102,12 +155,43 @@ function VaultSettings() {
 
       <Seam />
 
+      {/**
+       * Le code oublié n'est pas une impasse, mais rien ne le disait.
+       *
+       * Il n'est pas récupérable, et ce n'est pas un manque : l'appareil ne garde
+       * qu'une empreinte SHA-256 salée, qui ne remonte pas au code. Le remplacer
+       * ne coûte pourtant rien, parce que ce code ne chiffre pas les notes — il
+       * les masque. Elles restent en base, gardées par RLS comme les autres, et
+       * reviennent telles quelles dès qu'un nouveau code est posé.
+       *
+       * Le dire ici est nécessaire : le seul bouton disponible s'appelait
+       * « Supprimer le code », ce que personne ne tente quand il craint de perdre
+       * ce qu'il y a rangé.
+       */}
+      <View style={{ gap: space.xxs }}>
+        <Txt variant="label">Code oublié</Txt>
+        <Txt variant="caption" tone="muted">
+          Il ne peut pas être retrouvé : l’appareil n’en garde qu’une empreinte, et une
+          empreinte ne remonte pas à son code. Il se remplace en revanche sans rien perdre.
+          Ce code masque les notes, il ne les chiffre pas : elles reviennent telles quelles
+          derrière le nouveau.
+        </Txt>
+        <Txt variant="caption" tone="muted">
+          Il est propre à cet appareil. Sur un autre, le coffre se configure à neuf et montre
+          les mêmes notes.
+        </Txt>
+      </View>
+
+      <Button label="Remplacer le code" onPress={() => void replaceCode()} />
+
+      <Seam />
+
       {confirming ? (
         <View style={{ gap: space.sm }}>
           <Txt variant="body" tone="danger">
-            Supprimer le code ne fait pas ressortir les notes masquées. Elles
-            resteront hors de la grille, inaccessibles jusqu’à ce qu’un nouveau
-            code soit défini.
+            Supprimer le code sans en poser un nouveau ne fait pas ressortir les
+            notes masquées. Elles resteront hors de la grille, inaccessibles
+            jusqu’à ce qu’un code soit défini.
           </Txt>
           <View style={{ flexDirection: 'row', gap: space.sm }}>
             <Button
@@ -120,10 +204,7 @@ function VaultSettings() {
               label="Supprimer le code"
               variant="danger"
               style={{ flex: 1 }}
-              onPress={() => {
-                void disable()
-                setConfirming(false)
-              }}
+              onPress={() => void removeCode()}
             />
           </View>
         </View>
@@ -194,7 +275,7 @@ export default function Settings() {
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <NavRow
           href="/vault"
-          icon="lock"
+          icon="chest"
           label="Coffre"
           hint={
             vault.configured
@@ -231,16 +312,6 @@ export default function Settings() {
         />
       </Card>
 
-      <Card style={{ gap: space.sm }} recessed>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-          <Feather name="lock" size={16} color={theme.accent.default} />
-          <Txt variant="title">Coffre</Txt>
-        </View>
-        <Txt variant="body" tone="secondary">
-          Le déverrouillage biométrique et les noms de code arrivent à la phase 3. Cette carte est
-          volontairement creusée, pour montrer la surface en retrait.
-        </Txt>
-      </Card>
     </Screen>
   )
 }

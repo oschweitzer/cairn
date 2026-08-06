@@ -190,6 +190,22 @@ export type TagColorKey = keyof typeof tagPalette
 
 export const tagColorKeys = Object.keys(tagPalette) as TagColorKey[]
 
+/**
+ * Même couleur, rendue transparente.
+ *
+ * Sert aux halos de survol : un aplat d'accent à pleine opacité écraserait le
+ * glyphe qu'il est censé mettre en valeur. La palette reste la source, on ne
+ * fait qu'en diluer une valeur — aucune teinte nouvelle n'entre par cette porte,
+ * et l'audit de contraste garde donc son sens.
+ */
+export function withAlpha(hex: string, alpha: number): string {
+  const value = hex.replace('#', '')
+  const r = parseInt(value.slice(0, 2), 16)
+  const g = parseInt(value.slice(2, 4), 16)
+  const b = parseInt(value.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 /** Résout une clé de palette vers l'hexadécimal du thème actif. */
 export function resolveTagColor(key: TagColorKey, theme: ThemeName): string {
   return tagPalette[key][theme]

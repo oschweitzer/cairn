@@ -7,6 +7,7 @@ import { useTagUsage } from '@/db/select'
 import { useTheme } from '@/ui/ThemeProvider'
 import { Card, Inscription, Seam, Txt, noWebOutline, useFocusRing } from '@/ui/components'
 import { ColorPicker } from '@/ui/pickers'
+import { Tooltip } from '@/ui/Tooltip'
 import { radius, space, tagColorKeys, type, type TagColorKey } from '@/ui/theme'
 
 export default function TagsScreen() {
@@ -95,25 +96,27 @@ export default function TagsScreen() {
               noWebOutline,
             ]}
           />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Créer le tag"
-            disabled={!draftName.trim()}
-            onPress={() => void create()}
-            style={({ pressed }) => ({
-              width: 48,
-              height: 48,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: radius.md,
-              borderWidth: 1,
-              borderColor: theme.accent.default,
-              backgroundColor: pressed ? theme.accent.pressed : theme.accent.default,
-              opacity: draftName.trim() ? 1 : 0.45,
-            })}
-          >
-            <Feather name="plus" size={20} color={theme.text.onAccent} />
-          </Pressable>
+          <Tooltip label="Créer le tag">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Créer le tag"
+              disabled={!draftName.trim()}
+              onPress={() => void create()}
+              style={({ pressed }) => ({
+                width: 48,
+                height: 48,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: radius.md,
+                borderWidth: 1,
+                borderColor: theme.accent.default,
+                backgroundColor: pressed ? theme.accent.pressed : theme.accent.default,
+                opacity: draftName.trim() ? 1 : 0.45,
+              })}
+            >
+              <Feather name="plus" size={20} color={theme.text.onAccent} />
+            </Pressable>
+          </Tooltip>
         </View>
         <ColorPicker value={draftColor} onChange={(next) => setDraftColor(next ?? 'ambre')} />
         {error ? (
@@ -148,22 +151,24 @@ export default function TagsScreen() {
                     minHeight: 56,
                   }}
                 >
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Changer la couleur de ${tag.name}`}
-                    onPress={() => setOpenColorFor(openColorFor === tag.id ? null : tag.id)}
-                    hitSlop={space.sm}
-                    style={{ width: 32, height: 48, justifyContent: 'center' }}
-                  >
-                    <View
-                      style={{
-                        width: 14,
-                        height: 14,
-                        borderRadius: 7,
-                        backgroundColor: tagColor(tag.color_key),
-                      }}
-                    />
-                  </Pressable>
+                  <Tooltip label="Changer la couleur">
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Changer la couleur de ${tag.name}`}
+                      onPress={() => setOpenColorFor(openColorFor === tag.id ? null : tag.id)}
+                      hitSlop={space.sm}
+                      style={{ width: 32, height: 48, justifyContent: 'center' }}
+                    >
+                      <View
+                        style={{
+                          width: 14,
+                          height: 14,
+                          borderRadius: 7,
+                          backgroundColor: tagColor(tag.color_key),
+                        }}
+                      />
+                    </Pressable>
+                  </Tooltip>
 
                   <TextInput
                     defaultValue={tag.name}
@@ -217,15 +222,22 @@ export default function TagsScreen() {
                       <Txt variant="caption" tone="muted">
                         {count === 0 ? 'aucune note' : count === 1 ? '1 note' : `${count} notes`}
                       </Txt>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`Supprimer ${tag.name}`}
-                        onPress={() => setConfirmDelete(tag.id)}
-                        hitSlop={space.sm}
-                        style={{ width: 40, height: 48, alignItems: 'center', justifyContent: 'center' }}
-                      >
-                        <Feather name="trash-2" size={16} color={theme.text.muted} />
-                      </Pressable>
+                      <Tooltip label="Supprimer le tag">
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Supprimer ${tag.name}`}
+                          onPress={() => setConfirmDelete(tag.id)}
+                          hitSlop={space.sm}
+                          style={{
+                            width: 40,
+                            height: 48,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Feather name="trash-2" size={16} color={theme.text.muted} />
+                        </Pressable>
+                      </Tooltip>
                     </>
                   )}
                 </View>

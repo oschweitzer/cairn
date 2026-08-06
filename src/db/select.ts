@@ -1,4 +1,8 @@
 import { useMemo } from 'react'
+import { useIsRestoring } from '@tanstack/react-query'
+import { useAuth } from '../auth/AuthProvider'
+import { openItem, openNote } from '../vault/keyring'
+import type { ChecklistItem, Note, PlainChecklistItem } from './types'
 import {
   useChecklistItems,
   useNoteTags,
@@ -6,6 +10,7 @@ import {
   usePrivateChecklistItems,
   usePrivateNotes,
   useTags,
+  useTrashedNotes,
 } from './queries'
 import { useVault } from '../vault/VaultProvider'
 import {
@@ -30,6 +35,61 @@ import {
 
 export type { NoteView, NoteWithRelations }
 
+/**
+ * Ouvre ce qui est chiffré, à la frontière entre la base et l'interface.
+ *
+ * Un seul endroit pour tout le déchiffrement en lecture, et c'est délibéré :
+ * dispersé dans les écrans, il suffirait d'un oubli pour afficher un chiffré
+ * hexadécimal à la place d'un titre. En amont de `composeNotes`, tout ce qui
+ * vit au-dessus manipule du texte lisible et n'a plus rien à savoir du coffre.
+ *
+ * Une note dont le chiffré ne s'ouvre pas — clé absente, contenu altéré — rend
+ * un titre et un corps nuls plutôt que de disparaître. Elle reste listée, ce
+ * qui est la seule conduite honnête : la faire disparaître laisserait croire
+ * qu'elle a été perdue.
+ */
+function decryptNotes(notes: Note[]): Note[] {
+  return notes.map((note) => {
+    if (!note.is_encrypted) return note
+    const { title, body } = openNote(note.ciphertext)
+    return { ...note, title, body }
+  })
+}
+
+function decryptItems(items: ChecklistItem[]): PlainChecklistItem[] {
+  return items.map((item) => ({
+    ...item,
+    content: item.is_encrypted ? (openItem(item.ciphertext) ?? '') : (item.content ?? ''),
+  }))
+}
+
+/**
+ * Vrai tant que l'écran n'a rien à montrer et qu'il reste une raison d'attendre.
+ *
+ * `isLoading` de React Query ne suffit pas, et l'écart est piégeux : il vaut
+ * `isPending && isFetching`, or pendant la restauration du cache disque les
+ * requêtes sont retenues, donc `isFetching` est faux. L'écran se croyait alors
+ * chargé alors qu'il n'avait encore rien, et affichait son état vide — « rien
+ * d'empilé pour l'instant » — une fraction de seconde avant que les notes
+ * n'arrivent. Sur le web, un rechargement de page tombait systématiquement
+ * dedans, l'application ouvrant toujours sur un cache à restaurer.
+ *
+ * La condition sur le vide est ce qui garde une revalidation en arrière-plan
+ * silencieuse : tant qu'il y a quelque chose à lire, on le laisse à l'écran.
+ *
+ * Une requête désactivée — mode démonstration sans projet Supabase — reste
+ * `pending` pour toujours sans jamais être en vol : elle n'entre donc dans
+ * aucune des deux branches, et l'état vide s'affiche comme il se doit.
+ */
+function useAwaitingContent(isLoading: boolean, isEmpty: boolean): boolean {
+  const isRestoring = useIsRestoring()
+  const { loading: authLoading } = useAuth()
+  // La session compte autant que le cache : une requête partie avant que le
+  // jeton ne soit posé revient avec zéro ligne — RLS fait son travail — et sa
+  // liste vide n'est pas une réponse, c'est une question mal posée.
+  return isEmpty && (isRestoring || authLoading || isLoading)
+}
+
 export function useNoteList(options?: { view?: NoteView; tagIds?: string[]; search?: string }) {
   const view = options?.view ?? 'active'
   const tagIds = options?.tagIds ?? []
@@ -44,7 +104,13 @@ export function useNoteList(options?: { view?: NoteView; tagIds?: string[]; sear
   const tagsQuery = useTags()
 
   const all = useMemo(
-    () => composeNotes(notes, itemsQuery.data ?? [], linksQuery.data ?? [], tagsQuery.data ?? []),
+    () =>
+      composeNotes(
+        decryptNotes(notes),
+        decryptItems(itemsQuery.data ?? []),
+        linksQuery.data ?? [],
+        tagsQuery.data ?? [],
+      ),
     [notes, itemsQuery.data, linksQuery.data, tagsQuery.data],
   )
 
@@ -56,13 +122,15 @@ export function useNoteList(options?: { view?: NoteView; tagIds?: string[]; sear
     [all, view, tagKey, search],
   )
 
+  // La grille n'est vraiment en chargement que si l'on n'a encore rien à
+  // afficher. Une revalidation en arrière-plan ne doit pas vider l'écran.
+  const isLoading = useAwaitingContent(notesQuery.isLoading, notes.length === 0)
+
   return {
     notes: visible,
     /** Toutes les notes composées, tous états confondus. Utile aux compteurs. */
     all,
-    // La grille n'est vraiment en chargement que si l'on n'a encore rien à
-    // afficher. Une revalidation en arrière-plan ne doit pas vider l'écran.
-    isLoading: notesQuery.isLoading && notes.length === 0,
+    isLoading,
     isError: notesQuery.isError,
     error: notesQuery.error,
     refetch: notesQuery.refetch,
@@ -95,7 +163,13 @@ export function usePrivateNoteList(options?: { search?: string }) {
   const tagsQuery = useTags()
 
   const all = useMemo(
-    () => composeNotes(notes, itemsQuery.data ?? [], linksQuery.data ?? [], tagsQuery.data ?? []),
+    () =>
+      composeNotes(
+        decryptNotes(notes),
+        decryptItems(itemsQuery.data ?? []),
+        linksQuery.data ?? [],
+        tagsQuery.data ?? [],
+      ),
     [notes, itemsQuery.data, linksQuery.data, tagsQuery.data],
   )
 
@@ -104,15 +178,31 @@ export function usePrivateNoteList(options?: { search?: string }) {
     return all.filter((note) => matchesSearch(note, needle)).sort(byPinThenRecent)
   }, [all, search])
 
+  // Appelé sans condition : `unlocked &&` en amont court-circuiterait l'appel du
+  // hook, et le nombre de hooks rendus doit être le même à chaque rendu.
+  const awaiting = useAwaitingContent(notesQuery.isLoading, notes.length === 0)
+
   return {
     notes: visible,
     all,
-    isLoading: unlocked && notesQuery.isLoading && notes.length === 0,
+    isLoading: unlocked && awaiting,
     isError: notesQuery.isError,
     error: notesQuery.error,
     refetch: notesQuery.refetch,
     isRefetching: notesQuery.isRefetching,
   }
+}
+
+/**
+ * Corbeille. Pas de recomposition ici : on n'y montre ni cases à cocher ni tags,
+ * seulement de quoi décider. Ce hook n'existe que pour que l'écran hérite de la
+ * même définition du chargement que les autres, restauration comprise.
+ */
+export function useTrashedNoteList() {
+  const query = useTrashedNotes()
+  const notes = query.data ?? []
+  const isLoading = useAwaitingContent(query.isLoading, notes.length === 0)
+  return { notes, isLoading, isError: query.isError }
 }
 
 /**
@@ -124,12 +214,24 @@ export function usePrivateNoteList(options?: { search?: string }) {
  * endroit plutôt que d'être répété dans chaque écran.
  */
 export function useNote(id: string | undefined) {
-  const { all } = useNoteList()
-  const { all: hidden } = usePrivateNoteList()
-  return useMemo(
+  const { all, isLoading } = useNoteList()
+  const { all: hidden, isLoading: hiddenLoading } = usePrivateNoteList()
+
+  const note = useMemo(
     () => (id ? (all.find((n) => n.id === id) ?? hidden.find((n) => n.id === id)) : undefined),
     [all, hidden, id],
   )
+
+  return {
+    note,
+    /**
+     * L'absence de note ne veut pas dire la même chose selon qu'on a fini de
+     * chercher ou non. Sans cette distinction, l'éditeur ouvert à froid
+     * annonçait « Note introuvable » pendant que la requête était encore en vol,
+     * accusant l'application d'avoir perdu ce qu'elle allait trouver.
+     */
+    isLoading: !note && (isLoading || hiddenLoading),
+  }
 }
 
 /** Nombre de notes par tag, pour la gestion des tags. */

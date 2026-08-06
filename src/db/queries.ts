@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { getSupabase, isSupabaseConfigured } from './supabase'
+import { hasDataKey, openNote, sealItem, sealNote } from '../vault/keyring'
 import type { ChecklistItem, Note, NoteKind, NoteTag, Tag } from './types'
 import type { TagColorKey } from '../ui/theme'
 
@@ -184,6 +185,35 @@ function invalidateNotes(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: keys.privateChecklistItems })
 }
 
+/**
+ * Les deux caches d'éléments de liste, jamais un seul.
+ *
+ * Une liste vit dans la grille OU dans le coffre, et la mutation ne sait pas
+ * laquelle des deux elle vient de toucher : l'élément n'est identifié que par
+ * son propre identifiant, pas par l'état de la note qui le porte. N'invalider
+ * que le cache visible laissait donc les listes du coffre figées à l'écran —
+ * l'ajout partait bien en base, mais rien n'apparaissait, ce qui se lit comme
+ * un bouton mort.
+ */
+function invalidateChecklistItems(qc: QueryClient) {
+  void qc.invalidateQueries({ queryKey: keys.checklistItems })
+  void qc.invalidateQueries({ queryKey: keys.privateChecklistItems })
+}
+
+/**
+ * Les entrées de cache des deux listes d'éléments, visible et coffre.
+ *
+ * Les mises à jour optimistes ci-dessous écrivent dans le cache avant la
+ * réponse du serveur. Lues sur le seul cache visible, elles laissaient les
+ * listes du coffre inertes : cocher une case n'y cochait rien.
+ */
+function checklistItemEntries(qc: QueryClient) {
+  return [
+    ...qc.getQueriesData<ChecklistItem[]>({ queryKey: keys.checklistItems }),
+    ...qc.getQueriesData<ChecklistItem[]>({ queryKey: keys.privateChecklistItems }),
+  ]
+}
+
 export function useCreateNote() {
   const qc = useQueryClient()
   return useMutation({
@@ -201,13 +231,20 @@ export function useCreateNote() {
        */
       isPrivate?: boolean
     }) => {
+      // Une note du coffre naît chiffrée, y compris vide : son titre partirait
+      // sinon en clair dès la première frappe, et rien ne repasserait derrière.
+      const encrypt = Boolean(input.isPrivate) && hasDataKey()
+      const sealed = encrypt ? sealNote({ title: input.title ?? null, body: null }) : null
+
       const { data, error } = await getSupabase()
         .from('notes')
         .insert({
           kind: input.kind,
-          title: input.title ?? null,
+          title: sealed ? null : (input.title ?? null),
           color_key: input.colorKey ?? null,
           is_private: input.isPrivate ?? false,
+          is_encrypted: sealed !== null,
+          ciphertext: sealed,
         })
         .select()
         .single()
@@ -232,11 +269,51 @@ type NotePatch = Partial<
   >
 >
 
+/**
+ * Prépare un correctif pour une note chiffrée.
+ *
+ * Le titre et le corps ne peuvent pas être écrits séparément : ils partagent un
+ * seul scellé. Un correctif qui ne porte que sur l'un des deux doit donc
+ * emporter l'autre tel qu'il est à l'écran, d'où `current` — sans lui, écrire
+ * le titre effacerait le corps.
+ *
+ * Les autres champs — épingle, archive, couleur, nom de code — traversent sans
+ * être touchés : ils ne sont pas chiffrés, et c'est assumé. Le nom de code est
+ * précisément l'étiquette anodine qui remplace le titre dans la grille.
+ */
+function sealPatch(patch: NotePatch, current: { title: string | null; body: string | null }) {
+  const touchesText = patch.title !== undefined || patch.body !== undefined
+  if (!touchesText) return patch
+
+  const sealed = sealNote({
+    title: patch.title !== undefined ? patch.title : current.title,
+    body: patch.body !== undefined ? patch.body : current.body,
+  })
+  if (!sealed) return patch
+
+  const { title: _t, body: _b, ...rest } = patch
+  return { ...rest, is_encrypted: true, title: null, body: null, ciphertext: sealed }
+}
+
 export function useUpdateNote() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: NotePatch }) => {
-      const { error } = await getSupabase().from('notes').update(patch).eq('id', id)
+    mutationFn: async ({
+      id,
+      patch,
+      encrypted,
+      current,
+    }: {
+      id: string
+      patch: NotePatch
+      /** Vrai quand la note vit dans le coffre chiffré. L'appelant le sait, la mutation non. */
+      encrypted?: boolean
+      /** Texte affiché à l'instant de l'écriture, pour reconstituer le scellé complet. */
+      current?: { title: string | null; body: string | null }
+    }) => {
+      const body =
+        encrypted && hasDataKey() ? sealPatch(patch, current ?? { title: null, body: null }) : patch
+      const { error } = await getSupabase().from('notes').update(body).eq('id', id)
       if (error) throw error
     },
     // Épingler, archiver ou changer la couleur doit paraître instantané : on
@@ -294,10 +371,49 @@ export function useSetNotePrivate() {
       isPrivate: boolean
       codeName?: string | null
     }) => {
-      const patch = isPrivate
-        ? { is_private: true, code_name: codeName?.trim() || null }
-        : { is_private: false, code_name: null }
-      const { error } = await getSupabase().from('notes').update(patch).eq('id', id)
+      /**
+       * Franchir la porte du coffre change l'état du contenu, pas seulement un
+       * drapeau : on chiffre en entrant, on déchiffre en sortant.
+       *
+       * D'où la lecture préalable. La mutation ne reçoit qu'un identifiant, et
+       * elle a besoin du texte pour le sceller — le demander à l'appelant
+       * marcherait pour l'éditeur, mais pas pour le coffre qui range une note
+       * qu'il n'a jamais affichée.
+       */
+      const supabase = getSupabase()
+      const { data: row, error: readError } = await supabase
+        .from('notes')
+        .select('title, body, is_encrypted, ciphertext')
+        .eq('id', id)
+        .single()
+      if (readError) throw readError
+
+      let patch: NotePatch & { is_private: boolean; code_name: string | null }
+
+      if (isPrivate) {
+        const sealed = hasDataKey() && !row.is_encrypted
+          ? sealNote({ title: row.title, body: row.body })
+          : null
+        patch = {
+          is_private: true,
+          code_name: codeName?.trim() || null,
+          ...(sealed ? { is_encrypted: true, title: null, body: null, ciphertext: sealed } : {}),
+        }
+      } else {
+        // En sortant, le contenu redevient lisible en base : une note hors du
+        // coffre qui resterait chiffrée serait indéchiffrable le jour où la clé
+        // change, et elle n'a plus rien à cacher.
+        const opened = row.is_encrypted ? openNote(row.ciphertext) : null
+        patch = {
+          is_private: false,
+          code_name: null,
+          ...(opened
+            ? { is_encrypted: false, ciphertext: null, title: opened.title, body: opened.body }
+            : {}),
+        }
+      }
+
+      const { error } = await supabase.from('notes').update(patch).eq('id', id)
       if (error) throw error
     },
     onSuccess: () => invalidateNotes(qc),
@@ -491,18 +607,29 @@ export function usePurgeNotes() {
 export function useAddChecklistItem() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { noteId: string; content: string; position: number }) => {
+    mutationFn: async (input: {
+      noteId: string
+      content: string
+      position: number
+      /** Vrai quand la note porteuse vit dans le coffre chiffré. */
+      encrypted?: boolean
+    }) => {
+      const sealed = input.encrypted && hasDataKey() ? sealItem(input.content) : null
       const { data, error } = await getSupabase()
         .from('checklist_items')
-        .insert({ note_id: input.noteId, content: input.content, position: input.position })
+        .insert({
+          note_id: input.noteId,
+          content: sealed ? null : input.content,
+          is_encrypted: sealed !== null,
+          ciphertext: sealed,
+          position: input.position,
+        })
         .select()
         .single()
       if (error) throw error
       return data as ChecklistItem
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: keys.checklistItems })
-    },
+    onSuccess: () => invalidateChecklistItems(qc),
   })
 }
 
@@ -512,17 +639,28 @@ export function useUpdateChecklistItem() {
     mutationFn: async ({
       id,
       patch,
+      encrypted,
     }: {
       id: string
       patch: Partial<Pick<ChecklistItem, 'content' | 'is_done' | 'position' | 'due_at'>>
+      encrypted?: boolean
     }) => {
-      const { error } = await getSupabase().from('checklist_items').update(patch).eq('id', id)
+      // Cocher une case ne touche pas au texte : seul un contenu réécrit doit
+      // repasser par le scellé.
+      const sealed =
+        encrypted && hasDataKey() && typeof patch.content === 'string'
+          ? sealItem(patch.content)
+          : null
+      const body = sealed
+        ? { ...patch, content: null, is_encrypted: true, ciphertext: sealed }
+        : patch
+      const { error } = await getSupabase().from('checklist_items').update(body).eq('id', id)
       if (error) throw error
     },
     // Cocher une case est l'interaction la plus fréquente de l'application, elle
     // ne doit jamais attendre le réseau.
     onMutate: async ({ id, patch }) => {
-      const entries = qc.getQueriesData<ChecklistItem[]>({ queryKey: keys.checklistItems })
+      const entries = checklistItemEntries(qc)
       for (const [key, items] of entries) {
         if (!items) continue
         qc.setQueryData<ChecklistItem[]>(
@@ -535,9 +673,7 @@ export function useUpdateChecklistItem() {
     onError: (_err, _vars, context) => {
       for (const [key, items] of context?.entries ?? []) qc.setQueryData(key, items)
     },
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: keys.checklistItems })
-    },
+    onSettled: () => invalidateChecklistItems(qc),
   })
 }
 
@@ -549,7 +685,7 @@ export function useDeleteChecklistItem() {
       if (error) throw error
     },
     onMutate: async (id) => {
-      const entries = qc.getQueriesData<ChecklistItem[]>({ queryKey: keys.checklistItems })
+      const entries = checklistItemEntries(qc)
       for (const [key, items] of entries) {
         if (!items) continue
         qc.setQueryData<ChecklistItem[]>(
@@ -562,9 +698,7 @@ export function useDeleteChecklistItem() {
     onError: (_err, _id, context) => {
       for (const [key, items] of context?.entries ?? []) qc.setQueryData(key, items)
     },
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: keys.checklistItems })
-    },
+    onSettled: () => invalidateChecklistItems(qc),
   })
 }
 
@@ -586,7 +720,7 @@ export function useReorderChecklistItems() {
     // Le glissement doit suivre le doigt : on écrit l'ordre localement tout de
     // suite, la requête ne fait que confirmer.
     onMutate: async ({ noteId, orderedIds }) => {
-      const entries = qc.getQueriesData<ChecklistItem[]>({ queryKey: keys.checklistItems })
+      const entries = checklistItemEntries(qc)
       const rank = new Map(orderedIds.map((id, index) => [id, index]))
       for (const [key, items] of entries) {
         if (!items) continue
@@ -602,9 +736,7 @@ export function useReorderChecklistItems() {
     onError: (_err, _vars, context) => {
       for (const [key, items] of context?.entries ?? []) qc.setQueryData(key, items)
     },
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: keys.checklistItems })
-    },
+    onSettled: () => invalidateChecklistItems(qc),
   })
 }
 

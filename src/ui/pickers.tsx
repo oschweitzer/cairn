@@ -3,6 +3,7 @@ import Feather from '@expo/vector-icons/Feather'
 import type { Tag } from '@/db/types'
 import { useTheme } from './ThemeProvider'
 import { Txt } from './components'
+import { Tooltip } from './Tooltip'
 import { radius, space, tagColorKeys, tagPalette, type TagColorKey } from './theme'
 
 /**
@@ -24,54 +25,59 @@ export function ColorPicker({
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ gap: space.sm, paddingVertical: space.xs }}
     >
-      <Pressable
-        accessibilityRole="radio"
-        accessibilityState={{ selected: value === null }}
-        accessibilityLabel="Aucune couleur"
-        onPress={() => onChange(null)}
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: radius.md,
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderWidth: value === null ? 2 : 1,
-          borderColor: value === null ? theme.accent.default : theme.line.hairline,
-          backgroundColor: theme.surface.recessed,
-        }}
-      >
-        <Feather name="slash" size={16} color={theme.text.muted} />
-      </Pressable>
+      {/* Une pastille de couleur ne dit pas son nom, et « bruyère » ne se devine
+          pas d'un violet. La bulle est ici la seule façon de lire la palette. */}
+      <Tooltip label="Aucune couleur">
+        <Pressable
+          accessibilityRole="radio"
+          accessibilityState={{ selected: value === null }}
+          accessibilityLabel="Aucune couleur"
+          onPress={() => onChange(null)}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: radius.md,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: value === null ? 2 : 1,
+            borderColor: value === null ? theme.accent.default : theme.line.hairline,
+            backgroundColor: theme.surface.recessed,
+          }}
+        >
+          <Feather name="slash" size={16} color={theme.text.muted} />
+        </Pressable>
+      </Tooltip>
 
       {tagColorKeys.map((key) => {
         const active = value === key
         return (
-          <Pressable
-            key={key}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: active }}
-            accessibilityLabel={tagPalette[key].label}
-            onPress={() => onChange(key)}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: radius.md,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderWidth: active ? 2 : 1,
-              borderColor: active ? theme.accent.default : theme.line.hairline,
-              backgroundColor: theme.surface.card,
-            }}
-          >
-            <View
+          <Tooltip key={key} label={tagPalette[key].label}>
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={tagPalette[key].label}
+              onPress={() => onChange(key)}
               style={{
-                width: 18,
-                height: 18,
-                borderRadius: 9,
-                backgroundColor: tagColor(key),
+                width: 44,
+                height: 44,
+                borderRadius: radius.md,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: active ? 2 : 1,
+                borderColor: active ? theme.accent.default : theme.line.hairline,
+                backgroundColor: theme.surface.card,
               }}
-            />
-          </Pressable>
+            >
+              <View
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 9,
+                  backgroundColor: tagColor(key),
+                }}
+              />
+            </Pressable>
+          </Tooltip>
         )
       })}
     </ScrollView>

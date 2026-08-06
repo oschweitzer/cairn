@@ -1,11 +1,25 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { AppState, Platform } from 'react-native'
 import * as LocalAuthentication from 'expo-local-authentication'
+import { bytesToHex, hexToBytes } from '@noble/ciphers/utils.js'
+import { getSupabase, isSupabaseConfigured } from '../db/supabase'
+import {
+  createDataKey,
+  createRecoveryKey,
+  formatRecoveryKey,
+  parseRecoveryKey,
+  unwrapDataKey,
+  wrapDataKey,
+} from './crypto'
+import { loadDataKey, platformRandom, unloadDataKey } from './keyring'
+import { encryptExistingVaultNotes } from './migrate'
 import {
   clearSecret,
   createSecret,
+  readDataKey,
   readSecret,
   verifyPin,
+  writeDataKey,
   writeSecret,
   type VaultSecret,
 } from './secret'
@@ -45,6 +59,25 @@ export type BiometricSupport =
   /** Pas de matériel, ou plateforme sans prise en charge (le web). */
   | 'unavailable'
 
+/**
+ * Où en est la clé de données, qui est ce qui chiffre réellement les notes.
+ *
+ * Quatre états et non deux, parce que « pas de clé ici » ne veut pas dire la
+ * même chose selon qu'il en existe une ailleurs. Sur un appareil neuf, en créer
+ * une seconde rendrait les notes déjà chiffrées définitivement illisibles : il
+ * faut au contraire réclamer la clé de secours. C'est la distinction que porte
+ * `elsewhere`, et c'est la plus importante des quatre.
+ */
+export type KeyStatus =
+  /** On interroge encore le serveur. */
+  | 'checking'
+  /** Aucune clé, ni ici ni là-bas : le chiffrement n'a jamais été activé. */
+  | 'none'
+  /** La clé est sur cet appareil et chargée. */
+  | 'ready'
+  /** Une clé scellée existe côté serveur, mais pas sur cet appareil. */
+  | 'elsewhere'
+
 type VaultContextValue = {
   /** Faux jusqu'à la lecture du secret stocké. */
   ready: boolean
@@ -60,10 +93,50 @@ type VaultContextValue = {
   configure: (pin: string, useBiometrics: boolean) => Promise<void>
   unlockWithPin: (pin: string) => Promise<{ ok: boolean; waitMs: number }>
   unlockWithBiometrics: () => Promise<boolean>
+  /**
+   * Confirme que c'est bien le propriétaire de l'appareil, sans ouvrir le
+   * coffre. Sert à garder les gestes qui désarment le coffre lui-même.
+   *
+   * Trois issues et non deux : « pas de capteur » n'est pas « refusé ». Les
+   * confondre condamnerait tout appareil sans lecteur d'empreinte, le web en
+   * tête, à ne plus jamais pouvoir remplacer un code oublié.
+   */
+  confirmWithBiometrics: (reason: string) => Promise<'confirmed' | 'refused' | 'unavailable'>
   lock: () => void
   /** Supprime le code. Les notes masquées le restent, elles redeviennent simplement inaccessibles jusqu'à un nouveau code. */
   disable: () => Promise<void>
   setBiometricsEnabled: (next: boolean) => Promise<void>
+
+  // ------------------------------------------------------------ chiffrement
+
+  keyStatus: KeyStatus
+  /**
+   * Clé de secours à montrer, mise en forme. Elle vit ici et non dans l'écran
+   * qui l'a demandée, et c'est une correction, pas un raffinement : la première
+   * version la gardait dans l'état du composant de mise en place, lequel
+   * disparaissait au moment précis où le chiffrement s'activait — la condition
+   * qui l'affichait cessait d'être vraie. La clé était donc créée, utilisée,
+   * puis jetée avec le composant, sans que personne ne l'ait lue.
+   */
+  pendingRecoveryKey: string | null
+  /** L'utilisateur déclare l'avoir notée. Rien ne la réaffichera. */
+  acknowledgeRecoveryKey: () => void
+  /** Met le chiffrement en place, notes déjà rangées comprises. */
+  enableEncryption: () => Promise<{ encryptedNotes: number }>
+  /**
+   * Réenveloppe la clé de données sous une clé de secours neuve.
+   *
+   * L'ancienne cesse aussitôt de fonctionner. Sert quand on l'a perdue, ou
+   * qu'on la soupçonne vue par quelqu'un d'autre — et rattrape le cas où elle
+   * n'a jamais été affichée. Exige la clé de données en mémoire, donc un coffre
+   * ouvert : sans elle, il n'y aurait rien à envelopper.
+   */
+  regenerateRecoveryKey: () => Promise<void>
+  /**
+   * Retrouve la clé de données sur un appareil neuf, à partir de la clé de
+   * secours saisie à la main.
+   */
+  restoreWithRecoveryKey: (input: string) => Promise<'restored' | 'malformed' | 'wrong-key'>
 }
 
 const VaultContext = createContext<VaultContextValue | null>(null)
@@ -107,7 +180,62 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const lock = useCallback(() => setUnlocked(false), [])
+  const [keyStatus, setKeyStatus] = useState<KeyStatus>('checking')
+  const [pendingRecoveryKey, setPendingRecoveryKey] = useState<string | null>(null)
+
+  const acknowledgeRecoveryKey = useCallback(() => setPendingRecoveryKey(null), [])
+
+  /**
+   * Fermer le coffre retire la clé de la mémoire, pas du stockage.
+   *
+   * C'est la moitié qui compte : tant que la clé est chargée, tout ce que le
+   * cache contient est déchiffrable. La rendre au stockage sécurisé à chaque
+   * fermeture — cinq minutes, passage en arrière-plan, sortie de l'écran —
+   * donne au verrouillage automatique un effet réel et pas seulement visuel.
+   */
+  const lock = useCallback(() => {
+    unloadDataKey()
+    setUnlocked(false)
+    setKeyStatus((current) => (current === 'ready' ? 'checking' : current))
+  }, [])
+
+  /**
+   * Établit où se trouve la clé de données, et la charge si elle est ici.
+   *
+   * L'ordre n'est pas indifférent : on regarde l'appareil d'abord. Trouver la
+   * clé localement dispense d'un aller-retour réseau à chaque ouverture, et
+   * surtout laisse le coffre s'ouvrir hors ligne, ce qui est la moitié de
+   * l'intérêt d'une application de notes.
+   */
+  const resolveKey = useCallback(async () => {
+    const local = await readDataKey()
+    if (local) {
+      loadDataKey(hexToBytes(local))
+      setKeyStatus('ready')
+      return
+    }
+    if (!isSupabaseConfigured) {
+      setKeyStatus('none')
+      return
+    }
+    const { data } = await getSupabase().from('vault_keys').select('wrapped_key').maybeSingle()
+    setKeyStatus(data?.wrapped_key ? 'elsewhere' : 'none')
+  }, [])
+
+  // La clé n'est cherchée qu'une fois le coffre ouvert : avant, il n'y a rien à
+  // déchiffrer, et interroger le serveur signalerait l'existence d'un coffre à
+  // qui regarde le réseau.
+  useEffect(() => {
+    if (!unlocked) return
+    let cancelled = false
+    void (async () => {
+      await resolveKey()
+      if (cancelled) return
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [unlocked, resolveKey])
 
   // Refermeture au passage en arrière-plan. `inactive` compte aussi : sur iOS
   // c'est l'état du sélecteur d'applications, où le contenu est visible en
@@ -190,6 +318,98 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return true
   }, [secret, biometrics])
 
+  /**
+   * Garde d'identité pour les gestes qui désarment le coffre.
+   *
+   * Le repli sur le code de l'appareil est ici autorisé, alors que le
+   * déverrouillage ordinaire le refuse. Ce n'est pas une incohérence : là-bas,
+   * proposer le code de l'appareil à la place du code du coffre est une
+   * confusion garantie, puisque les deux ouvrent la même chose. Ici, c'est le
+   * seul recours quand le doigt est mouillé — et sans lui, un capteur récalcitrant
+   * enfermerait définitivement quelqu'un qui a déjà oublié son code.
+   */
+  const confirmWithBiometrics = useCallback<VaultContextValue['confirmWithBiometrics']>(
+    async (reason) => {
+      if (Platform.OS === 'web' || biometrics !== 'ready') return 'unavailable'
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: reason,
+        cancelLabel: 'Annuler',
+        disableDeviceFallback: false,
+      })
+      return result.success ? 'confirmed' : 'refused'
+    },
+    [biometrics],
+  )
+
+  /**
+   * Met le chiffrement en place.
+   *
+   * L'ordre des écritures est le point délicat : la clé scellée part au serveur
+   * AVANT que la clé de données ne soit posée sur l'appareil. Dans l'autre sens,
+   * une coupure réseau laisserait une clé locale qui chiffre des notes sans que
+   * rien, nulle part, ne permette de les retrouver ailleurs — un coffre à sens
+   * unique, dont on ne s'apercevrait qu'en changeant de téléphone.
+   */
+  const publishWrappedKey = useCallback(async (dataKey: Uint8Array) => {
+    const recoveryKey = createRecoveryKey(platformRandom)
+    const wrapped = wrapDataKey(dataKey, recoveryKey, platformRandom)
+    const { error } = await getSupabase()
+      .from('vault_keys')
+      .upsert({ wrapped_key: wrapped }, { onConflict: 'user_id' })
+    if (error) throw error
+    return formatRecoveryKey(recoveryKey)
+  }, [])
+
+  const enableEncryption = useCallback<VaultContextValue['enableEncryption']>(async () => {
+    const dataKey = createDataKey(platformRandom)
+    const shown = await publishWrappedKey(dataKey)
+
+    await writeDataKey(bytesToHex(dataKey))
+    loadDataKey(dataKey)
+
+    // Les notes déjà rangées sont chiffrées avant que le chiffrement ne soit
+    // déclaré actif : à l'arrivée, le coffre est cohérent ou il n'a pas bougé.
+    const { notes } = await encryptExistingVaultNotes()
+
+    // La clé est posée avant `keyStatus`, et l'ordre est tout : c'est le
+    // passage à `ready` qui démonte l'écran de mise en place. Poser la clé
+    // après, c'est la poser dans le vide.
+    setPendingRecoveryKey(shown)
+    setKeyStatus('ready')
+    return { encryptedNotes: notes }
+  }, [publishWrappedKey])
+
+  const regenerateRecoveryKey = useCallback(async () => {
+    // Relue du stockage plutôt que sortie du trousseau : celui-ci ne rend
+    // jamais la clé, il ne fait que s'en servir. C'est ce qui garantit qu'elle
+    // ne se promène pas dans l'application.
+    const stored = await readDataKey()
+    if (!stored) throw new Error('Clé de données absente sur cet appareil.')
+    setPendingRecoveryKey(await publishWrappedKey(hexToBytes(stored)))
+  }, [publishWrappedKey])
+
+  const restoreWithRecoveryKey = useCallback<VaultContextValue['restoreWithRecoveryKey']>(
+    async (input) => {
+      // Trois issues distinctes, parce que la conduite à tenir diffère : une clé
+      // mal recopiée se corrige, une clé qui ne correspond pas veut dire qu'on
+      // tient celle d'un autre coffre.
+      const recoveryKey = parseRecoveryKey(input)
+      if (!recoveryKey) return 'malformed'
+
+      const { data } = await getSupabase().from('vault_keys').select('wrapped_key').maybeSingle()
+      if (!data?.wrapped_key) return 'wrong-key'
+
+      const dataKey = unwrapDataKey(data.wrapped_key, recoveryKey)
+      if (!dataKey) return 'wrong-key'
+
+      await writeDataKey(bytesToHex(dataKey))
+      loadDataKey(dataKey)
+      setKeyStatus('ready')
+      return 'restored'
+    },
+    [],
+  )
+
   const disable = useCallback(async () => {
     await clearSecret()
     setSecret(null)
@@ -216,9 +436,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       configure,
       unlockWithPin,
       unlockWithBiometrics,
+      confirmWithBiometrics,
       lock,
       disable,
       setBiometricsEnabled,
+      keyStatus,
+      pendingRecoveryKey,
+      acknowledgeRecoveryKey,
+      enableEncryption,
+      regenerateRecoveryKey,
+      restoreWithRecoveryKey,
     }),
     [
       ready,
@@ -229,9 +456,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       configure,
       unlockWithPin,
       unlockWithBiometrics,
+      confirmWithBiometrics,
       lock,
       disable,
       setBiometricsEnabled,
+      keyStatus,
+      pendingRecoveryKey,
+      acknowledgeRecoveryKey,
+      enableEncryption,
+      regenerateRecoveryKey,
+      restoreWithRecoveryKey,
     ],
   )
 
@@ -244,20 +478,3 @@ export function useVault(): VaultContextValue {
   return ctx
 }
 
-/**
- * Referme le coffre quand l'écran qui appelle ce hook est démonté.
- *
- * Utilisé par l'écran du coffre lui-même : quitter la vue referme, ce qui évite
- * qu'un coffre resté ouvert dans une pile de navigation soit retrouvé ouvert
- * plusieurs minutes plus tard par un simple retour en arrière.
- */
-export function useLockOnLeave(active: boolean) {
-  const { lock } = useVault()
-  const activeRef = useRef(active)
-  activeRef.current = active
-  useEffect(() => {
-    return () => {
-      if (activeRef.current) lock()
-    }
-  }, [lock])
-}

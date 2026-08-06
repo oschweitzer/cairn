@@ -11,15 +11,13 @@ import { judgePin, type PinVerdict, type VaultSecret } from './policy'
  * Ici il n'y a que ce qui touche réellement au matériel.
  *
  * ── Ce que ce code protège, et ce qu'il ne protège pas ───────────────────────
- * Le coffre est un masquage face à quelqu'un qui regarde ton écran par-dessus
- * ton épaule ou qui prend ton téléphone déverrouillé. Ce n'est pas une
- * protection face à quelqu'un qui accède à la base : les notes du coffre restent
- * en clair dans Postgres, gardées par RLS comme toutes les autres. La protection
- * contre ce niveau-là, c'est le chiffrement bout en bout, et il arrive en
- * phase 6.
- *
- * Dire cela n'est pas une excuse, c'est le périmètre décidé au départ. Le pire
- * serait de laisser croire à davantage.
+ * Le code garde l'accès sur cet appareil : il arrête quelqu'un qui regarde ton
+ * écran par-dessus ton épaule ou qui prend ton téléphone déverrouillé. Il ne
+ * chiffre rien, et ce n'est pas un manque — c'est le chiffrement qui protège du
+ * reste, et il a sa propre clé, sans rapport avec ces quatre chiffres. Voir
+ * src/vault/crypto.ts pour la raison, qui est la même que celle du paragraphe
+ * suivant : un secret de quatre chiffres ne peut pas porter de poids
+ * cryptographique.
  *
  * ── Pourquoi un simple SHA-256 salé, et pas une vraie dérivation ─────────────
  * Le code est numérique et court. Face à quelqu'un qui tient l'empreinte, tout
@@ -44,6 +42,7 @@ import { judgePin, type PinVerdict, type VaultSecret } from './policy'
  */
 
 const KEY = 'cairn.vault.secret'
+const DATA_KEY = 'cairn.vault.data-key'
 const isWeb = Platform.OS === 'web'
 
 export { PIN_MAX_LENGTH, PIN_MIN_LENGTH, FREE_ATTEMPTS, delayForFailures } from './policy'
@@ -51,31 +50,43 @@ export type { PinVerdict, VaultSecret } from './policy'
 
 // ------------------------------------------------------------------ stockage
 
-async function readRaw(): Promise<string | null> {
+async function readRaw(name: string): Promise<string | null> {
   if (isWeb) {
     try {
-      return globalThis.localStorage?.getItem(KEY) ?? null
+      return globalThis.localStorage?.getItem(name) ?? null
     } catch {
       return null
     }
   }
-  return SecureStore.getItemAsync(KEY)
+  return SecureStore.getItemAsync(name)
 }
 
-async function writeRaw(value: string): Promise<void> {
+async function writeRaw(name: string, value: string): Promise<void> {
   if (isWeb) {
     try {
-      globalThis.localStorage?.setItem(KEY, value)
+      globalThis.localStorage?.setItem(name, value)
     } catch {
       /* stockage indisponible : le coffre ne survivra pas au rechargement */
     }
     return
   }
-  await SecureStore.setItemAsync(KEY, value)
+  await SecureStore.setItemAsync(name, value)
+}
+
+async function deleteRaw(name: string): Promise<void> {
+  if (isWeb) {
+    try {
+      globalThis.localStorage?.removeItem(name)
+    } catch {
+      /* rien à faire */
+    }
+    return
+  }
+  await SecureStore.deleteItemAsync(name)
 }
 
 export async function readSecret(): Promise<VaultSecret | null> {
-  const raw = await readRaw()
+  const raw = await readRaw(KEY)
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as Partial<VaultSecret>
@@ -96,19 +107,36 @@ export async function readSecret(): Promise<VaultSecret | null> {
 }
 
 export async function writeSecret(secret: VaultSecret): Promise<void> {
-  await writeRaw(JSON.stringify(secret))
+  await writeRaw(KEY, JSON.stringify(secret))
 }
 
 export async function clearSecret(): Promise<void> {
-  if (isWeb) {
-    try {
-      globalThis.localStorage?.removeItem(KEY)
-    } catch {
-      /* rien à faire */
-    }
-    return
-  }
-  await SecureStore.deleteItemAsync(KEY)
+  await deleteRaw(KEY)
+}
+
+// ------------------------------------------------------- clé de données
+
+/**
+ * La clé de données vit à côté du secret du code, dans le même stockage, mais
+ * sous sa propre entrée. La séparation est ce qui rend le remplacement d'un
+ * code oublié inoffensif : effacer le secret ne touche pas à la clé, donc les
+ * notes chiffrées restent lisibles derrière le nouveau code.
+ *
+ * Sur Android, le Keystore garde la clé hors de portée des autres applications.
+ * Sur le web, `expo-secure-store` n'existe pas et elle retombe dans
+ * localStorage : le chiffrement y protège d'un accès à la base, pas d'un script
+ * hostile servi par l'origine. C'est dit à l'utilisateur, pas caché ici.
+ */
+export async function readDataKey(): Promise<string | null> {
+  return readRaw(DATA_KEY)
+}
+
+export async function writeDataKey(hex: string): Promise<void> {
+  await writeRaw(DATA_KEY, hex)
+}
+
+export async function clearDataKey(): Promise<void> {
+  await deleteRaw(DATA_KEY)
 }
 
 // ----------------------------------------------------------------- dérivation

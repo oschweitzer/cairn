@@ -152,14 +152,14 @@ await mustAccept(
 
 await mustReject(
   'une note chiffrée refuse un titre en clair',
-  `insert into notes (title, is_encrypted, ciphertext, nonce, wrapped_key)
-     values ('fuite', true, 'x', 'y', 'z')`,
+  `insert into notes (title, is_encrypted, ciphertext)
+     values ('fuite', true, 'chiffré')`,
   /encrypted_note_has_no_plaintext/,
 )
 
 await mustReject(
-  'une note chiffrée refuse un matériel incomplet',
-  `insert into notes (is_encrypted, ciphertext) values (true, 'x')`,
+  'une note chiffrée sans chiffré est refusée',
+  `insert into notes (is_encrypted) values (true)`,
   /encrypted_note_has_no_plaintext/,
 )
 
@@ -170,9 +170,45 @@ await mustReject(
 )
 
 await mustAccept(
-  'une note chiffrée complète s’insère',
-  `insert into notes (is_encrypted, ciphertext, nonce, wrapped_key, is_private, code_name)
-     values (true, 'chiffré', 'nonce', 'clé', true, 'Basalte')`,
+  'une note chiffrée s’insère, son nom de code restant en clair',
+  `insert into notes (is_encrypted, ciphertext, is_private, code_name)
+     values (true, 'nonce+chiffré', true, 'Basalte')`,
+)
+
+// ------------------------------------------- coffre chiffré : clé et éléments
+
+await mustAccept(
+  'la clé de données scellée s’enregistre',
+  `insert into vault_keys (wrapped_key) values ('nonce+clé scellée')`,
+)
+
+// Par mise à jour et non par insertion : la clé étant unique par personne, une
+// seconde insertion buterait d'abord sur RLS, et le test dirait alors autre
+// chose que ce qu'il prétend vérifier.
+await mustReject(
+  'une clé scellée vide est refusée',
+  `update vault_keys set wrapped_key = '   '`,
+  /wrapped_key_not_blank/,
+)
+
+await mustAccept(
+  'un élément de liste chiffré s’insère sans contenu en clair',
+  `insert into checklist_items (note_id, is_encrypted, ciphertext)
+     values ('aaaaaaaa-0000-0000-0000-000000000001', true, 'nonce+chiffré')`,
+)
+
+await mustReject(
+  'un élément chiffré refuse un contenu en clair',
+  `insert into checklist_items (note_id, content, is_encrypted, ciphertext)
+     values ('aaaaaaaa-0000-0000-0000-000000000001', 'fuite', true, 'chiffré')`,
+  /encrypted_item_has_no_plaintext/,
+)
+
+await mustReject(
+  'un élément en clair reste obligé d’avoir un contenu non blanc',
+  `insert into checklist_items (note_id, content)
+     values ('aaaaaaaa-0000-0000-0000-000000000001', '   ')`,
+  /encrypted_item_has_no_plaintext/,
 )
 
 await mustReject(

@@ -30,9 +30,8 @@ export type Note = {
   /** Substitué au titre partout où la note est listée. */
   code_name: string | null
   is_encrypted: boolean
+  /** Nonce en tête, chiffré ensuite. Voir src/vault/crypto.ts. */
   ciphertext: string | null
-  nonce: string | null
-  wrapped_key: string | null
   created_at: string
   updated_at: string
   deleted_at: string | null
@@ -42,10 +41,33 @@ export type ChecklistItem = {
   id: string
   note_id: string
   user_id: string
-  content: string
+  /** Nul si l'élément est chiffré : le contenu est alors dans `ciphertext`. */
+  content: string | null
+  is_encrypted: boolean
+  ciphertext: string | null
   is_done: boolean
   position: number
   due_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Élément de liste tel que l'interface le manipule, une fois le chiffré ouvert :
+ * le contenu y est toujours lisible. Le type de la ligne, lui, garde un contenu
+ * nul, parce que c'est ce que contient réellement la base pour un élément
+ * chiffré. Les confondre ferait remonter des `null` jusque dans les champs de
+ * saisie, ce que le compilateur a d'ailleurs signalé tout de suite.
+ */
+export type PlainChecklistItem = Omit<ChecklistItem, 'content'> & { content: string }
+
+/**
+ * Clé de données du coffre, scellée par la clé de secours de l'utilisateur.
+ * Une ligne par personne, inutilisable sans la clé de secours.
+ */
+export type VaultKey = {
+  user_id: string
+  wrapped_key: string
   created_at: string
   updated_at: string
 }
@@ -130,11 +152,19 @@ export type Database = {
         Update: Partial<Note>
         Relationships: Rel
       }
+      vault_keys: {
+        Row: VaultKey
+        Insert: { wrapped_key: string } & Partial<Omit<VaultKey, 'wrapped_key'>>
+        Update: Partial<VaultKey>
+        Relationships: Rel
+      }
       checklist_items: {
         Row: ChecklistItem
-        Insert: { note_id: string; content: string } & Partial<
-          Omit<ChecklistItem, 'note_id' | 'content'>
-        >
+        // `content` n'est plus obligatoire à l'insertion : un élément chiffré
+        // n'en a pas. La contrainte SQL `encrypted_item_has_no_plaintext` est ce
+        // qui garantit qu'il y a bien l'un ou l'autre, et jamais ni l'un ni
+        // l'autre — c'est à la base de tenir cet invariant, pas au type.
+        Insert: { note_id: string } & Partial<Omit<ChecklistItem, 'note_id'>>
         Update: Partial<ChecklistItem>
         Relationships: Rel
       }

@@ -20,12 +20,24 @@ import {
   filterNotes,
   fold,
   hasAllTags,
+  inheritedColor,
   isEmptyNote,
   matchesSearch,
   type NoteWithRelations,
 } from '../src/db/noteLogic'
-import type { ChecklistItem, Note, Tag } from '../src/db/types'
+import type { Note, PlainChecklistItem, Tag } from '../src/db/types'
 import { delayForFailures, judgePin, FREE_ATTEMPTS } from '../src/vault/policy'
+import { randomBytes as nodeRandomBytes } from 'node:crypto'
+import {
+  createDataKey,
+  createRecoveryKey,
+  formatRecoveryKey,
+  openText,
+  parseRecoveryKey,
+  sealText,
+  unwrapDataKey,
+  wrapDataKey,
+} from '../src/vault/crypto'
 
 // ------------------------------------------------------------- fabriques
 
@@ -43,8 +55,6 @@ function note(over: Partial<Note> = {}): Note {
     code_name: null,
     is_encrypted: false,
     ciphertext: null,
-    nonce: null,
-    wrapped_key: null,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     deleted_at: null,
@@ -52,12 +62,14 @@ function note(over: Partial<Note> = {}): Note {
   }
 }
 
-function item(over: Partial<ChecklistItem> = {}): ChecklistItem {
+function item(over: Partial<PlainChecklistItem> = {}): PlainChecklistItem {
   return {
     id: 'i1',
     note_id: 'n1',
     user_id: 'u1',
     content: 'élément',
+    is_encrypted: false,
+    ciphertext: null,
     is_done: false,
     position: 0,
     due_at: null,
@@ -178,6 +190,30 @@ test('la recherche couvre le nom de code, pas seulement le titre', () => {
   // Une note du coffre n'a pas de titre, seulement un nom de code.
   const n = composed({ title: null, is_private: true, code_name: 'Basalte' })
   assert.equal(matchesSearch(n, fold('basalte')), true)
+})
+
+// -------------------------------------------------------- couleur héritée
+
+test('une note sans couleur prend celle du tag qu’on vient de lui poser', () => {
+  assert.equal(inheritedColor(note({ color_key: null }), tag({ color_key: 'fjord' })), 'fjord')
+})
+
+test('une note déjà colorée garde sa couleur quand on la tague', () => {
+  assert.equal(inheritedColor(note({ color_key: 'braise' }), tag({ color_key: 'fjord' })), null)
+})
+
+test('retirer un tag ne touche pas à la couleur', () => {
+  // Pas de tag ajouté : rien à hériter, quel que soit l'état de la note.
+  assert.equal(inheritedColor(note({ color_key: null }), undefined), null)
+  assert.equal(inheritedColor(note({ color_key: 'lichen' }), undefined), null)
+})
+
+test('le second tag n’écrase pas la couleur héritée du premier', () => {
+  // La note a hérité de « fjord » au premier tag : elle est colorée, donc le
+  // suivant ne la repeint pas. Sans quoi la carte changerait de teinte à chaque
+  // tag ajouté, sans que rien ne l'explique.
+  const afterFirst = note({ color_key: inheritedColor(note(), tag({ color_key: 'fjord' })) })
+  assert.equal(inheritedColor(afterFirst, tag({ id: 't2', color_key: 'airelle' })), null)
 })
 
 // ----------------------------------------------------------------- filtres
@@ -375,4 +411,89 @@ test('la temporisation expirée laisse repasser', () => {
     50_001,
   )
   assert.equal(verdict.ok, true)
+})
+
+// ------------------------------------------------------ coffre : chiffrement
+
+/**
+ * Aléa de test. Le vrai vient d'expo-crypto sur l'appareil : le cœur n'en sait
+ * rien, c'est tout l'intérêt de le lui passer en argument.
+ */
+const random = (n: number) => new Uint8Array(nodeRandomBytes(n))
+
+test('un texte chiffré se relit à l’identique avec sa clé', () => {
+  const key = createDataKey(random)
+  const sealed = sealText('Rendez-vous mardi, 14 h.', key, random)
+  assert.notEqual(sealed, 'Rendez-vous mardi, 14 h.')
+  assert.equal(openText(sealed, key), 'Rendez-vous mardi, 14 h.')
+})
+
+test('les accents et les emojis survivent au tour complet', () => {
+  const key = createDataKey(random)
+  const texte = 'Élève à l’école — 100 % ✔ ᚦ'
+  assert.equal(openText(sealText(texte, key, random), key), texte)
+})
+
+test('deux chiffrements du même texte ne se ressemblent pas', () => {
+  // Nonce tiré au sort à chaque écriture : sans cela, deux notes identiques se
+  // reconnaîtraient dans la base sans être déchiffrées.
+  const key = createDataKey(random)
+  assert.notEqual(sealText('courses', key, random), sealText('courses', key, random))
+})
+
+test('une autre clé ne déchiffre rien', () => {
+  const sealed = sealText('secret', createDataKey(random), random)
+  assert.equal(openText(sealed, createDataKey(random)), null)
+})
+
+test('un chiffré altéré d’un seul caractère est refusé, pas déchiffré de travers', () => {
+  const key = createDataKey(random)
+  const sealed = sealText('solde du compte', key, random)
+  // On retourne le dernier chiffre hexadécimal : le poinçon d'authenticité doit
+  // s'en apercevoir. C'est toute la différence entre chiffrer et authentifier.
+  const altered = sealed.slice(0, -1) + (sealed.at(-1) === '0' ? '1' : '0')
+  assert.equal(openText(altered, key), null)
+})
+
+test('une chaîne qui n’est pas un chiffré ne fait pas tomber la lecture', () => {
+  assert.equal(openText('pas du tout hexadécimal', createDataKey(random)), null)
+  assert.equal(openText('', createDataKey(random)), null)
+})
+
+test('la clé de données se retrouve avec la clé de secours', () => {
+  const dataKey = createDataKey(random)
+  const recovery = createRecoveryKey(random)
+  const wrapped = wrapDataKey(dataKey, recovery, random)
+  assert.deepEqual(unwrapDataKey(wrapped, recovery), dataKey)
+})
+
+test('une mauvaise clé de secours ne rend pas la clé de données', () => {
+  const wrapped = wrapDataKey(createDataKey(random), createRecoveryKey(random), random)
+  assert.equal(unwrapDataKey(wrapped, createRecoveryKey(random)), null)
+})
+
+test('la clé de secours se lit en huit groupes de quatre', () => {
+  const key = createRecoveryKey(random)
+  const shown = formatRecoveryKey(key)
+  assert.match(shown, /^[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){7}$/)
+  assert.deepEqual(parseRecoveryKey(shown), key)
+})
+
+test('la relecture pardonne la casse, les espaces et les confusions O/0 et I/1', () => {
+  const key = createRecoveryKey(random)
+  const shown = formatRecoveryKey(key)
+  assert.deepEqual(parseRecoveryKey(shown.toLowerCase()), key)
+  assert.deepEqual(parseRecoveryKey(shown.replace(/-/g, ' ')), key)
+  // Une clé recopiée avec des O et des I là où il y avait des 0 et des 1 doit
+  // tomber juste : c'est l'erreur de recopie la plus fréquente, et la seule que
+  // l'alphabet permet de rattraper sans ambiguïté.
+  assert.deepEqual(parseRecoveryKey(shown.replace(/0/g, 'O').replace(/1/g, 'I')), key)
+})
+
+test('une clé de secours tronquée est refusée avant tout déchiffrement', () => {
+  const shown = formatRecoveryKey(createRecoveryKey(random))
+  assert.equal(parseRecoveryKey(shown.slice(0, 20)), null)
+  assert.equal(parseRecoveryKey(''), null)
+  // Caractère hors alphabet : refusé aussi, plutôt qu'ignoré en silence.
+  assert.equal(parseRecoveryKey(shown.slice(0, -1) + 'U'), null)
 })

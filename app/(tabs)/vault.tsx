@@ -1,20 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Platform, Pressable, ScrollView, View } from 'react-native'
-import { useRouter } from 'expo-router'
+import Animated from 'react-native-reanimated'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Feather from '@expo/vector-icons/Feather'
-import { useCreateNote, useUpdateNote } from '@/db/queries'
+import { useCreateNote, useSetNotePrivate, useUpdateNote } from '@/db/queries'
 import { usePrivateNoteList } from '@/db/select'
 import type { NoteKind } from '@/db/types'
-import { useLockOnLeave, useVault } from '@/vault/VaultProvider'
+import { useVault } from '@/vault/VaultProvider'
 import { PIN_MIN_LENGTH } from '@/vault/secret'
 import { useTheme } from '@/ui/ThemeProvider'
 import { Button, Card, Inscription, Txt } from '@/ui/components'
+import { ComposerButton } from '@/ui/ComposerButton'
+import { IconButton } from '@/ui/IconButton'
 import { MasonryGrid } from '@/ui/MasonryGrid'
 import { NoteCard, estimateCardHeight } from '@/ui/NoteCard'
 import { PinPad, useCooldownLabel } from '@/ui/PinPad'
+import { RuneLoader } from '@/ui/RuneLoader'
 import { StandingStone } from '@/ui/runes'
-import { radius, space } from '@/ui/theme'
+import { useToast } from '@/ui/Toast'
+import {
+  EncryptionRestore,
+  EncryptionSetup,
+  RecoveryKeyRenewal,
+  RecoveryKeyReveal,
+} from '@/ui/VaultEncryption'
+import { useRise } from '@/ui/transitions'
+import { motion, radius, space } from '@/ui/theme'
 
 /**
  * Le coffre.
@@ -35,9 +47,41 @@ export default function Vault() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
 
-  // Quitter l'écran referme. Sans cela, un coffre ouvert puis quitté serait
-  // retrouvé ouvert par un simple retour en arrière, plusieurs minutes après.
-  useLockOnLeave(true)
+  /**
+   * Quitter l'onglet ne referme plus le coffre, et c'est un renoncement assumé.
+   *
+   * Tant que le coffre était un écran empilé, le quitter le détruisait et
+   * refermer au démontage ne coûtait rien. Devenu un onglet, il reste monté :
+   * le seul crochet équivalent serait la perte de focus — or ouvrir une note du
+   * coffre fait précisément perdre le focus à cet écran. Refermer là-dessus
+   * claquerait la porte à l'instant où l'on entre.
+   *
+   * Restent les deux déclencheurs qui portent réellement la protection : le
+   * passage en arrière-plan, immédiat, et le délai absolu de cinq minutes. Le
+   * bouton « Refermer » couvre le geste volontaire.
+   */
+
+  /**
+   * Note que l'éditeur a confiée au coffre en nous y envoyant.
+   *
+   * Elle est recopiée dans un état local, et non lue directement du paramètre de
+   * route, parce qu'elle se consomme : une fois rangée, la mention doit
+   * disparaître de l'écran, alors que le paramètre, lui, reste dans l'URL. Le
+   * drapeau empêche l'effet de la faire revenir aussitôt.
+   */
+  const params = useLocalSearchParams<{ claim?: string }>()
+  const [claim, setClaim] = useState<string | null>(null)
+  const claimSettled = useRef(false)
+
+  useEffect(() => {
+    if (claimSettled.current || !params.claim) return
+    setClaim(params.claim)
+  }, [params.claim])
+
+  const releaseClaim = useCallback(() => {
+    claimSettled.current = true
+    setClaim(null)
+  }, [])
 
   return (
     <View
@@ -48,19 +92,45 @@ export default function Vault() {
       }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.sm }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Retour"
-          onPress={() => router.back()}
-          style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Feather name="arrow-left" size={22} color={theme.text.primary} />
-        </Pressable>
+        {/* Le coffre s'atteint désormais par son onglet, où il n'y a rien
+            derrière : la flèche n'apparaît que si l'on y est venu depuis
+            ailleurs, l'éditeur qui confie une note par exemple. */}
+        {router.canGoBack() ? (
+          <IconButton icon="arrow-left" label="Retour" onPress={() => router.back()} />
+        ) : (
+          <View style={{ width: space.md }} />
+        )}
         <Inscription style={{ flex: 1 }}>Coffre</Inscription>
       </View>
 
-      {!ready ? null : !configured ? <Setup /> : !unlocked ? <Locked /> : <Contents />}
+      {!ready ? null : !configured ? (
+        <Setup pendingNote={claim !== null} />
+      ) : !unlocked ? (
+        <Locked pendingNote={claim !== null} />
+      ) : (
+        <Contents claim={claim} onClaimSettled={releaseClaim} />
+      )}
     </View>
+  )
+}
+
+/**
+ * Rappel de l'intention en cours, tant que le coffre n'est pas ouvert.
+ *
+ * Sans cette ligne, l'écran de code apparaît sans raison lisible : on a demandé
+ * à ranger une note, on se retrouve devant un pavé numérique. Dire pourquoi
+ * coûte une phrase et évite d'abandonner en route.
+ */
+function PendingNoteNotice() {
+  return (
+    <Card recessed style={{ gap: space.xxs }}>
+      <Txt variant="label" tone="accent">
+        Une note attend d’être rangée ici
+      </Txt>
+      <Txt variant="caption" tone="muted">
+        Elle sera masquée dès le coffre ouvert. Revenir en arrière la laisse où elle est.
+      </Txt>
+    </Card>
   )
 }
 
@@ -74,7 +144,7 @@ export default function Vault() {
  * n'est chiffré à ce stade, il n'y aurait même pas de récupération à proposer :
  * il faudrait effacer le coffre.
  */
-function Setup() {
+function Setup({ pendingNote }: { pendingNote: boolean }) {
   const { configure, biometrics } = useVault()
   const { theme } = useTheme()
 
@@ -109,6 +179,8 @@ function Setup() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }}>
+      {pendingNote ? <PendingNoteNotice /> : null}
+
       <Card recessed style={{ gap: space.sm }}>
         <Txt variant="title">Choisir un code</Txt>
         <Txt variant="body" tone="secondary">
@@ -121,9 +193,9 @@ function Setup() {
          * quelqu'un rangerait ici des choses qui méritent mieux.
          */}
         <Txt variant="caption" tone="muted">
-          Ce code masque, il ne chiffre pas. Les notes restent lisibles par qui
-          accède à la base{Platform.OS === 'web' ? ', et le code lui-même est stocké dans le navigateur' : ''}.
-          Le chiffrement bout en bout viendra plus tard.
+          Ce code garde l’accès sur cet appareil{Platform.OS === 'web' ? ', et il est stocké dans le navigateur' : ''}.
+          Il ne chiffre rien par lui-même : le chiffrement se met en place une fois le coffre
+          ouvert, avec sa propre clé de secours.
         </Txt>
       </Card>
 
@@ -184,7 +256,7 @@ function Setup() {
 
 // ------------------------------------------------------------------- fermé
 
-function Locked() {
+function Locked({ pendingNote }: { pendingNote: boolean }) {
   const { unlockWithPin, unlockWithBiometrics, biometricsEnabled, biometrics, coolingMs, failures } =
     useVault()
   const { theme } = useTheme()
@@ -217,6 +289,12 @@ function Locked() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.xl, alignItems: 'center' }}>
+      {pendingNote ? (
+        <View style={{ alignSelf: 'stretch' }}>
+          <PendingNoteNotice />
+        </View>
+      ) : null}
+
       <View style={{ alignItems: 'center', gap: space.sm, paddingTop: space.lg }}>
         <StandingStone
           size={96}
@@ -255,14 +333,50 @@ function Locked() {
 
 // ------------------------------------------------------------------ ouvert
 
-function Contents() {
+function Contents({
+  claim,
+  onClaimSettled,
+}: {
+  /** Note confiée par l'éditeur, à ranger dès l'ouverture. */
+  claim: string | null
+  onClaimSettled: () => void
+}) {
   const { theme } = useTheme()
   const router = useRouter()
-  const { lock } = useVault()
+  const { lock, keyStatus } = useVault()
   const { notes, isLoading } = usePrivateNoteList()
   const createNote = useCreateNote()
   const updateNote = useUpdateNote()
+  const setNotePrivate = useSetNotePrivate()
+  const toast = useToast()
   const [creating, setCreating] = useState(false)
+  const rising = useRise({ distance: 16 })
+  const composerRising = useRise({ distance: 16, delay: motion.fast })
+
+  /**
+   * Le rangement promis à l'éditeur, honoré ici.
+   *
+   * Une seule fois, d'où le drapeau : le coffre peut se refermer et se rouvrir
+   * sans quitter l'écran, et rejouer l'écriture à chaque ouverture annoncerait
+   * un rangement déjà fait.
+   *
+   * Sans nom de code, délibérément. En donner un est un choix éditorial, et
+   * l'inventer à la place de l'auteur serait pire que le silence : c'est le seul
+   * texte d'une note du coffre qui reste visible de l'extérieur.
+   */
+  const claiming = useRef(false)
+  useEffect(() => {
+    if (!claim || claiming.current) return
+    claiming.current = true
+    setNotePrivate.mutate(
+      { id: claim, isPrivate: true, codeName: null },
+      {
+        onSuccess: () => toast('Note rangée dans le coffre.', { tone: 'success' }),
+        onError: () => toast('Impossible de ranger la note ici.', { tone: 'danger' }),
+        onSettled: onClaimSettled,
+      },
+    )
+  }, [claim, setNotePrivate, toast, onClaimSettled])
 
   const create = useCallback(
     async (kind: NoteKind) => {
@@ -281,136 +395,115 @@ function Contents() {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView
-        contentContainerStyle={{ padding: space.lg, paddingBottom: space.lg + 72, gap: space.md }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-          <Txt variant="caption" tone="muted" style={{ flex: 1 }}>
-            {notes.length === 0
-              ? 'Rien de rangé ici.'
-              : notes.length === 1
-                ? '1 note rangée'
-                : `${notes.length} notes rangées`}
-          </Txt>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Refermer le coffre"
-            onPress={lock}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 44 }}
-          >
-            <Feather name="lock" size={14} color={theme.accent.default} />
-            <Txt variant="label" tone="accent">
-              Refermer
+      {/**
+       * Le contenu du coffre se lève à l'ouverture.
+       *
+       * C'est le seul endroit de l'application où l'animation porte réellement
+       * une information : entre le pavé numérique et la grille des notes
+       * masquées, rien ne change de place à l'écran, et sans mouvement le
+       * basculement se lit comme un saut. La course est un peu plus longue
+       * qu'ailleurs, le geste étant celui d'un couvercle qu'on soulève.
+       */}
+      <Animated.View style={[{ flex: 1 }, rising]}>
+        <ScrollView
+          contentContainerStyle={{ padding: space.lg, paddingBottom: space.lg + 72, gap: space.md }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+            <Txt variant="caption" tone="muted" style={{ flex: 1 }}>
+              {notes.length === 0
+                ? 'Rien de rangé ici.'
+                : notes.length === 1
+                  ? '1 note rangée'
+                  : `${notes.length} notes rangées`}
             </Txt>
-          </Pressable>
-        </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Refermer le coffre"
+              onPress={lock}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 44 }}
+            >
+              <Feather name="lock" size={14} color={theme.accent.default} />
+              <Txt variant="label" tone="accent">
+                Refermer
+              </Txt>
+            </Pressable>
+          </View>
 
-        {isLoading ? (
-          <Card recessed style={{ paddingVertical: space.xxxl, alignItems: 'center' }}>
-            <Txt variant="body" tone="muted">
-              Chargement.
-            </Txt>
-          </Card>
-        ) : notes.length === 0 ? (
-          <Card recessed style={{ alignItems: 'center', paddingVertical: space.xxxl, gap: space.md }}>
-            <StandingStone size={72} color={theme.line.strong} carveColor={theme.accent.default} />
-            <Txt variant="title" tone="secondary">
-              Coffre vide
-            </Txt>
-            <Txt variant="body" tone="muted" style={{ textAlign: 'center' }}>
-              Écris ici, ou range une note existante depuis son éditeur.
-            </Txt>
-          </Card>
-        ) : (
-          <MasonryGrid
-            items={notes}
-            keyExtractor={(n) => n.id}
-            estimateHeight={estimateCardHeight}
-            renderItem={(note) => (
-              <NoteCard
-                note={note}
-                onPress={() => router.push(`/note/${note.id}`)}
-                onTogglePin={() =>
-                  updateNote.mutate({ id: note.id, patch: { is_pinned: !note.is_pinned } })
-                }
-              />
-            )}
-          />
-        )}
-      </ScrollView>
+          {/**
+           * L'état de la clé passe avant le contenu.
+           *
+           * Sans clé sur cet appareil, les notes s'afficheraient vides : montrer
+           * une grille de cartes muettes ferait croire à un coffre effacé, alors
+           * qu'il n'est que fermé d'une seconde serrure.
+           */}
+          {/**
+           * La clé de secours passe avant tout le reste, et ne dépend d'aucun
+           * autre état : c'est ce qui l'a fait disparaître la première fois.
+           */}
+          <RecoveryKeyReveal />
+          {keyStatus === 'elsewhere' ? <EncryptionRestore /> : null}
+          {keyStatus === 'none' ? <EncryptionSetup /> : null}
+          {keyStatus === 'ready' ? <RecoveryKeyRenewal /> : null}
 
-      <View
-        style={{
-          position: 'absolute',
-          right: space.lg,
-          bottom: space.lg,
-          flexDirection: 'row',
-          gap: space.sm,
-        }}
+          {keyStatus === 'elsewhere' ? null : isLoading || keyStatus === 'checking' ? (
+            <RuneLoader message="On descend dans le coffre…" rune="algiz" />
+          ) : notes.length === 0 ? (
+            <Card recessed style={{ alignItems: 'center', paddingVertical: space.xxxl, gap: space.md }}>
+              <StandingStone size={72} color={theme.line.strong} carveColor={theme.accent.default} />
+              <Txt variant="title" tone="secondary">
+                Coffre vide
+              </Txt>
+              <Txt variant="body" tone="muted" style={{ textAlign: 'center' }}>
+                Écris ici, ou range une note existante depuis son éditeur.
+              </Txt>
+            </Card>
+          ) : (
+            <MasonryGrid
+              items={notes}
+              keyExtractor={(n) => n.id}
+              estimateHeight={estimateCardHeight}
+              renderItem={(note) => (
+                <NoteCard
+                  note={note}
+                  onPress={() => router.push(`/note/${note.id}`)}
+                  onTogglePin={() =>
+                    updateNote.mutate({ id: note.id, patch: { is_pinned: !note.is_pinned } })
+                  }
+                />
+              )}
+            />
+          )}
+        </ScrollView>
+      </Animated.View>
+
+      {/* Les boutons suivent le contenu d'un temps, plutôt que d'apparaître au
+          milieu de son mouvement. */}
+      <Animated.View
+        style={[
+          composerRising,
+          {
+            position: 'absolute',
+            right: space.lg,
+            bottom: space.lg,
+            flexDirection: 'row',
+            gap: space.sm,
+          },
+        ]}
       >
-        <VaultComposerButton
+        <ComposerButton
           icon="check-square"
           label="Nouvelle liste dans le coffre"
-          primary={false}
           busy={creating}
           onPress={() => void create('checklist')}
         />
-        <VaultComposerButton
+        <ComposerButton
           icon="plus"
           label="Nouvelle note dans le coffre"
           primary
           busy={creating}
           onPress={() => void create('note')}
         />
-      </View>
+      </Animated.View>
     </View>
-  )
-}
-
-function VaultComposerButton({
-  icon,
-  label,
-  primary,
-  busy,
-  onPress,
-}: {
-  icon: 'plus' | 'check-square'
-  label: string
-  primary: boolean
-  busy: boolean
-  onPress: () => void
-}) {
-  const { theme } = useTheme()
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: busy, busy }}
-      disabled={busy}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        width: 56,
-        height: 56,
-        borderRadius: radius.xl,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: primary
-          ? pressed
-            ? theme.accent.pressed
-            : theme.accent.default
-          : theme.line.strong,
-        backgroundColor: primary
-          ? pressed
-            ? theme.accent.pressed
-            : theme.accent.default
-          : pressed
-            ? theme.surface.raised
-            : theme.surface.card,
-        opacity: busy ? 0.6 : 1,
-      })}
-    >
-      <Feather name={icon} size={22} color={primary ? theme.text.onAccent : theme.text.primary} />
-    </Pressable>
   )
 }

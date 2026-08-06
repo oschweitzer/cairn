@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { Platform } from 'react-native'
+import { useQueryClient } from '@tanstack/react-query'
 import * as WebBrowser from 'expo-web-browser'
 import { makeRedirectUri } from 'expo-auth-session'
 import type { Session } from '@supabase/supabase-js'
@@ -48,6 +49,41 @@ function readableError(message: string): string {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const qc = useQueryClient()
+
+  /**
+   * Le cache suit l'identité de la session.
+   *
+   * Deux situations, deux réponses, et aucune n'est théorique.
+   *
+   * La session arrive après le premier rendu : rien n'attend le jeton, donc les
+   * lectures ont pu partir sans lui et revenir avec zéro ligne, RLS ayant fait
+   * son travail. Il faut les rejouer, sans quoi la grille reste vide jusqu'à la
+   * prochaine péremption.
+   *
+   * On change de compte : le cache du précédent est encore là, y compris sur le
+   * disque, et il s'affichera le temps d'un aller-retour réseau. Montrer les
+   * notes de quelqu'un d'autre, même une seconde, n'est pas un défaut
+   * d'affichage. Le cache est donc vidé, pas invalidé.
+   *
+   * L'identité, et non l'événement : `onAuthStateChange` parle aussi à chaque
+   * renouvellement de jeton, où il n'y a rien à refaire.
+   */
+  const seenUserId = useRef<string | null | undefined>(undefined)
+  const syncCacheWithUser = useCallback(
+    (next: Session | null) => {
+      const nextId = next?.user.id ?? null
+      const previous = seenUserId.current
+      seenUserId.current = nextId
+      if (previous === nextId) return
+      if (previous != null) {
+        void qc.clear()
+        return
+      }
+      if (nextId != null) void qc.invalidateQueries()
+    },
+    [qc],
+  )
 
   useEffect(() => {
     // Sans configuration, il n'y a pas de session à lire : on sort du
@@ -60,22 +96,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let cancelled = false
 
-    getSupabase().auth.getSession().then(({ data }) => {
-      if (cancelled) return
-      setSession(data.session)
-      setLoading(false)
-    })
+    getSupabase()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (cancelled) return
+        setSession(data.session)
+        setLoading(false)
+        syncCacheWithUser(data.session)
+      })
+      // Un stockage illisible ne doit pas laisser l'application en attente pour
+      // toujours : l'aiguillage et les écrans de chargement sont tous deux
+      // suspendus à ce drapeau. Sans session, on ira sur l'écran de connexion,
+      // ce qui est la bonne conclusion d'une session qu'on n'a pas pu lire.
+      .catch(() => {
+        if (!cancelled) setLoading(false)
+      })
 
     const { data: sub } = getSupabase().auth.onAuthStateChange((_event, next) => {
       setSession(next)
       setLoading(false)
+      syncCacheWithUser(next)
     })
 
     return () => {
       cancelled = true
       sub.subscription.unsubscribe()
     }
-  }, [])
+  }, [syncCacheWithUser])
 
   const value = useMemo<AuthContextValue>(
     () => ({

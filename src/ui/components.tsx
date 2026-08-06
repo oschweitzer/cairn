@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from './ThemeProvider'
 import { CAIRN, Rune, RuneRow, type RuneName } from './runes'
-import { radius, space, type } from './theme'
+import { radius, space, type, withAlpha } from './theme'
 
 /**
  * Primitives de l'interface. Elles portent l'identité de la pierre levée,
@@ -63,6 +63,42 @@ export function useFocusRing(props?: Pick<TextInputProps, 'onFocus' | 'onBlur'>)
     [props],
   )
   return { focused, onFocus, onBlur }
+}
+
+// ------------------------------------------------------------------ survol
+
+/**
+ * État de survol, et le halo qui va avec.
+ *
+ * ── Pourquoi le web seulement ────────────────────────────────────────────────
+ * Le survol n'existe pas au doigt. Sur mobile, `onHoverIn` ne se déclenche
+ * jamais, et le drapeau est verrouillé à faux pour que rien ne dépende d'un
+ * geste qui ne viendra pas : un bouton dont l'état allumé n'est accessible qu'à
+ * la souris ne doit pas être le seul moyen de comprendre l'interface. Le halo
+ * est un confort de pointeur, jamais une information.
+ *
+ * ── Pourquoi une lueur, dans cette application ───────────────────────────────
+ * Le registre est celui de la pierre gravée. Une gravure ne s'éclaire pas d'un
+ * fond de couleur, elle prend la lumière : l'aurore diffuse autour du glyphe,
+ * comme une rune qui capte un rayon. D'où un halo et non un aplat, et d'où
+ * l'accent plutôt qu'un gris — c'est la seule couleur vivante du thème.
+ */
+export function useHover() {
+  const [hovered, setHovered] = useState(false)
+  const onHoverIn = useCallback(() => setHovered(true), [])
+  const onHoverOut = useCallback(() => setHovered(false), [])
+  return {
+    hovered: Platform.OS === 'web' && hovered,
+    hoverProps: { onHoverIn, onHoverOut },
+  }
+}
+
+/**
+ * Halo d'accent. `spread` en points, la diffusion suivant la taille de la cible :
+ * une pastille de 36 et un bouton de 56 ne rayonnent pas de la même façon.
+ */
+export function glow(color: string, spread = 14): { boxShadow: string } {
+  return { boxShadow: `0 0 ${spread}px ${Math.round(spread / 6)}px ${color}` }
 }
 
 // ------------------------------------------------------------------ écran
@@ -270,10 +306,26 @@ export function Button({
   ...rest
 }: PressableProps & { label: string; variant?: 'primary' | 'ghost' | 'danger'; busy?: boolean }) {
   const { theme } = useTheme()
+  const { hovered, hoverProps } = useHover()
   const inert = disabled || busy
+  const lit = hovered && !inert
 
+  /**
+   * Le fantôme n'est plus tout à fait transparent.
+   *
+   * Un contour d'un pixel sur le fond de page se lit mal, surtout à côté d'un
+   * bouton plein : il fallait le chercher pour savoir qu'il était cliquable. La
+   * strate surélevée lui donne un corps sans lui donner l'accent, qui reste
+   * réservé à l'action principale. Le danger garde son fond neutre : c'est sa
+   * bordure et son texte rouges qui le désignent, un aplat le rendrait
+   * accueillant.
+   */
   const background =
-    variant === 'primary' ? theme.accent.default : variant === 'danger' ? 'transparent' : 'transparent'
+    variant === 'primary'
+      ? theme.accent.default
+      : variant === 'danger'
+        ? 'transparent'
+        : theme.surface.raised
   const border =
     variant === 'primary'
       ? theme.accent.default
@@ -286,6 +338,7 @@ export function Button({
       accessibilityRole="button"
       accessibilityState={{ disabled: Boolean(inert), busy }}
       disabled={inert}
+      {...hoverProps}
       style={({ pressed }) => [
         {
           // Cible tactile de 48 points, plancher recommandé sur Android.
@@ -304,6 +357,15 @@ export function Button({
                 : background,
           opacity: inert ? 0.55 : 1,
         },
+        // Le halo prend la couleur de ce que le bouton engage : l'accent pour
+        // une action ordinaire, le rouge pour une destruction. Une lueur
+        // rassurante sur un bouton qui détruit serait un contresens.
+        lit
+          ? glow(
+              withAlpha(variant === 'danger' ? theme.state.danger : theme.accent.default, 0.35),
+              18,
+            )
+          : null,
         style as object,
       ]}
       {...rest}

@@ -1,4 +1,7 @@
-import type { ChecklistItem, Note, Tag } from './types'
+import type { Note, PlainChecklistItem, Tag } from './types'
+// Type seul, effacé à la compilation : aucune dépendance d'exécution vers l'UI,
+// et src/ui/theme.ts n'importe de toute façon aucun module react-native.
+import type { TagColorKey } from '../ui/theme'
 
 /**
  * Logique pure de composition, de tri, de filtrage et de recherche.
@@ -10,7 +13,7 @@ import type { ChecklistItem, Note, Tag } from './types'
  */
 
 export type NoteWithRelations = Note & {
-  items: ChecklistItem[]
+  items: PlainChecklistItem[]
   tags: Tag[]
 }
 
@@ -20,11 +23,11 @@ export type TagLink = { note_id: string; tag_id: string }
 
 export function composeNotes(
   notes: Note[],
-  items: ChecklistItem[],
+  items: PlainChecklistItem[],
   links: TagLink[],
   tags: Tag[],
 ): NoteWithRelations[] {
-  const itemsByNote = new Map<string, ChecklistItem[]>()
+  const itemsByNote = new Map<string, PlainChecklistItem[]>()
   for (const item of items) {
     const list = itemsByNote.get(item.note_id)
     if (list) list.push(item)
@@ -150,6 +153,34 @@ export function displayTitle(note: {
 }): string | null {
   if (!note.is_private) return note.title
   return note.code_name
+}
+
+/**
+ * Couleur qu'une note prend en recevant un tag, ou `null` s'il ne faut rien
+ * changer.
+ *
+ * Un tag a une couleur, une note aussi, et jusqu'ici les deux ne se parlaient
+ * pas : on posait un tag « courses » en fjord et la carte restait grise, il
+ * fallait aller repeindre la note à la main avec la teinte qu'on venait de
+ * choisir juste à côté. La couleur du tag est déjà une décision, elle sert.
+ *
+ * ── Ce que la règle ne fait pas, et c'est le plus important ──────────────────
+ * Elle ne repeint jamais une note déjà colorée. Une couleur posée à la main est
+ * un choix explicite, et un tag ajouté ensuite n'a pas à l'écraser : ce serait
+ * perdre une intention pour en deviner une autre. D'où le nom : c'est un
+ * héritage, pas une synchronisation.
+ *
+ * Le retrait d'un tag ne défait rien non plus. La couleur est devenue celle de
+ * la note, et la reprendre en enlevant le tag ferait disparaître un état visible
+ * de la grille sans que personne ne l'ait demandé.
+ */
+export function inheritedColor(
+  note: Pick<Note, 'color_key'>,
+  addedTag: Pick<Tag, 'color_key'> | undefined,
+): TagColorKey | null {
+  if (!addedTag) return null
+  if (note.color_key !== null) return null
+  return addedTag.color_key
 }
 
 /** Filtre conjonctif : la note doit porter tous les tags sélectionnés. */

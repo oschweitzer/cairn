@@ -15,9 +15,13 @@ import { useNoteList } from '@/db/select'
 import type { NoteKind } from '@/db/types'
 import { useTheme } from '@/ui/ThemeProvider'
 import { Card, Logotype, Txt, noWebOutline, useFocusRing } from '@/ui/components'
+import { ComposerButton } from '@/ui/ComposerButton'
+import { IconButton } from '@/ui/IconButton'
 import { MasonryGrid } from '@/ui/MasonryGrid'
 import { NoteCard, estimateCardHeight } from '@/ui/NoteCard'
+import { RuneLoader } from '@/ui/RuneLoader'
 import { StandingStone } from '@/ui/runes'
+import { Tooltip } from '@/ui/Tooltip'
 import { radius, space, type } from '@/ui/theme'
 
 export default function Notes() {
@@ -151,9 +155,11 @@ export default function Notes() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
             <Logotype style={{ flex: 1 }} />
             {notes.length > 0 ? (
-              <SelectionAction
+              <IconButton
                 icon="check-circle"
                 label="Sélectionner des notes"
+                tooltip="Sélectionner plusieurs notes"
+                size="md"
                 onPress={() => setSelectionArmed(true)}
               />
             ) : null}
@@ -200,14 +206,16 @@ export default function Notes() {
             ]}
           />
           {search.length > 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Effacer la recherche"
-              onPress={() => setSearch('')}
-              hitSlop={space.md}
-            >
-              <Feather name="x" size={16} color={theme.text.secondary} />
-            </Pressable>
+            <Tooltip label="Effacer la recherche">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Effacer la recherche"
+                onPress={() => setSearch('')}
+                hitSlop={space.md}
+              >
+                <Feather name="x" size={16} color={theme.text.secondary} />
+              </Pressable>
+            </Tooltip>
           ) : null}
         </View>
 
@@ -295,11 +303,7 @@ export default function Notes() {
             </Txt>
           </Card>
         ) : isLoading ? (
-          <Card style={{ paddingVertical: space.xxxl, alignItems: 'center' }}>
-            <Txt variant="body" tone="muted">
-              Chargement.
-            </Txt>
-          </Card>
+          <RuneLoader message="On dépile les pierres…" />
         ) : notes.length === 0 ? (
           <Card style={{ alignItems: 'center', paddingVertical: space.xxxl, gap: space.md }}>
             {/**
@@ -406,7 +410,7 @@ function SelectionBar({
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 48 }}>
-      <SelectionAction icon="x" label="Quitter la sélection" onPress={onCancel} />
+      <IconButton icon="x" label="Quitter la sélection" size="md" onPress={onCancel} />
       <Txt variant="label" tone={nothingSelected ? 'muted' : 'primary'} style={{ flex: 1 }}>
         {nothingSelected
           ? 'Toucher des notes'
@@ -415,77 +419,37 @@ function SelectionBar({
             : `${count} sélectionnées`}
       </Txt>
       {allSelected ? null : (
-        <SelectionAction icon="check-square" label="Tout sélectionner" onPress={onSelectAll} />
+        <IconButton
+          icon="check-square"
+          label="Tout sélectionner"
+          size="md"
+          onPress={onSelectAll}
+        />
       )}
-      <SelectionAction
+      <IconButton
         icon="bookmark"
         label={allPinned ? 'Désépingler la sélection' : 'Épingler la sélection'}
+        size="md"
         active={allPinned && !nothingSelected}
         disabled={nothingSelected}
         onPress={onPin}
       />
-      <SelectionAction
+      <IconButton
         icon="archive"
         label="Archiver la sélection"
+        size="md"
         disabled={nothingSelected}
         onPress={onArchive}
       />
-      <SelectionAction
+      <IconButton
         icon="trash-2"
         label="Mettre la sélection à la corbeille"
         tone="danger"
+        size="md"
         disabled={nothingSelected}
         onPress={onDelete}
       />
     </View>
-  )
-}
-
-function SelectionAction({
-  icon,
-  label,
-  onPress,
-  active = false,
-  disabled = false,
-  tone = 'default',
-}: {
-  icon: React.ComponentProps<typeof Feather>['name']
-  label: string
-  onPress: () => void
-  active?: boolean
-  disabled?: boolean
-  tone?: 'default' | 'danger'
-}) {
-  const { theme } = useTheme()
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled, selected: active }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radius.md,
-        opacity: disabled ? 0.35 : 1,
-        backgroundColor: pressed && !disabled ? theme.surface.raised : 'transparent',
-      })}
-    >
-      <Feather
-        name={icon}
-        size={18}
-        color={
-          tone === 'danger'
-            ? theme.state.danger
-            : active
-              ? theme.accent.default
-              : theme.text.secondary
-        }
-      />
-    </Pressable>
   )
 }
 
@@ -508,72 +472,16 @@ function Composer({ busy, onCreate }: { busy: boolean; onCreate: (kind: NoteKind
       <ComposerButton
         icon="check-square"
         label="Nouvelle liste"
-        variant="ghost"
         busy={busy}
         onPress={() => onCreate('checklist')}
       />
       <ComposerButton
         icon="plus"
         label="Nouvelle note"
-        variant="primary"
+        primary
         busy={busy}
         onPress={() => onCreate('note')}
       />
     </View>
-  )
-}
-
-function ComposerButton({
-  icon,
-  label,
-  variant,
-  busy,
-  onPress,
-}: {
-  icon: 'plus' | 'check-square'
-  label: string
-  variant: 'primary' | 'ghost'
-  busy: boolean
-  onPress: () => void
-}) {
-  const { theme } = useTheme()
-  const primary = variant === 'primary'
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: busy, busy }}
-      disabled={busy}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        // 56 points : cible confortable pour un bouton flottant atteint au pouce.
-        width: 56,
-        height: 56,
-        borderRadius: radius.xl,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: primary
-          ? pressed
-            ? theme.accent.pressed
-            : theme.accent.default
-          : theme.line.strong,
-        backgroundColor: primary
-          ? pressed
-            ? theme.accent.pressed
-            : theme.accent.default
-          : pressed
-            ? theme.surface.raised
-            : theme.surface.card,
-        opacity: busy ? 0.6 : 1,
-      })}
-    >
-      <Feather
-        name={icon}
-        size={22}
-        color={primary ? theme.text.onAccent : theme.text.primary}
-      />
-    </Pressable>
   )
 }
