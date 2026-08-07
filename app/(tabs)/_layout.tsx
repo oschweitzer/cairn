@@ -137,6 +137,22 @@ function TabButton({
           ? {
               marginVertical: space.sm,
               marginHorizontal: space.xs,
+              /**
+               * La pierre a une taille ; c'est la case qui s'étire, pas elle.
+               *
+               * Sans borne, chaque onglet occupait un quart d'un écran de
+               * bureau — près de cinq cents points pour une icône et un mot,
+               * soit quatre dalles vides plutôt qu'une rangée. La borne est
+               * posée ici et non par `tabBarItemStyle` parce que la rangée n'est
+               * pas atteignable : `tabBarStyle` habille un conteneur en colonne
+               * situé au-dessus d'elle, et le centrage y reste sans effet.
+               *
+               * Elle ne mord jamais sur un téléphone, où quatre fois cette
+               * largeur dépasse l'écran.
+               */
+              maxWidth: 168,
+              alignSelf: 'center',
+              width: '100%',
               paddingTop: space.xs,
               borderRadius: radius.md,
               /**
@@ -235,6 +251,16 @@ export default function TabsLayout() {
         // Le gris atténué était trop pâle pour une barre qui porte toute la
         // navigation : un onglet qu'on ne lit pas ne se visite pas.
         tabBarInactiveTintColor: theme.text.secondary,
+        /**
+         * Le libellé reste sous l'icône, quelle que soit la largeur.
+         *
+         * La barre bascule d'elle-même en disposition horizontale sur un écran
+         * large, et la gravure s'y retrouvait coincée entre le bord et l'icône,
+         * minuscule et illisible — un défaut que seule une capture d'écran a
+         * révélé. La pierre veut sa gravure au-dessus, son icône au milieu et son
+         * mot dessous : c'est un empilement, pas une ligne.
+         */
+        tabBarLabelPosition: 'below-icon',
         tabBarStyle: {
           backgroundColor: theme.surface.card,
           // De la hauteur pour la gravure, sur le web seulement : le gabarit

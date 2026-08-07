@@ -1,10 +1,29 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { Platform } from 'react-native'
 import { useQueryClient } from '@tanstack/react-query'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as WebBrowser from 'expo-web-browser'
 import { makeRedirectUri } from 'expo-auth-session'
 import type { Session } from '@supabase/supabase-js'
 import { getSupabase, isSupabaseConfigured } from '../db/supabase'
+
+/**
+ * Marque de récupération en cours, écrite sur le support de stockage.
+ *
+ * Elle n'est pas là par excès de prudence : sans elle, la retenue ne passait pas
+ * le premier rechargement. Constaté en éprouvant le parcours pour de bon —
+ * arrivé sur l'écran du nouveau mot de passe, une simple navigation vers la
+ * racine emmenait dans les notes. Supabase n'annonce `PASSWORD_RECOVERY` qu'une
+ * fois, à l'échange du code ; au rechargement suivant il restaure la session et
+ * annonce `INITIAL_SESSION`, un évènement qui ne dit rien de la récupération. Le
+ * drapeau en mémoire retombait donc à faux, la règle ordinaire reprenait la
+ * main, et le mot de passe oublié le restait — c'est-à-dire précisément la
+ * situation que cet écran existe pour empêcher.
+ *
+ * AsyncStorage plutôt que localStorage : il s'adosse à localStorage sur le web
+ * et au stockage natif sur Android, ce qui fait une seule écriture à écrire.
+ */
+const RECUPERATION = 'cairn.recuperation-en-cours'
 
 /**
  * Session Supabase et actions d'authentification.
@@ -28,6 +47,34 @@ type AuthContextValue = {
   signUpWithPassword: (email: string, password: string) => Promise<{ needsConfirmation: boolean }>
   signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
+
+  /**
+   * Envoie le courriel de récupération. Ne dit jamais si l'adresse est connue :
+   * répondre « ce compte n'existe pas » transformerait ce formulaire en outil de
+   * découverte des adresses inscrites.
+   */
+  sendPasswordReset: (email: string) => Promise<void>
+  /**
+   * Vrai entre le clic sur le lien reçu et la pose du nouveau mot de passe.
+   *
+   * Le lien ouvre une vraie session : sans ce drapeau, l'aiguillage enverrait
+   * droit dans l'application quelqu'un qui n'a pas encore choisi son nouveau mot
+   * de passe, et l'écran qui le demande ne serait jamais atteint.
+   */
+  recovering: boolean
+  updatePassword: (password: string) => Promise<void>
+
+  /**
+   * Supprime le compte et tout ce qui s'y rattache, sans retour possible.
+   *
+   * Ne s'occupe que du serveur, de la session et du cache. Ce qui dort sur
+   * l'appareil — le code du coffre et la clé de données — est effacé par le
+   * fournisseur du coffre, que celui-ci soit configuré ou non. L'écran des
+   * réglages enchaîne les deux, dans cet ordre : si l'appel serveur échoue, la
+   * clé locale est encore là, et le compte avec ses notes chiffrées reste
+   * lisible. L'inverse laisserait des données illisibles à jamais.
+   */
+  deleteAccount: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -41,6 +88,17 @@ function readableError(message: string): string {
   if (m.includes('password should be at least'))
     return 'Le mot de passe doit faire au moins 6 caractères.'
   if (m.includes('unable to validate email address')) return 'Cette adresse ne semble pas valide.'
+  /**
+   * Plafonds d'envoi, rencontrés pour de bon en éprouvant le parcours : l'écran
+   * affichait « email rate limit exceeded » tel quel, en anglais et dans le
+   * vocabulaire du serveur. Les deux plafonds n'appellent pas la même patience,
+   * d'où deux messages : celui du projet se compte en heures, celui de la
+   * personne en secondes.
+   */
+  if (m.includes('email rate limit exceeded') || m.includes('over_email_send_rate_limit'))
+    return 'Trop de courriels envoyés depuis ce projet dans l’heure. Réessaie un peu plus tard.'
+  if (m.includes('for security purposes') || m.includes('over_request_rate_limit'))
+    return 'Demande déjà envoyée il y a quelques instants. Patiente une minute avant de réessayer.'
   if (m.includes('failed to fetch') || m.includes('network request failed'))
     return 'Serveur injoignable. Vérifie la connexion et la configuration Supabase.'
   return message
@@ -48,8 +106,40 @@ function readableError(message: string): string {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [recovering, setRecovering] = useState(false)
   const qc = useQueryClient()
+
+  /**
+   * Deux lectures à attendre, pas une.
+   *
+   * L'aiguillage est suspendu à `loading`, et il ne doit s'exécuter qu'une fois
+   * la session ET la marque de récupération connues. Un seul drapeau ne
+   * suffisait pas : la session revient du stockage bien avant la marque, et
+   * l'aiguillage partait alors avec `recovering` encore à faux, emmenait dans
+   * les notes, puis se rattrapait quand la marque arrivait. Un aller-retour
+   * visible, sur l'écran qu'on cherche justement à ne pas contourner.
+   */
+  const [sessionLue, setSessionLue] = useState(false)
+  const [marqueLue, setMarqueLue] = useState(false)
+  const loading = !sessionLue || !marqueLue
+
+  /**
+   * Vrai dès que l'état de récupération est tranché par un évènement, lequel
+   * fait toujours autorité sur la marque stockée : celle-ci est relue de manière
+   * asynchrone et peut revenir après coup, où l'appliquer écraserait ce que
+   * Supabase vient d'annoncer.
+   */
+  const recuperationTranchee = useRef(false)
+  const noterRecuperation = useCallback((actif: boolean) => {
+    recuperationTranchee.current = true
+    setRecovering(actif)
+    // L'écriture n'a pas à être attendue : sur le web elle est synchrone sous le
+    // capot, et un échec de stockage ne doit pas faire échouer l'authentification.
+    void (actif
+      ? AsyncStorage.setItem(RECUPERATION, '1')
+      : AsyncStorage.removeItem(RECUPERATION)
+    ).catch(() => {})
+  }, [])
 
   /**
    * Le cache suit l'identité de la session.
@@ -90,18 +180,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // chargement pour laisser l'écran de configuration s'afficher, sans tenter
     // d'appel réseau voué à échouer.
     if (!isSupabaseConfigured) {
-      setLoading(false)
+      setSessionLue(true)
+      setMarqueLue(true)
       return
     }
 
     let cancelled = false
+
+    // Relecture de la marque de récupération, en parallèle de la session. Elle
+    // ne s'applique que si aucun évènement ne l'a déjà tranchée.
+    AsyncStorage.getItem(RECUPERATION)
+      .then((valeur) => {
+        if (cancelled || recuperationTranchee.current) return
+        if (valeur === '1') setRecovering(true)
+      })
+      // Un stockage illisible ne doit pas retenir l'application au chargement.
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setMarqueLue(true)
+      })
 
     getSupabase()
       .auth.getSession()
       .then(({ data }) => {
         if (cancelled) return
         setSession(data.session)
-        setLoading(false)
+        setSessionLue(true)
         syncCacheWithUser(data.session)
       })
       // Un stockage illisible ne doit pas laisser l'application en attente pour
@@ -109,20 +213,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // suspendus à ce drapeau. Sans session, on ira sur l'écran de connexion,
       // ce qui est la bonne conclusion d'une session qu'on n'a pas pu lire.
       .catch(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setSessionLue(true)
       })
 
-    const { data: sub } = getSupabase().auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = getSupabase().auth.onAuthStateChange((event, next) => {
       setSession(next)
-      setLoading(false)
+      setSessionLue(true)
       syncCacheWithUser(next)
+      // Supabase annonce l'ouverture d'une session de récupération, mais une
+      // seule fois : c'est ici, et nulle part ailleurs, qu'on peut l'apprendre.
+      // D'où la marque écrite, qui prend le relais aux chargements suivants.
+      if (event === 'PASSWORD_RECOVERY') noterRecuperation(true)
+      // Et sans session, il n'y a plus rien à récupérer : sans cette remise à
+      // zéro, se déconnecter depuis l'écran du nouveau mot de passe y laisserait
+      // enfermé, la navigation y étant retenue par ce même drapeau.
+      if (!next) noterRecuperation(false)
     })
 
     return () => {
       cancelled = true
       sub.subscription.unsubscribe()
     }
-  }, [syncCacheWithUser])
+  }, [syncCacheWithUser, noterRecuperation])
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -138,9 +250,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
 
       async signUpWithPassword(email, password) {
+        /**
+         * L'adresse de retour, que cette fonction était seule à omettre.
+         *
+         * Sans elle, Supabase se rabat sur l'URL de site du projet : le lien de
+         * confirmation envoyait donc vers `http://localhost:8081/`, c'est-à-dire
+         * la racine d'un serveur de développement, quel que soit l'endroit d'où
+         * l'inscription était faite. Constaté en lisant le courriel reçu, pas en
+         * relisant le code — rien ici ne signalait l'absence.
+         *
+         * Même adresse que la connexion Google et que la récupération : une
+         * seule entrée à déclarer côté Supabase, une seule à oublier.
+         */
         const { data, error } = await getSupabase().auth.signUp({
           email: email.trim(),
           password,
+          options: { emailRedirectTo: makeRedirectUri({ scheme: 'cairn', path: 'callback' }) },
         })
         if (error) throw new Error(readableError(error.message))
         // Quand la confirmation par courriel est active, Supabase renvoie un
@@ -187,12 +312,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (exchange.error) throw new Error(readableError(exchange.error.message))
       },
 
+      async sendPasswordReset(email) {
+        // Même adresse de retour que la connexion Google : elle est déjà dans la
+        // liste blanche du projet, et une seconde à y déclarer serait une seconde
+        // à oublier.
+        const redirectTo = makeRedirectUri({ scheme: 'cairn', path: 'callback' })
+        const { error } = await getSupabase().auth.resetPasswordForEmail(email.trim(), {
+          redirectTo,
+        })
+        if (error) throw new Error(readableError(error.message))
+      },
+
+      recovering,
+
+      async updatePassword(password) {
+        const { error } = await getSupabase().auth.updateUser({ password })
+        if (error) throw new Error(readableError(error.message))
+        // La marque est levée en même temps que le drapeau : le mot de passe est
+        // posé, un rechargement n'a plus de raison de ramener ici.
+        noterRecuperation(false)
+      },
+
       async signOut() {
         const { error } = await getSupabase().auth.signOut()
         if (error) throw new Error(readableError(error.message))
       },
+
+      async deleteAccount() {
+        const { error } = await getSupabase().rpc('delete_own_account')
+        if (error) throw new Error(readableError(error.message))
+
+        /**
+         * La déconnexion est locale, et il n'y a pas le choix.
+         *
+         * Le compte n'existe plus : une déconnexion ordinaire irait révoquer le
+         * jeton auprès d'un serveur qui ne connaît plus personne, et rendrait une
+         * erreur pour un travail déjà fait — la session ayant été emportée par la
+         * cascade. On se contente donc d'effacer le jeton d'ici.
+         */
+        await getSupabase().auth.signOut({ scope: 'local' })
+
+        // Le cache persisté survit à la déconnexion, par construction : c'est ce
+        // qui permet de retrouver ses notes sans attendre le réseau. Ici il n'y a
+        // plus de notes à retrouver, et les laisser sur le disque serait garder
+        // une copie de ce qu'on vient de promettre d'effacer.
+        await qc.clear()
+        noterRecuperation(false)
+      },
     }),
-    [session, loading],
+    [session, loading, recovering, noterRecuperation, qc],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

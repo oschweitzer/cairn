@@ -214,11 +214,15 @@ export function resolveTagColor(key: TagColorKey, theme: ThemeName): string {
 /**
  * Noms de familles tels qu'exposés par les paquets @expo-google-fonts.
  *
- * Grenze est une antique aux fûts droits et aux terminaisons taillées en biseau,
- * la plus proche d'un tracé gravé que propose une police lisible. Elle ne sert
- * qu'au logotype et aux titres de section, en capitales.
- * Alegreya est un serif humaniste conçu pour la lecture longue, aux angles moins
- * arrondis que la moyenne, il porte le contenu.
+ * Viking porte le logotype et les titres de section, en capitales. C'est une
+ * police d'affichage, et elle reste cantonnée à ce rôle : ses formes ne tiennent
+ * pas la lecture longue ni les onze points d'un libellé d'onglet. Elle est
+ * embarquée depuis assets/fonts, licence à côté du fichier — libre d'usage,
+ * modification et redistribution interdites.
+ * Junicode porte le contenu. C'est un serif de la Renaissance dessiné pour les
+ * éditions savantes de textes médiévaux : il est fait pour être lu longuement,
+ * et sa couverture latine est immense — ce qui compte moins ici, mais dit assez
+ * le soin apporté. Sous licence SIL Open Font, texte complet dans assets/fonts.
  * Archivo habille l'interface, où un serif à 11 points nuirait à la lisibilité.
  *
  * Les runes elles-mêmes ne sont pas typographiques. Le bloc Runique d'Unicode
@@ -227,10 +231,13 @@ export function resolveTagColor(key: TagColorKey, theme: ThemeName): string {
  * tracées en vectoriel, voir src/ui/runes.tsx.
  */
 export const fonts = {
-  display: 'Grenze_500Medium',
-  displayMedium: 'Grenze_600SemiBold',
-  serif: 'Alegreya_400Regular',
-  serifMedium: 'Alegreya_500Medium',
+  // Une seule graisse : Viking n'en propose pas d'autre. Les deux jetons
+  // pointent donc au même endroit, plutôt que de laisser croire à une variante
+  // qui n'existe pas.
+  display: 'Viking',
+  displayMedium: 'Viking',
+  serif: 'Junicode',
+  serifMedium: 'Junicode-Bold',
   sans: 'Archivo_400Regular',
   sansMedium: 'Archivo_500Medium',
 } as const
@@ -239,14 +246,31 @@ export const type = {
   /** Logotype et titres d'écran, en capitales espacées. */
   display: { fontFamily: fonts.display, fontSize: 21, lineHeight: 27, letterSpacing: 3.2 },
   /** Titre de note dans la grille. */
-  title: { fontFamily: fonts.serifMedium, fontSize: 18, lineHeight: 24 },
-  /** Corps de note et éléments de liste. Alegreya a un œil plus petit que
-   *  Spectral à taille égale, d'où le point gagné pour tenir la même lisibilité. */
-  body: { fontFamily: fonts.serif, fontSize: 16, lineHeight: 24 },
-  /** Onglets, boutons, noms de tags. */
+  title: { fontFamily: fonts.serifMedium, fontSize: 19, lineHeight: 26 },
+  /**
+   * Corps de note et éléments de liste.
+   *
+   * Un point de plus qu'avec Alegreya, et ce n'est pas un ajustement à l'œil :
+   * l'œil de Junicode mesure 0,418 em contre 0,456, soit 8 % de moins. À taille
+   * égale le texte paraîtrait plus petit, alors qu'il s'agit de la même lecture.
+   * Le calcul donne 17,5 ; on retient 17, la demi-taille ne se voyant pas et les
+   * nombres entiers se propageant mieux dans les hauteurs de ligne.
+   */
+  body: { fontFamily: fonts.serif, fontSize: 17, lineHeight: 26 },
+  /**
+   * Onglets, boutons, noms de tags. Reste en sans, et c'est un choix : ce sont
+   * des commandes, pas de la prose. Un serif y perdrait en netteté à quatorze
+   * points, et l'écart de police marque justement la frontière entre ce qu'on
+   * lit et ce sur quoi on appuie.
+   */
   label: { fontFamily: fonts.sansMedium, fontSize: 14, lineHeight: 20 },
-  /** Horodatages et métadonnées. Plancher de lisibilité, ne pas descendre plus bas. */
-  caption: { fontFamily: fonts.sans, fontSize: 12, lineHeight: 16, letterSpacing: 0.2 },
+  /**
+   * Explications, horodatages, métadonnées. Passées au serif : ce sont des
+   * phrases, pas des commandes, et les Réglages en sont presque entièrement
+   * faits. Un point gagné pour la même raison que le corps, l'œil plus petit
+   * pesant davantage encore à cette taille.
+   */
+  caption: { fontFamily: fonts.serif, fontSize: 13, lineHeight: 18, letterSpacing: 0.2 },
 } as const
 
 /**

@@ -90,11 +90,21 @@ await db.exec(`
     select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
   $fn$;
 
-  -- Rôle du client. Non superutilisateur, donc RLS s'applique réellement.
+  -- Rôles du client. Non superutilisateurs, donc RLS s'applique réellement.
   create role authenticated nologin;
-  grant usage on schema public to authenticated;
+  create role anon nologin;
+  grant usage on schema public to authenticated, anon;
   grant usage on schema auth to authenticated;
   grant execute on function auth.uid() to authenticated;
+
+  -- Droits par défaut de Supabase, reproduits ici parce que leur absence rendait
+  -- ce banc d'essai trop indulgent. Supabase accorde execute à anon et à
+  -- authenticated nommément, en plus du droit que Postgres accorde à PUBLIC :
+  -- une fonction qui ne retire le droit qu'à PUBLIC reste donc appelable en
+  -- production, alors qu'elle paraissait fermée ici. Constaté sur le projet réel
+  -- avec delete_own_account, que le test local déclarait pourtant hors de portée
+  -- d'un visiteur.
+  alter default privileges in schema public grant execute on functions to anon, authenticated;
 `)
 
 // ------------------------------------------------------------- la migration
@@ -439,6 +449,86 @@ await asUser(USER_A)
   )
   if (after.rows[0].updated_at > before.rows[0].updated_at) ok('updated_at avance à la modification')
   else fail('updated_at avance à la modification', 'la valeur n’a pas changé')
+}
+
+// ------------------------------------------------- suppression du compte
+
+/**
+ * En dernier, et ce n'est pas de la mise en scène : ce bloc efface pour de bon
+ * les données de A. Le placer plus haut priverait de leur sujet tous les tests
+ * qui suivent.
+ */
+console.log('')
+console.log('Suppression du compte')
+
+await asAdmin()
+{
+  const r = await db.query<{ peut: boolean; acl: string }>(
+    `select has_function_privilege('anon', 'delete_own_account()', 'EXECUTE') as peut,
+            coalesce(proacl::text, '(défaut : PUBLIC)') as acl
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = 'delete_own_account'`,
+  )
+  if (r.rows[0].peut === false) ok('un visiteur non connecté ne peut pas appeler la suppression')
+  else
+    fail(
+      'un visiteur non connecté ne peut pas appeler la suppression',
+      `le droit d’exécution est encore là. Il vient de deux sources, PUBLIC et le ` +
+        `grant nommé de Supabase, et il faut retirer les deux. Droits en place : ${r.rows[0].acl}`,
+    )
+}
+
+// Sans session, l'identité est nulle : la fonction doit le dire plutôt que de
+// rendre un succès qui n'a rien supprimé.
+await db.exec(`reset role; set request.jwt.claim.sub = ''; set role authenticated;`)
+await mustReject(
+  'sans session, la suppression est refusée',
+  `select delete_own_account()`,
+  /Aucune session/i,
+)
+
+// Compte des données de B avant, pour prouver ensuite qu'elles n'ont pas bougé.
+await asAdmin()
+const avantB = await db.query<{ n: number }>(
+  `select (select count(*) from notes where user_id = '${USER_B}')
+        + (select count(*) from tags where user_id = '${USER_B}') as n`,
+)
+
+await asUser(USER_A)
+await mustAccept('A supprime son propre compte', `select delete_own_account()`)
+
+await asAdmin()
+{
+  const r = await db.query<{ table_restante: string; n: number }>(`
+    select 'auth.users' as table_restante, count(*)::int as n from auth.users where id = '${USER_A}'
+    union all select 'profiles', count(*)::int from profiles where id = '${USER_A}'
+    union all select 'notes', count(*)::int from notes where user_id = '${USER_A}'
+    union all select 'tags', count(*)::int from tags where user_id = '${USER_A}'
+    union all select 'note_tags', count(*)::int from note_tags where user_id = '${USER_A}'
+    union all select 'reminders', count(*)::int from reminders where user_id = '${USER_A}'
+    union all select 'vault_keys', count(*)::int from vault_keys where user_id = '${USER_A}'
+    union all select 'checklist_items', count(*)::int from checklist_items where user_id = '${USER_A}'
+  `)
+  const restes = r.rows.filter((row) => row.n > 0)
+  if (restes.length === 0) ok('la suppression emporte toutes les données du compte, par cascade')
+  else
+    fail(
+      'la suppression emporte toutes les données du compte, par cascade',
+      `il reste des lignes dans ${restes.map((row) => `${row.table_restante} (${row.n})`).join(', ')}`,
+    )
+}
+{
+  const apresB = await db.query<{ n: number }>(
+    `select (select count(*) from notes where user_id = '${USER_B}')
+          + (select count(*) from tags where user_id = '${USER_B}') as n`,
+  )
+  if (apresB.rows[0].n === avantB.rows[0].n)
+    ok('le compte voisin est intact — la cascade ne déborde pas')
+  else
+    fail(
+      'le compte voisin est intact — la cascade ne déborde pas',
+      `${avantB.rows[0].n} lignes avant, ${apresB.rows[0].n} après`,
+    )
 }
 
 // ------------------------------------------------------------------ bilan

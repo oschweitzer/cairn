@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Pressable, View } from 'react-native'
-import { Stack, useRouter, useSegments } from 'expo-router'
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFonts } from 'expo-font'
-import { Grenze_500Medium, Grenze_600SemiBold } from '@expo-google-fonts/grenze'
-import { Alegreya_400Regular, Alegreya_500Medium } from '@expo-google-fonts/alegreya'
 import { Archivo_400Regular, Archivo_500Medium } from '@expo-google-fonts/archivo'
 
 import { AuthProvider, useAuth } from '@/auth/AuthProvider'
@@ -26,10 +24,11 @@ void SplashScreen.preventAutoHideAsync()
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    Grenze_500Medium,
-    Grenze_600SemiBold,
-    Alegreya_400Regular,
-    Alegreya_500Medium,
+    // Fichiers locaux plutôt que paquets : ni Viking ni Junicode ne vivent sur
+    // Google Fonts.
+    Viking: require('../assets/fonts/Viking.ttf'),
+    Junicode: require('../assets/fonts/Junicode.ttf'),
+    'Junicode-Bold': require('../assets/fonts/Junicode-Bold.ttf'),
     Archivo_400Regular,
     Archivo_500Medium,
   })
@@ -64,9 +63,13 @@ export default function RootLayout() {
 
 function Boot({ fontsReady }: { fontsReady: boolean }) {
   const { theme, ready: themeReady } = useTheme()
-  const { session, loading: authLoading } = useAuth()
+  const { session, loading: authLoading, recovering } = useAuth()
   const router = useRouter()
   const segments = useSegments()
+  // Le chemin plutôt qu'un segment indexé : `useSegments` rend un tuple dont la
+  // longueur varie d'une route à l'autre, et un index y est refusé à la
+  // compilation. Le groupe (auth) n'apparaît pas dans le chemin.
+  const pathname = usePathname()
 
   const canPaint = fontsReady && themeReady
 
@@ -78,9 +81,40 @@ function Boot({ fontsReady }: { fontsReady: boolean }) {
   useEffect(() => {
     if (!canPaint || authLoading || !isSupabaseConfigured) return
     const inAuthGroup = segments[0] === '(auth)'
+
+    /**
+     * La récupération passe avant tout le reste.
+     *
+     * Le lien reçu par courriel ouvre une session valide : la règle ordinaire —
+     * une session, donc on entre — enverrait droit dans les notes quelqu'un qui
+     * n'a pas encore choisi son nouveau mot de passe, et l'écran qui le demande
+     * ne serait jamais atteint. On y retient donc la navigation, et on sort tôt
+     * pour que la règle ordinaire ne s'applique pas.
+     */
+    if (recovering) {
+      if (pathname !== '/new-password') router.replace('/new-password')
+      return
+    }
+
+    /**
+     * Hors récupération, cet écran n'a plus rien à demander : on en sort.
+     *
+     * Sans cette règle il devenait un cul-de-sac, faute d'être couvert par les
+     * deux règles suivantes — il appartient au groupe (auth), donc « pas de
+     * session et hors du groupe » ne s'y applique pas. Le bouton « Annuler et se
+     * déconnecter » fermait donc bien la session, mais laissait sur place, face
+     * à un formulaire que plus aucune session ne permettait d'envoyer. Vu en
+     * éprouvant le parcours ; le commentaire de ce bouton promettait exactement
+     * l'inverse.
+     */
+    if (pathname === '/new-password') {
+      router.replace(session ? '/' : '/sign-in')
+      return
+    }
+
     if (!session && !inAuthGroup) router.replace('/sign-in')
     else if (session && inAuthGroup) router.replace('/')
-  }, [canPaint, authLoading, session, segments, router])
+  }, [canPaint, authLoading, session, recovering, segments, pathname, router])
 
   const needsSetup = !isSupabaseConfigured
   const [setupDismissed, setSetupDismissed] = useState(false)

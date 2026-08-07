@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { View } from 'react-native'
 import { Link } from 'expo-router'
 import { useAuth } from '@/auth/AuthProvider'
+import { pwnedCount, pwnedMessage } from '@/auth/pwned'
 import { Button, Card, Field, Logotype, Screen, Txt } from '@/ui/components'
 import { space } from '@/ui/theme'
 
@@ -25,6 +26,14 @@ export default function SignUp() {
     }
     setBusy(true)
     try {
+      // Avant d'ouvrir le compte : ce mot de passe circule-t-il déjà ? Le
+      // contrôle échoue ouvert, un service injoignable ne bloque donc rien.
+      const leaks = await pwnedCount(password)
+      if (leaks > 0) {
+        setError(pwnedMessage(leaks))
+        return
+      }
+
       const { needsConfirmation } = await signUpWithPassword(email, password)
       if (needsConfirmation) setAwaitingConfirmation(true)
       // Sinon la session est ouverte et l'aiguillage du layout racine redirige.

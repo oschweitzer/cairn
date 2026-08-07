@@ -14,6 +14,7 @@ import {
 import { loadDataKey, platformRandom, unloadDataKey } from './keyring'
 import { encryptExistingVaultNotes } from './migrate'
 import {
+  clearDataKey,
   clearSecret,
   createSecret,
   readDataKey,
@@ -105,6 +106,13 @@ type VaultContextValue = {
   lock: () => void
   /** Supprime le code. Les notes masquées le restent, elles redeviennent simplement inaccessibles jusqu'à un nouveau code. */
   disable: () => Promise<void>
+  /**
+   * Efface du stockage tout ce que le coffre y garde : le code ET la clé de
+   * données. Réservé à la suppression du compte — partout ailleurs c'est
+   * `disable` qu'il faut, qui préserve la clé pour qu'un code oublié ne coûte
+   * pas les notes chiffrées.
+   */
+  forgetEverything: () => Promise<void>
   setBiometricsEnabled: (next: boolean) => Promise<void>
 
   // ------------------------------------------------------------ chiffrement
@@ -416,6 +424,29 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setUnlocked(false)
   }, [])
 
+  /**
+   * Efface du stockage tout ce que le coffre y a déposé : le code et la clé de
+   * données. Accompagne la suppression du compte, et rien d'autre.
+   *
+   * `disable` ne convient pas ici, et la différence est le cœur du sujet : il
+   * retire le code en gardant la clé, précisément pour qu'un code oublié ne
+   * coûte pas les notes chiffrées. Ce qui est la bonne réponse là-bas est la
+   * mauvaise ici — laisser la clé derrière soi reviendrait à garder de quoi
+   * déchiffrer des notes dont on vient de promettre qu'elles n'existent plus.
+   *
+   * Appelé même sans coffre configuré : une clé peut avoir survécu à un
+   * `disable`, ce qui est justement sa raison d'être. Effacer une entrée absente
+   * ne coûte rien.
+   */
+  const forgetEverything = useCallback(async () => {
+    unloadDataKey()
+    await Promise.all([clearSecret(), clearDataKey()])
+    setSecret(null)
+    setUnlocked(false)
+    setKeyStatus('none')
+    setPendingRecoveryKey(null)
+  }, [])
+
   const setBiometricsEnabled = useCallback(
     async (next: boolean) => {
       if (!secret) return
@@ -439,6 +470,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       confirmWithBiometrics,
       lock,
       disable,
+      forgetEverything,
       setBiometricsEnabled,
       keyStatus,
       pendingRecoveryKey,
@@ -459,6 +491,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       confirmWithBiometrics,
       lock,
       disable,
+      forgetEverything,
       setBiometricsEnabled,
       keyStatus,
       pendingRecoveryKey,

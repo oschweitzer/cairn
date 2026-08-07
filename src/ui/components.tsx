@@ -13,7 +13,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from './ThemeProvider'
-import { CAIRN, Rune, RuneRow, type RuneName } from './runes'
+import { CAIRN, Rune, RuneRow, runeBox, type RuneName } from './runes'
 import { radius, space, type, withAlpha } from './theme'
 
 /**
@@ -103,6 +103,26 @@ export function glow(color: string, spread = 14): { boxShadow: string } {
 
 // ------------------------------------------------------------------ écran
 
+/**
+ * Largeur de lecture maximale d'une colonne de contenu.
+ *
+ * Les réglages, la connexion et l'inscription sont des colonnes : des cartes
+ * empilées, du texte courant, des champs. Étalées sur un écran de bureau, elles
+ * donnaient des lignes de deux cents caractères et des cartes larges comme la
+ * fenêtre — l'œil perd le début de la ligne suivante, et les boutons flottent
+ * seuls au milieu de leur bandeau.
+ *
+ * Aucune condition de plateforme : sur un téléphone la fenêtre est de toute
+ * façon plus étroite que cette borne, qui n'y change donc rien. C'est une mesure
+ * responsive, pas une correction pour le web — et elle vaut aussi pour une
+ * tablette, où le problème est le même en plus petit.
+ *
+ * La grille de notes, elle, n'est pas concernée : elle répond à la largeur en
+ * ajoutant des colonnes, ce qui est la bonne réponse pour du contenu qui se
+ * parcourt plutôt qu'il ne se lit.
+ */
+const MEASURE = 720
+
 export function Screen({
   children,
   scroll = false,
@@ -118,21 +138,26 @@ export function Screen({
     paddingBottom: insets.bottom,
   }
 
+  // La colonne prend toute la largeur offerte jusqu'à la borne, puis se centre.
+  // L'écart entre enfants la suit : il vit sur elle, pas sur le conteneur, sinon
+  // il s'appliquerait à la colonne elle-même, qui est fille unique.
+  const column = { width: '100%' as const, maxWidth: MEASURE, gap: space.md }
+
   if (scroll) {
     return (
       <View style={[base, style]} {...rest}>
         <ScrollView
-          contentContainerStyle={{ padding: space.lg, gap: space.md }}
+          contentContainerStyle={{ padding: space.lg, alignItems: 'center' }}
           keyboardShouldPersistTaps="handled"
         >
-          {children}
+          <View style={column}>{children}</View>
         </ScrollView>
       </View>
     )
   }
   return (
-    <View style={[base, { padding: space.lg, gap: space.md }, style]} {...rest}>
-      {children}
+    <View style={[base, { padding: space.lg, alignItems: 'center' }, style]} {...rest}>
+      <View style={[column, { flex: 1 }]}>{children}</View>
     </View>
   )
 }
@@ -266,27 +291,59 @@ export function Inscription({ children, style, ...rest }: TextProps) {
  * signature, pas une devinette : elle est masquée à l'accessibilité, le mot
  * au-dessus portant déjà l'information.
  */
+/** Hauteur des runes du logotype. Leur largeur en découle, voir `runeBox`. */
+const LOGO_RUNE_SIZE = 11
+
+/**
+ * Écart de repli, le temps de la première mesure.
+ *
+ * Calculé sur Viking à la taille d'affichage courante, donc juste dès la
+ * première image dans le cas ordinaire. Il ne sert que si la mesure tarde, et se
+ * corrige tout seul dès qu'elle arrive.
+ */
+const LOGO_RUNE_GAP = 18.4
+
 export function Logotype({ style, ...rest }: ViewProps) {
   const { theme } = useTheme()
+
+  /**
+   * La ligne runique s'aligne sur la largeur réelle du mot, mesurée.
+   *
+   * Elle dépendait d'un nombre calculé à la main — « CAIRN » mesurait 69 points
+   * en Grenze 21, d'où un écart de 8 — avec l'avertissement qu'en changer la
+   * police défaisait le calage. C'est exactement ce qui est arrivé : Viking
+   * porte le même mot à 107 points, et l'écart devait passer à 18,4.
+   *
+   * Plutôt que de remplacer un nombre magique par un autre, le mot se mesure.
+   * Le calage survit désormais à tout changement de police, de taille ou
+   * d'interlettrage, et il n'y a plus de piège à documenter.
+   */
+  const [width, setWidth] = useState(0)
+
+  const runesInk = CAIRN.length * LOGO_RUNE_SIZE * (runeBox.width / runeBox.height)
+  const gap = width > 0 ? Math.max(0, (width - runesInk) / (CAIRN.length - 1)) : LOGO_RUNE_GAP
+
   return (
     <View style={[{ gap: space.xxs }, style]} {...rest}>
-      <Inscription>Cairn</Inscription>
+      <Inscription
+        onLayout={(e) => {
+          const next = e.nativeEvent.layout.width
+          setWidth((current) => (Math.abs(current - next) < 0.5 ? current : next))
+        }}
+        // Sans cela le texte occupe toute la largeur du parent, et c'est cette
+        // largeur-là qu'on mesurerait au lieu de celle du mot.
+        style={{ alignSelf: 'flex-start' }}
+      >
+        Cairn
+      </Inscription>
       <RuneRow
         runes={CAIRN}
-        size={11}
+        size={LOGO_RUNE_SIZE}
         // Le gris atténué rendait la ligne sale plutôt que discrète, à cette
         // taille elle disparaissait presque. Le gris secondaire la pose sans
         // qu'elle concurrence le mot.
         color={theme.text.secondary}
-        /**
-         * Les deux lignes font la même largeur, à un pixel près.
-         *
-         * « CAIRN » mesure 69 points en Grenze 21 avec 3,2 d'interlettrage. Cinq
-         * runes de 11 de haut occupent 5 × 6,6 = 33 points d'encre, il reste donc
-         * 33 points à répartir sur quatre intervalles, soit 8. C'est mesuré, pas
-         * estimé : changer `type.display` défait ce calage.
-         */
-        gap={8}
+        gap={gap}
         // Sans cela la ligne s'étire sur toute la largeur du parent et le bloc
         // ne peut plus être centré comme un tout.
         style={{ alignSelf: 'flex-start' }}
@@ -409,6 +466,21 @@ export function Field({
         {label}
       </Txt>
       <TextInput
+        /**
+         * Le libellé est rattaché au champ, et pas seulement posé au-dessus.
+         *
+         * Il vivait dans un bloc voisin, sans aucun lien avec la saisie : à
+         * l'écran on lisait « Adresse électronique », mais un lecteur d'écran
+         * annonçait un champ anonyme, et une automatisation ne le trouvait pas
+         * par son nom — c'est d'ailleurs Playwright qui l'a révélé, en butant
+         * dessus. L'indication suit, ou le message d'erreur s'il y en a un, qui
+         * prime : savoir ce qui ne va pas passe avant savoir ce qu'on attendait.
+         *
+         * L'appelant garde la main : son propre `accessibilityLabel` gagne.
+         */
+        accessibilityLabel={label}
+        accessibilityHint={error ?? hint}
+        {...(rest.accessibilityLabel ? { accessibilityLabel: rest.accessibilityLabel } : {})}
         style={[
           {
             minHeight: 48,

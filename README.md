@@ -88,6 +88,54 @@ pour caractère, donc une barre oblique finale en trop suffit à faire échouer 
 comparaison. Et une modification côté Google met parfois quelques minutes à se
 propager.
 
+## Mot de passe oublié
+
+Le lien reçu par courriel ne fonctionne que dans le navigateur qui l'a demandé.
+Ce n'est pas un défaut : le client est en `flowType: 'pkce'`, la demande dépose
+un vérificateur dans le stockage local, et seul ce navigateur peut échanger le
+code contre une session. Demander depuis l'ordinateur puis ouvrir le lien sur le
+téléphone échoue silencieusement — on retombe sur l'écran de connexion, sans
+message. À dire aux utilisateurs plutôt qu'à corriger : l'alternative, le flux
+implicite, laisse les jetons dans l'URL.
+
+Le lien ouvre une vraie session avant que le mot de passe soit choisi. La
+navigation est donc retenue sur `/new-password` jusqu'à ce qu'il le soit, et
+cette retenue survit au rechargement : `PASSWORD_RECOVERY` n'est annoncé qu'une
+fois, à l'échange du code, d'où une marque écrite dans le stockage
+(`cairn.recuperation-en-cours`). Sans elle, un simple F5 emmenait dans les notes
+et le mot de passe oublié le restait.
+
+Le serveur de courriel intégré de Supabase plafonne les envois à quelques-uns
+par heure, pour tout le projet. En développement on l'atteint vite ; l'écran
+l'annonce alors en français. Un SMTP personnalisé lève ce plafond.
+
+## Suppression du compte
+
+Réglages, section Compte. Il faut recopier l'adresse du compte : un second
+bouton se clique du même geste que le premier, recopier l'adresse oblige à la
+lire, donc à savoir lequel disparaît.
+
+Une seule ligne est supprimée, celle d'`auth.users`. Tout le reste suit par
+cascade — les tables de l'application comme celles du schéma `auth` de Supabase.
+Rien à tenir à jour ici quand une table s'ajoutera, à condition qu'elle cascade
+comme les autres ; une liste d'ordres `DELETE` aurait vieilli en silence.
+
+L'appel passe par `delete_own_account()`, en droits du définisseur parce que
+`auth` est hors de portée du rôle client. Le pouvoir emprunté est borné à une
+ligne : `auth.uid()` est lu dans la fonction et n'est pas un paramètre.
+
+Le client efface ensuite ce qui dort sur l'appareil — code du coffre, clé de
+données, cache persisté. **Le serveur d'abord, l'appareil ensuite** : si l'appel
+échoue, la clé est encore là et le compte reste utilisable. Dans l'autre sens, un
+échec laisserait un compte vivant dont les notes chiffrées seraient devenues
+illisibles.
+
+Deux sources accordent `execute` sur une fonction du schéma `public` : PUBLIC,
+par défaut Postgres, et un `alter default privileges` de Supabase qui l'accorde
+nommément à `anon`, `authenticated` et `service_role`. **Retirer l'une laisse
+l'autre debout.** `npm run db:test` reproduit désormais ces droits par défaut,
+sans quoi il déclarait fermée une fonction ouverte en production.
+
 ## Commandes
 
 | Commande | Rôle |
@@ -127,8 +175,10 @@ dernière en date est `20260806090000_nordic_tag_colors.sql`.
 
 La pierre levée du Nord plutôt que le calcaire du Quercy : gris froids autour de
 200° de teinte, aurore boréale en accent, angles taillés au ciseau plutôt
-qu'arrondis, et un mouvement frappé plutôt que posé. Grenze pour les capitales
-gravées, Alegreya pour la lecture, Archivo pour l'interface.
+qu'arrondis, et un mouvement frappé plutôt que posé. Viking pour les capitales
+gravées, Junicode pour la lecture, Archivo pour les commandes. Les deux
+premières sont embarquées dans `assets/fonts`, licence à côté de chaque
+fichier — Viking sous licence 1001fonts, Junicode sous SIL Open Font.
 
 Les runes de `src/ui/runes.tsx` sont ornementales et le restent. Une rune ne
 remplace jamais une icône qu'il faut comprendre pour agir : la case à cocher

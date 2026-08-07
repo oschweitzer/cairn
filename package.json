@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
-    "@expo-google-fonts/alegreya": "^0.4.2",
     "@expo-google-fonts/archivo": "^0.4.2",
-    "@expo-google-fonts/grenze": "^0.4.2",
     "@expo/vector-icons": "^15.0.2",
     "@noble/ciphers": "^2.2.0",
     "@noble/hashes": "^2.3.0",
@@ -42,6 +40,7 @@
     "@electric-sql/pglite": "^0.5.4",
     "@types/node": "^26.1.2",
     "@types/react": "~19.2.2",
+    "playwright": "^1.62.1",
     "tsx": "^4.23.7",
     "typescript": "~6.0.3"
   },

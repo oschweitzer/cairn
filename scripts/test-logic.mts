@@ -27,6 +27,7 @@ import {
 } from '../src/db/noteLogic'
 import type { Note, PlainChecklistItem, Tag } from '../src/db/types'
 import { delayForFailures, judgePin, FREE_ATTEMPTS } from '../src/vault/policy'
+import { countInRange, splitHash } from '../src/auth/pwnedLogic'
 import { randomBytes as nodeRandomBytes } from 'node:crypto'
 import {
   createDataKey,
@@ -496,4 +497,49 @@ test('une clé de secours tronquée est refusée avant tout déchiffrement', () 
   assert.equal(parseRecoveryKey(''), null)
   // Caractère hors alphabet : refusé aussi, plutôt qu'ignoré en silence.
   assert.equal(parseRecoveryKey(shown.slice(0, -1) + 'U'), null)
+})
+
+// ------------------------------------------- mots de passe compromis
+
+test('l’empreinte se coupe en cinq caractères envoyés et trente-cinq gardés', () => {
+  // SHA-1 de « password », le mot de passe le plus fuité de tous.
+  const parts = splitHash('5baa61e4c9b93f3f0682250b6cf8331b7ee68fd8')
+  assert.equal(parts?.prefix, '5BAA6')
+  assert.equal(parts?.suffix, '1E4C9B93F3F0682250B6CF8331B7EE68FD8')
+  assert.equal(parts!.prefix.length + parts!.suffix.length, 40)
+})
+
+test('une empreinte mal formée est refusée plutôt que tronquée', () => {
+  assert.equal(splitHash('trop court'), null)
+  assert.equal(splitHash(''), null)
+  // Un caractère hors de l'hexadécimal, à la toute fin.
+  assert.equal(splitHash('5baa61e4c9b93f3f0682250b6cf8331b7ee68fdZ'), null)
+})
+
+test('un suffixe présent rend son nombre de fuites', () => {
+  const body = '1E4C9B93F3F0682250B6CF8331B7EE68FD8:9659365\r\n0018A45C4D1DEF81644B54AB7F969B88D65:1'
+  assert.equal(countInRange(body, '1E4C9B93F3F0682250B6CF8331B7EE68FD8'), 9659365)
+})
+
+test('un suffixe absent rend zéro', () => {
+  const body = '0018A45C4D1DEF81644B54AB7F969B88D65:1\r\n00D4F6E8FA6EECAD2A3AA415EEC418D38EC:2'
+  assert.equal(countInRange(body, '1E4C9B93F3F0682250B6CF8331B7EE68FD8'), 0)
+})
+
+test('la comparaison ignore la casse', () => {
+  // Le service répond en majuscules, mais rien ne l'y oblige contractuellement.
+  const body = '1e4c9b93f3f0682250b6cf8331b7ee68fd8:42'
+  assert.equal(countInRange(body, '1E4C9B93F3F0682250B6CF8331B7EE68FD8'), 42)
+})
+
+test('les lignes de rembourrage à compte nul ne comptent pas', () => {
+  // Sans cette règle, le rembourrage ferait refuser tous les mots de passe.
+  const body = '1E4C9B93F3F0682250B6CF8331B7EE68FD8:0\r\n0018A45C4D1DEF81644B54AB7F969B88D65:1'
+  assert.equal(countInRange(body, '1E4C9B93F3F0682250B6CF8331B7EE68FD8'), 0)
+})
+
+test('une réponse illisible ne fait pas tomber le contrôle', () => {
+  assert.equal(countInRange('', 'ABC'), 0)
+  assert.equal(countInRange('pas de séparateur ici', 'ABC'), 0)
+  assert.equal(countInRange('ABC:pas un nombre', 'ABC'), 0)
 })

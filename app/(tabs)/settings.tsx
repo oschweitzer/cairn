@@ -5,7 +5,7 @@ import Feather from '@expo/vector-icons/Feather'
 import { useAuth } from '@/auth/AuthProvider'
 import { useVault } from '@/vault/VaultProvider'
 import { useTheme, type ThemePreference } from '@/ui/ThemeProvider'
-import { Button, Card, Inscription, Screen, Seam, Txt } from '@/ui/components'
+import { Button, Card, Field, Inscription, Screen, Seam, Txt } from '@/ui/components'
 import { useToast } from '@/ui/Toast'
 import { Glyph } from '@/ui/glyphs'
 import { radius, space } from '@/ui/theme'
@@ -215,6 +215,138 @@ function VaultSettings() {
   )
 }
 
+/**
+ * Suppression du compte.
+ *
+ * ── Pourquoi recopier son adresse, et pas un simple « Confirmer » ────────────
+ * Un second bouton ne prouve rien : il se clique du même geste que le premier,
+ * et c'est exactement ce qui arrive quand on parcourt des réglages sans lire.
+ * Recopier l'adresse demande de la lire, donc de savoir quel compte disparaît —
+ * ce qui compte pour de bon quand on en a plusieurs. C'est aussi la seule barrière
+ * disponible ici : redemander le mot de passe n'est pas possible pour un compte
+ * Google, et le code du coffre ne dit rien du compte.
+ *
+ * ── L'ordre des deux effacements est un choix, pas une commodité ─────────────
+ * Le serveur d'abord, l'appareil ensuite. Si l'appel réseau échoue, la clé de
+ * données est encore là et le compte reste utilisable. Dans l'autre sens, un
+ * échec laisserait un compte bien vivant dont les notes chiffrées seraient
+ * devenues illisibles — le pire des deux résultats, et sans retour possible.
+ */
+function DeleteAccount() {
+  const { session, deleteAccount } = useAuth()
+  const vault = useVault()
+  const [open, setOpen] = useState(false)
+  const [typed, setTyped] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const email = session?.user.email ?? ''
+  // Comparaison indulgente sur la casse et les espaces : la barrière est de
+  // savoir quelle adresse, pas de la taper au caractère près.
+  const matches = email !== '' && typed.trim().toLowerCase() === email.toLowerCase()
+
+  async function remove() {
+    setError(null)
+    setBusy(true)
+    try {
+      await deleteAccount()
+      // Seulement une fois le serveur d'accord : voir l'en-tête.
+      await vault.forgetEverything()
+      // Rien à faire ensuite. La session tombe, l'aiguillage de la racine
+      // ramène à l'écran de connexion.
+    } catch (e) {
+      setError((e as Error).message)
+      setBusy(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <>
+        <Seam />
+        <Button
+          label="Supprimer le compte"
+          variant="ghost"
+          onPress={() => {
+            setTyped('')
+            setError(null)
+            setOpen(true)
+          }}
+        />
+      </>
+    )
+  }
+
+  return (
+    <>
+      <Seam />
+      <View style={{ gap: space.sm }}>
+        <Txt variant="body" tone="danger">
+          Tout est effacé, et rien n’est récupérable.
+        </Txt>
+        <Txt variant="caption" tone="muted">
+          Les notes et les listes, y compris celles du coffre et celles de la corbeille, les
+          tags, les rappels, et le compte lui-même. La suppression est immédiate : il n’y a
+          pas de délai pendant lequel revenir en arrière.
+        </Txt>
+        {/* `configured` et non `keyStatus` : ce dernier vaut « checking » tant que
+            le coffre n'a pas été ouvert dans la séance, y compris chez quelqu'un
+            qui n'en a jamais eu. La phrase s'affichait donc à des gens sans
+            coffre, pour leur parler d'une clé de secours qui n'existe pas. Vu à
+            l'écran, pas dans le code. */}
+        {vault.configured ? (
+          <Txt variant="caption" tone="muted">
+            La clé de secours du coffre cessera de servir à quoi que ce soit : ce qu’elle
+            ouvrait n’existera plus.
+          </Txt>
+        ) : null}
+        <Txt variant="caption" tone="muted">
+          Pour continuer, recopie l’adresse du compte.
+        </Txt>
+
+        {/* L'adresse est en repère sous le champ plutôt qu'en étiquette : une
+            étiquette qui change d'un compte à l'autre ne dit plus ce que le
+            champ attend, et c'est justement ce qu'il faut comprendre ici. */}
+        <Field
+          label="Recopier l’adresse"
+          hint={email}
+          value={typed}
+          onChangeText={setTyped}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          accessibilityLabel="Recopier l’adresse du compte pour confirmer la suppression"
+          editable={!busy}
+        />
+
+        {error ? (
+          <Txt variant="caption" tone="danger">
+            {error}
+          </Txt>
+        ) : null}
+
+        <View style={{ flexDirection: 'row', gap: space.sm }}>
+          <Button
+            label="Annuler"
+            variant="ghost"
+            style={{ flex: 1 }}
+            disabled={busy}
+            onPress={() => setOpen(false)}
+          />
+          <Button
+            label="Supprimer définitivement"
+            variant="danger"
+            style={{ flex: 1 }}
+            busy={busy}
+            disabled={!matches || busy}
+            onPress={() => void remove()}
+          />
+        </View>
+      </View>
+    </>
+  )
+}
+
 export default function Settings() {
   const { theme, preference, setPreference } = useTheme()
   const { session, signOut } = useAuth()
@@ -310,6 +442,8 @@ export default function Settings() {
             void signOut().finally(() => setSigningOut(false))
           }}
         />
+
+        <DeleteAccount />
       </Card>
 
     </Screen>

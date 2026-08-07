@@ -200,6 +200,15 @@ export type Database = {
         Args: { p_note_id: string; p_ids: string[] }
         Returns: undefined
       }
+      /**
+       * Supprime le compte de l'appelant, et toutes ses données par cascade.
+       * Sans argument, à dessein : l'identité est lue dans la session côté base,
+       * donc il n'y a pas d'identifiant à falsifier depuis ici.
+       */
+      delete_own_account: {
+        Args: Record<string, never>
+        Returns: undefined
+      }
     }
     Enums: {
       note_kind: NoteKind

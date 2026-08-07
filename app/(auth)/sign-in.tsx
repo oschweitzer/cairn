@@ -80,6 +80,14 @@ export default function SignIn() {
         style={{ marginTop: space.sm }}
       />
 
+      <View style={{ alignItems: 'center', marginTop: space.md }}>
+        <Link href="/forgot-password">
+          <Txt variant="caption" tone="accent">
+            Mot de passe oublié ?
+          </Txt>
+        </Link>
+      </View>
+
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, marginVertical: space.md }}>
         <Seam style={{ flex: 1 }} />
         <Txt variant="caption" tone="muted">
