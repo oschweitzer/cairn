@@ -183,6 +183,52 @@ export function inheritedColor(
   return addedTag.color_key
 }
 
+/**
+ * Tag déjà nommé ainsi, ou `undefined`.
+ *
+ * La comparaison replie les accents et la casse, alors que la contrainte
+ * `unique (user_id, name)` de la base, elle, distingue « École » de « ecole ».
+ * L'écart est délibéré : la base empêche deux lignes identiques, cette fonction
+ * empêche deux tags qu'on ne saurait pas distinguer à l'œil dans une liste de
+ * pastilles. Le second problème est le vrai, et il arrive bien plus tôt.
+ */
+export function findTagNamed<T extends Pick<Tag, 'name'>>(
+  tags: T[],
+  name: string,
+): T | undefined {
+  const needle = fold(name.trim())
+  return tags.find((tag) => fold(tag.name) === needle)
+}
+
+/**
+ * Teinte à proposer pour un tag de plus : la moins servie de la palette, la
+ * première déclarée en cas d'égalité.
+ *
+ * Créer des tags à la volée depuis une note, sans passer par l'onglet Tags où
+ * la couleur se choisit, donnerait sinon dix pastilles de la même teinte — et
+ * une pastille de couleur qui ne distingue rien ne sert à rien.
+ *
+ * Les clés de la palette sont passées en argument plutôt qu'importées : ce
+ * module ne dépend de l'interface qu'au niveau des types, effacés à la
+ * compilation, et une importation de valeur créerait un lien d'exécution de la
+ * base vers l'UI dans le mauvais sens.
+ */
+export function nextTagColor(
+  tags: Pick<Tag, 'color_key'>[],
+  palette: readonly TagColorKey[],
+): TagColorKey {
+  const used = new Map<TagColorKey, number>(palette.map((key) => [key, 0]))
+  for (const tag of tags) {
+    const count = used.get(tag.color_key)
+    if (count !== undefined) used.set(tag.color_key, count + 1)
+  }
+  let best = palette[0]
+  for (const key of palette) {
+    if (used.get(key)! < used.get(best)!) best = key
+  }
+  return best
+}
+
 /** Filtre conjonctif : la note doit porter tous les tags sélectionnés. */
 export function hasAllTags(note: NoteWithRelations, tagIds: string[]): boolean {
   if (tagIds.length === 0) return true

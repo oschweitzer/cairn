@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Feather from '@expo/vector-icons/Feather'
 import {
   useAddChecklistItem,
+  useCreateTag,
   useDeleteChecklistItem,
   useReorderChecklistItems,
   useSetNotePrivate,
@@ -16,7 +17,8 @@ import {
   useUpdateChecklistItem,
   useUpdateNote,
 } from '@/db/queries'
-import { inheritedColor, isEmptyNote } from '@/db/noteLogic'
+import { findTagNamed, inheritedColor, isEmptyNote, nextTagColor } from '@/db/noteLogic'
+import type { Tag } from '@/db/types'
 import { useNote } from '@/db/select'
 import { useVault } from '@/vault/VaultProvider'
 import { useTheme } from '@/ui/ThemeProvider'
@@ -27,7 +29,7 @@ import { AgendaBouton, AgendaPanel } from '@/ui/AgendaPanel'
 import { RuneLoader } from '@/ui/RuneLoader'
 import { useToast } from '@/ui/Toast'
 import { appear, reflow, useRise, vanish } from '@/ui/transitions'
-import { radius, space, type, type TagColorKey } from '@/ui/theme'
+import { radius, space, tagColorKeys, type, type TagColorKey } from '@/ui/theme'
 
 /** Délai avant enregistrement, pour ne pas écrire à chaque frappe. */
 const AUTOSAVE_MS = 600
@@ -49,6 +51,7 @@ export default function NoteEditor() {
   const trashNote = useTrashNote()
   const purgeNote = usePurgeNote()
   const setNoteTags = useSetNoteTags()
+  const createTag = useCreateTag()
   const setNotePrivate = useSetNotePrivate()
   const addItem = useAddChecklistItem()
   const updateItem = useUpdateChecklistItem()
@@ -64,6 +67,7 @@ export default function NoteEditor() {
 
   const [panel, setPanel] = useState<Panel>('none')
   const [draftItem, setDraftItem] = useState('')
+  const [tagError, setTagError] = useState<string | null>(null)
   const rising = useRise()
 
   // État local du texte, pour que la frappe reste fluide sans attendre le
@@ -371,18 +375,72 @@ export default function NoteEditor() {
    * n'a besoin ni de React ni du réseau, et c'est là que vivent les erreurs qui
    * comptent — repeindre une note que l'on avait colorée à la main, par exemple.
    */
-  function toggleTag(tagId: string) {
+  function applyTags(next: string[], addedTag?: Pick<Tag, 'color_key'>) {
     if (!note) return
+    setNoteTags.mutate({ noteId: note.id, tagIds: next })
+
+    const color = inheritedColor(note, addedTag)
+    if (color) {
+      updateNote.mutate({ id: note.id, patch: { color_key: color } })
+    }
+  }
+
+  function toggleTag(tagId: string) {
     const adding = !selectedTagIds.includes(tagId)
     const next = adding
       ? [...selectedTagIds, tagId]
       : selectedTagIds.filter((t) => t !== tagId)
 
-    setNoteTags.mutate({ noteId: note.id, tagIds: next })
+    applyTags(next, adding ? tagsQuery.data?.find((t) => t.id === tagId) : undefined)
+  }
 
-    const color = inheritedColor(note, adding ? tagsQuery.data?.find((t) => t.id === tagId) : undefined)
-    if (color) {
-      updateNote.mutate({ id: note.id, patch: { color_key: color } })
+  /**
+   * Création d'un tag depuis la note, sans passer par l'onglet Tags.
+   *
+   * Le tag est posé dans la foulée. C'est tout l'intérêt du geste : on ne vient
+   * pas ici gérer sa collection de tags, on vient en poser un sur la note
+   * qu'on est en train d'écrire, et le créer sans l'associer laisserait le
+   * travail à moitié fait.
+   *
+   * Un nom déjà pris ne donne pas une erreur mais le tag existant. Refuser
+   * serait exact et inutile : quelqu'un qui tape « courses » dans ce champ veut
+   * le tag « courses », qu'il ait été créé il y a dix secondes ou l'an dernier.
+   * Le geste est donc annoncé comme une réussite, et non en rouge sous le
+   * champ : rien n'a échoué, et l'absence de nouveau tag dans la liste ne doit
+   * pas non plus passer pour un bouton mort.
+   *
+   * Le tag fraîchement créé est passé à `applyTags` en main propre plutôt que
+   * cherché dans `tagsQuery` : le cache n'est revalidé qu'après, et l'héritage
+   * de couleur retomberait sur un `undefined` une fois sur deux.
+   */
+  async function createAndAttachTag(name: string) {
+    if (!note) return
+    const tags = tagsQuery.data ?? []
+
+    const existing = findTagNamed(tags, name)
+    if (existing) {
+      const already = selectedTagIds.includes(existing.id)
+      if (!already) applyTags([...selectedTagIds, existing.id], existing)
+      setTagError(null)
+      toast(
+        already
+          ? `« ${existing.name} » est déjà sur la note.`
+          : `« ${existing.name} » existait déjà, il est posé sur la note.`,
+        { tone: 'success' },
+      )
+      return
+    }
+
+    try {
+      const tag = await createTag.mutateAsync({
+        name,
+        colorKey: nextTagColor(tags, tagColorKeys),
+      })
+      applyTags([...selectedTagIds, tag.id], tag)
+      setTagError(null)
+      toast(`Tag « ${tag.name} » créé et posé.`, { tone: 'success' })
+    } catch (e) {
+      setTagError((e as Error).message)
     }
   }
 
@@ -747,8 +805,11 @@ export default function NoteEditor() {
             <TagPicker
               tags={tagsQuery.data ?? []}
               selectedIds={selectedTagIds}
-              emptyHint="Aucun tag pour l’instant. Ils se créent dans l’onglet Tags."
+              emptyHint="Aucun tag pour l’instant. Le premier se crée juste en dessous."
               onToggle={(tagId) => toggleTag(tagId)}
+              onCreate={(name) => void createAndAttachTag(name)}
+              creating={createTag.isPending}
+              createError={tagError}
             />
           </Animated.View>
         ) : null}
@@ -784,7 +845,12 @@ export default function NoteEditor() {
             tooltip="Tags de la note"
             placement="top"
             active={panel === 'tags'}
-            onPress={() => setPanel(panel === 'tags' ? 'none' : 'tags')}
+            onPress={() => {
+              // Le message de création ne survit pas à la fermeture du panneau :
+              // il parle d'un geste qu'on ne voit plus.
+              setTagError(null)
+              setPanel(panel === 'tags' ? 'none' : 'tags')
+            }}
           />
           <AgendaBouton
             actif={panel === 'agenda'}

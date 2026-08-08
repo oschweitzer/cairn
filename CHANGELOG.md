@@ -9,6 +9,9 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### Ajouté
 
+- Créer un tag depuis l'éditeur de note, sous le bouton tag : il est posé sur la
+  note dans la foulée, et prend la teinte la moins servie de la palette. Un nom
+  déjà pris pose le tag existant au lieu de refuser. ([#1])
 - Conventions du dépôt : messages de commit selon
   [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/),
   journal des modifications selon Keep a Changelog 1.1.0. Elles vivent dans
@@ -32,3 +35,4 @@ au fil de l'eau.
   Expo en JavaScript.
 
 [Non publié]: https://github.com/oschweitzer/cairn/compare/f630263...HEAD
+[#1]: https://github.com/oschweitzer/cairn/issues/1

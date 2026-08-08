@@ -18,11 +18,13 @@ import {
   displayTitle,
   distributeIntoColumns,
   filterNotes,
+  findTagNamed,
   fold,
   hasAllTags,
   inheritedColor,
   isEmptyNote,
   matchesSearch,
+  nextTagColor,
   type NoteWithRelations,
 } from '../src/db/noteLogic'
 import type { Note, PlainChecklistItem, Tag } from '../src/db/types'
@@ -221,6 +223,40 @@ test('le second tag n’écrase pas la couleur héritée du premier', () => {
   // tag ajouté, sans que rien ne l'explique.
   const afterFirst = note({ color_key: inheritedColor(note(), tag({ color_key: 'fjord' })) })
   assert.equal(inheritedColor(afterFirst, tag({ id: 't2', color_key: 'airelle' })), null)
+})
+
+// ------------------------------------------------- création de tag à la volée
+
+test('un tag existant est reconnu malgré la casse et les accents', () => {
+  const tags = [tag({ id: 'a', name: 'École' }), tag({ id: 'b', name: 'maison' })]
+  assert.equal(findTagNamed(tags, 'ecole')?.id, 'a')
+  assert.equal(findTagNamed(tags, '  MAISON  ')?.id, 'b')
+  assert.equal(findTagNamed(tags, 'courses'), undefined)
+})
+
+test('la teinte proposée est la moins servie de la palette', () => {
+  const palette = ['ambre', 'braise', 'airelle'] as const
+
+  // Aucun tag : la première de la palette.
+  assert.equal(nextTagColor([], palette), 'ambre')
+
+  // « ambre » est pris, on passe à la suivante.
+  assert.equal(nextTagColor([tag({ color_key: 'ambre' })], palette), 'braise')
+
+  // Toutes servies une fois : on repart sur la première, l'égalité étant
+  // tranchée par l'ordre de déclaration.
+  const complet = palette.map((color_key) => tag({ color_key }))
+  assert.equal(nextTagColor(complet, palette), 'ambre')
+
+  // Un déséquilibre l'emporte sur l'ordre de déclaration.
+  assert.equal(nextTagColor([...complet, tag({ color_key: 'ambre' })], palette), 'braise')
+})
+
+test('une teinte hors palette ne fausse pas le décompte', () => {
+  // Le cas arrive après un renommage de la palette : la base garde des clés
+  // que le thème ne connaît plus. Elles ne doivent ni compter, ni planter.
+  const palette = ['ambre', 'braise'] as const
+  assert.equal(nextTagColor([tag({ color_key: 'fjord' })], palette), 'ambre')
 })
 
 // ----------------------------------------------------------------- filtres
