@@ -17,6 +17,14 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
   journal des modifications selon Keep a Changelog 1.1.0. Elles vivent dans
   `AGENTS.md`, que `CLAUDE.md` inclut.
 
+### Corrigé
+
+- Éditeur de note : le champ de contenu occupe la hauteur disponible sous le
+  titre au lieu de s'arrêter à 220 points. La grande zone morte qui le suivait —
+  les deux tiers de l'écran sur un poste de bureau — était cliquable sans rien
+  faire ; elle fait maintenant partie du champ. Aucune barre de défilement tant
+  que le texte tient dans la place offerte. ([#2])
+
 ## [0.1.0] - 2026-08-08
 
 Première version, avant la mise en place de ce journal. Les entrées ci-dessous
@@ -36,3 +44,4 @@ au fil de l'eau.
 
 [Non publié]: https://github.com/oschweitzer/cairn/compare/f630263...HEAD
 [#1]: https://github.com/oschweitzer/cairn/issues/1
+[#2]: https://github.com/oschweitzer/cairn/issues/2

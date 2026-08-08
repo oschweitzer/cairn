@@ -542,7 +542,22 @@ export default function NoteEditor() {
        */}
       <Animated.View style={[{ flex: 1 }, rising]}>
         <ScrollView
-          contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxxl, gap: space.md }}
+          contentContainerStyle={{
+            padding: space.lg,
+            paddingBottom: space.xxxl,
+            gap: space.md,
+            /**
+             * Le contenu occupe au minimum toute la hauteur offerte.
+             *
+             * Sans cela la colonne s'arrêtait à la hauteur de ce qu'elle
+             * portait, et le corps de la note — haut de 220 points fixes — se
+             * retrouvait suivi d'une grande zone morte : elle avait l'air de
+             * faire partie du champ, mais cliquer dedans ne donnait le focus à
+             * rien. C'est ce `flexGrow` qui donne au champ de la place à
+             * prendre, et le `flex: 1` plus bas qui la lui fait prendre.
+             */
+            flexGrow: 1,
+          }}
           keyboardShouldPersistTaps="handled"
         >
           <TextInput
@@ -629,6 +644,27 @@ export default function NoteEditor() {
                   fontFamily: type.body.fontFamily,
                   fontSize: type.body.fontSize,
                   lineHeight: type.body.lineHeight,
+                  /**
+                   * Le champ prend toute la place laissée libre sous le titre.
+                   *
+                   * Écrire une note, c'est écrire dans une page, pas dans une
+                   * fenêtre de 220 points suivie d'un grand vide inerte. Le
+                   * vide en question ressemblait à la suite du champ : on
+                   * cliquait dedans pour continuer à écrire, et rien ne prenait
+                   * le focus. Sur un écran de bureau il occupait les deux tiers
+                   * de la hauteur.
+                   *
+                   * Au-delà de la place disponible, c'est le champ lui-même qui
+                   * défile, comme il le fait déjà nativement, plutôt que la
+                   * page : le titre reste en vue, ce qui est ce qu'on veut d'un
+                   * éditeur. Une barre de défilement n'apparaît donc plus tant
+                   * que le texte tient dans la hauteur offerte.
+                   *
+                   * Le plancher reste pour les fenêtres très basses, où la
+                   * place libre peut être quasi nulle une fois le clavier
+                   * logiciel ouvert.
+                   */
+                  flex: 1,
                   minHeight: 220,
                 },
                 noWebOutline,
