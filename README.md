@@ -173,7 +173,6 @@ sur la machine. Il faut un compte sur expo.dev, gratuit.
 
    ```
    eas env:set --name EXPO_PUBLIC_WEB_URL --value "https://<domaine>" --environment preview --visibility plaintext
-   eas env:set --name EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID --value "<id client Android>" --environment preview --visibility plaintext
    eas env:set --name EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB --value "<id client Web>" --environment preview --visibility plaintext
    ```
 
@@ -198,6 +197,52 @@ Google depuis l'APK.
 
 Le profil `development` demande une dépendance de plus, `npx expo install expo-dev-client`,
 et se lance ensuite avec `npx expo start --dev-client`.
+
+## Déploiement de la PWA
+
+Sur Netlify, projet `cairn-notes`, servi à **https://cairn-notes.netlify.app**.
+Le sous-domaine `netlify.app` est inclus dans le plan gratuit : aucun nom de
+domaine à acheter. Le nom `cairn` seul était déjà pris — ils sont uniques pour
+tout Netlify, pas seulement pour un compte.
+
+`netlify.toml` porte trois choses qui ne vont pas de soi.
+
+**La commande de build et la version de Node.** Le build tourne chez Netlify, pas
+en local. `NODE_VERSION` est figée à 22 parce que react-native 0.86 réclame
+`^20.19.4 || ^22.13.0 || ^24.3.0` et que la version par défaut de Netlify évolue
+sans prévenir.
+
+**La réécriture des liens de note.** L'export statique d'expo-router écrit la
+route dynamique sous son nom littéral, `note/[id].html`. Sans règle, ouvrir
+`/note/<identifiant>` rendrait un 404 — c'est-à-dire précisément les liens
+déposés dans les évènements Google Agenda. La règle est en statut 200, une
+réécriture et non une redirection : l'adresse reste intacte dans la barre du
+navigateur, et le routeur y lit l'identifiant au premier rendu.
+
+**Le type MIME d'`assetlinks.json`.** Android exige `application/json` ; servi
+autrement, la vérification des App Links échoue en silence.
+
+### Les variables d'environnement vivent chez Netlify
+
+`.env` n'est pas suivi par git et ne monte donc jamais dans le build. Les trois
+clés publiques sont à déclarer dans les réglages du projet, portée « builds » :
+
+| Variable | Valeur |
+|---|---|
+| `EXPO_PUBLIC_SUPABASE_URL` | l'URL du projet Supabase |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | la clé anon |
+| `EXPO_PUBLIC_WEB_URL` | `https://cairn-notes.netlify.app` |
+
+Sans elles, le build réussit quand même et publie une application qui démarre
+sur son écran de configuration. C'est voulu — un écran qui explique ce qui
+manque vaut mieux qu'une page blanche — mais cela ressemble à une panne alors
+qu'il ne manque qu'une variable.
+
+Redéployer après coup :
+
+```bash
+npx -y @netlify/mcp@latest --site-id <id du projet>
+```
 
 ## Agenda Google
 
@@ -228,14 +273,32 @@ un export existant vers une note protégée.
 
 ### Console Google
 
-Deux clients OAuth, et ce n'est pas un choix mais une contrainte : un client de
-type « Web » n'accepte que des redirections http(s), donc `cairn://` y est
-refusé. L'APK a besoin d'un client « Android ».
+**Un seul client OAuth**, de type « Web », pour l'APK comme pour la PWA.
 
-| Client | Type | À renseigner |
-|---|---|---|
-| Android | Android | Nom de paquet `app.cairn`, empreinte SHA-1 du certificat de signature (`eas credentials`) |
-| Web | Web application | Origine autorisée `https://<domaine>`, URI de redirection `https://<domaine>/google` |
+Un client « Android » semblait pourtant l'évidence pour l'APK. Il a été essayé,
+et Google l'a refusé : *« Custom URI scheme is not enabled for your Android
+client »*, sa documentation précisant que « custom URI schemes are no longer
+supported on Android ». La redirection ne peut donc plus être `cairn://` ni
+`app.cairn:/`. La voie que Google pousse est celle des liens d'application : une
+adresse `https://` ordinaire, qu'Android remet à l'application installée plutôt
+qu'au navigateur parce que le domaine et l'application se reconnaissent par
+`/.well-known/assetlinks.json`.
+
+Les deux plateformes partagent donc la même adresse de retour, donc le même
+client, ce qui simplifie tout — un identifiant, un secret, pas de branchement.
+
+| Champ du client Web | Valeur |
+|---|---|
+| Authorized JavaScript origins | `https://<domaine>` |
+| Authorized redirect URIs | `https://<domaine>/google` |
+
+**Conséquence à ne pas manquer** : sur Android, `npm run assetlinks` n'est plus
+un confort. Sans fichier vérifié, le retour du consentement s'ouvre dans le
+navigateur et l'application attend un code qui ne lui reviendra jamais. La
+connexion à l'agenda depuis l'APK en dépend entièrement.
+
+Pensez aussi à activer **Google Calendar API** dans APIs & Services → Library, et
+à vous ajouter en *test user* tant que le projet est en mode test.
 
 Le scope à ajouter à l'écran de consentement est
 `https://www.googleapis.com/auth/calendar.events`. Google le classe comme
@@ -256,7 +319,7 @@ Functions font l'échange et le gardent chiffré dans `google_credentials`, tabl
 dont RLS est actif sans aucune politique. Elles ont besoin de ceci :
 
 ```
-supabase secrets set GOOGLE_CLIENT_ID_ANDROID=... GOOGLE_CLIENT_ID_WEB=... GOOGLE_CLIENT_SECRET_WEB=... CAIRN_WEB_URL=https://<domaine> GOOGLE_TOKEN_KEY=$(openssl rand -hex 32)
+supabase secrets set GOOGLE_CLIENT_ID_WEB=... GOOGLE_CLIENT_SECRET_WEB=... CAIRN_WEB_URL=https://<domaine> GOOGLE_TOKEN_KEY=$(openssl rand -hex 32)
 ```
 
 `GOOGLE_TOKEN_KEY` est la clé AES-GCM qui chiffre le jeton en base. Elle protège
@@ -266,9 +329,6 @@ l'inverse serait mentir sur la garantie, et
 changer rend les connexions existantes illisibles** : chacun devra réautoriser,
 ce que l'application demande d'elle-même.
 
-Le client Android n'a pas de secret : c'est un client public, où PKCE remplace
-le secret. Ce n'est pas un oubli.
-
 Déploiement :
 
 ```bash
@@ -277,8 +337,7 @@ supabase functions deploy google-connect google-disconnect calendar-event
 
 ### Côté application
 
-Trois valeurs dans `.env`, toutes publiques :
-`EXPO_PUBLIC_WEB_URL`, `EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID`,
+Deux valeurs dans `.env`, toutes deux publiques : `EXPO_PUBLIC_WEB_URL` et
 `EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB`. Sans elles la carte « Agenda Google » des
 réglages ne s'affiche pas et le panneau explique ce qui manque, plutôt que
 d'offrir un bouton qui échouerait au premier clic.
@@ -343,7 +402,7 @@ sans quoi il déclarait fermée une fonction ouverte en production.
 |---|---|
 | `npm run web` | serveur de développement, cible navigateur |
 | `npm run android` | serveur de développement, cible Android |
-| `npm run build:web` | export statique de la PWA, pour Cloudflare Pages |
+| `npm run build:web` | export statique de la PWA, vers dist/ |
 | `npm run assetlinks` | écrit public/.well-known/assetlinks.json depuis .env |
 | `npm run theme` | régénère `generated/` depuis `src/ui/theme.ts` |
 | `npm run theme:check` | échoue si `generated/` a dérivé de la source |

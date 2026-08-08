@@ -5,6 +5,7 @@ import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFonts } from 'expo-font'
+import Feather from '@expo/vector-icons/Feather'
 import { Archivo_400Regular, Archivo_500Medium } from '@expo-google-fonts/archivo'
 
 import { AuthProvider, useAuth } from '@/auth/AuthProvider'
@@ -22,6 +23,7 @@ import { radius, space } from '@/ui/theme'
 // puis un saut typographique, ou un éclair de thème inversé.
 void SplashScreen.preventAutoHideAsync()
 
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     // Fichiers locaux plutôt que paquets : ni Viking ni Junicode ne vivent sur
@@ -31,6 +33,33 @@ export default function RootLayout() {
     'Junicode-Bold': require('../assets/fonts/Junicode-Bold.ttf'),
     Archivo_400Regular,
     Archivo_500Medium,
+
+    /**
+     * La police des icônes, déclarée ici alors que `@expo/vector-icons` sait la
+     * charger tout seul. Ce n'est pas une redite : c'est ce qui fait qu'elle
+     * existe aussi au moment de l'export statique.
+     *
+     * Sans cette ligne, la PWA levait une erreur d'hydratation à chaque
+     * chargement, d'origine peu évidente. Le composant d'icône lit
+     * `Font.isLoaded()` dans son état initial, or cette fonction ne répond pas à
+     * la même question des deux côtés : sous Node elle consulte un registre que
+     * rien n'avait alimenté, dans le navigateur elle cherche une règle
+     * `@font-face` dans le document. Le HTML sortait donc du build avec un
+     * `<Text>` sans `fontFamily` ni glyphe, le navigateur rendait l'icône
+     * complète, et React jetait tout l'arbre pour le refaire côté client.
+     *
+     * Déclarée ici, `useFonts` l'enregistre pendant le rendu serveur — c'est son
+     * chemin `useStaticFonts` — l'export en tire la règle `@font-face` qu'il
+     * pose dans le HTML, et le premier rendu du navigateur la trouve donc déjà
+     * là. Les deux concordent.
+     *
+     * Un appel au niveau module ne marchait pas : le registre serveur vit dans
+     * un `AsyncLocalStorage` qu'Expo n'ouvre que le temps du rendu, et
+     * l'évaluation du module arrive avant.
+     *
+     * Effet de bord bienvenu : les icônes ne clignotent plus au premier rendu.
+     */
+    ...Feather.font,
   })
 
   return (

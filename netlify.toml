@@ -1,0 +1,69 @@
+# Déploiement de la PWA sur Netlify.
+#
+# Le build tourne chez Netlify. Les clés `EXPO_PUBLIC_*` sont donc à déclarer
+# dans les variables d'environnement du projet, et non dans `.env` : ce dernier
+# n'est pas suivi par git et ne monte jamais chez Netlify. Sans elles le build
+# réussit et publie une application qui démarre sur son écran de configuration,
+# ce qui ressemble à une panne alors qu'il ne manque que des variables.
+#
+# Les trois attendues : EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY
+# et EXPO_PUBLIC_WEB_URL. Voir la section « Déploiement » du README.
+
+[build]
+  command = "npm run build:web"
+  publish = "dist"
+
+[build.environment]
+  # react-native 0.86 réclame ^20.19.4 || ^22.13.0 || ^24.3.0. La version par
+  # défaut de Netlify évolue sans prévenir ; la figer évite un build qui casse
+  # un matin sans qu'aucune ligne du dépôt n'ait bougé.
+  NODE_VERSION = "22"
+
+  # Netlify refuse de publier un build où il retrouve la valeur d'une variable
+  # marquée secrète. La garde est bonne, mais elle se trompe de cible ici : une
+  # variable `EXPO_PUBLIC_*` est inscrite dans le bundle client *par
+  # définition*, c'est même son unique raison d'être. La clé anon est publique
+  # par conception — ce sont les politiques RLS qui protègent les données, pas
+  # le secret de cette clé — et la retrouver dans le JavaScript servi est le
+  # comportement attendu, pas une fuite.
+  #
+  # On excepte donc cette clé nommément, plutôt que de désactiver le scan
+  # entièrement : le jour où un vrai secret arrive dans les variables du projet,
+  # la garde doit encore se déclencher.
+  SECRETS_SCAN_OMIT_KEYS = "EXPO_PUBLIC_SUPABASE_ANON_KEY"
+
+# ------------------------------------------------------------- réécritures
+
+# L'export statique d'expo-router écrit la route dynamique sous son nom
+# littéral, `note/[id].html`. Aucune URL réelle ne porte ces crochets : sans
+# cette règle, ouvrir `/note/<identifiant>` rendrait un 404, ce qui casserait
+# précisément les liens déposés dans les évènements Google Agenda.
+#
+# Statut 200 et non 301 : c'est une réécriture, pas une redirection. L'adresse
+# reste `/note/<identifiant>` dans la barre du navigateur, et le routeur y lit
+# l'identifiant au premier rendu. Une redirection l'effacerait en chemin.
+[[redirects]]
+  from = "/note/*"
+  to = "/note/[id].html"
+  status = 200
+
+# ------------------------------------------------------------- en-têtes
+
+# L'application est un client statique qui ne parle qu'à Supabase et à Google.
+# Ces trois en-têtes ferment ce qui n'a aucune raison d'être ouvert.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Interdit l'affichage dans une iframe tierce : rien ici n'a vocation à
+    # être encadré, et le coffre encore moins.
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Le fichier qui autorise l'application Android à ouvrir les liens de notes.
+# Android exige le type MIME JSON ; servi autrement, la vérification échoue en
+# silence et les liens repartent vers le navigateur.
+[[headers]]
+  for = "/.well-known/assetlinks.json"
+  [headers.values]
+    Content-Type = "application/json"

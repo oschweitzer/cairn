@@ -6,6 +6,13 @@ node_modules/
 # Expo
 .expo/
 dist/
+
+# État local du CLI Netlify : identifiant du projet lié, caches de build.
+# Rien de secret, mais rien qui ait sa place dans le dépôt non plus.
+.netlify/
+
+# État local de la CLI Supabase : projet lié, versions détectées.
+supabase/.temp/
 web-build/
 expo-env.d.ts
 

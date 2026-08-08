@@ -45,9 +45,10 @@ const dark = theme.dark
  * `npm run assetlinks`.
  *
  * Un `https://` ordinaire, et non le schéma `cairn://` : le même lien doit
- * rester ouvrable depuis un ordinateur, où l'application n'existe pas. Le
- * schéma privé continue de servir au retour d'authentification, qui n'a pas
- * cette contrainte.
+ * rester ouvrable depuis un ordinateur, où l'application n'existe pas. Google
+ * l'impose de surcroît pour le retour de consentement, ayant déprécié les
+ * schémas privés côté Android. Le schéma `cairn://` ne sert plus qu'au retour
+ * de connexion Supabase, qui n'a pas cette contrainte.
  *
  * Sans variable, aucun filtre n'est déclaré. Un filtre portant un hôte vide
  * serait accepté par le build puis ignoré par Android, ce qui se diagnostique
@@ -94,16 +95,33 @@ const config = {
     // Le bord à bord n'est plus une option depuis le SDK 54, il est systématique.
     predictiveBackGestureEnabled: false,
 
-    // `autoVerify` demande à Android de vérifier assetlinks.json à
-    // l'installation. Vérifié, le lien ouvre Cairn sans rien demander ; non
-    // vérifié, il part au navigateur sans erreur visible.
+    /**
+     * Deux chemins remis à l'application plutôt qu'au navigateur.
+     *
+     * `/note` porte les liens déposés dans les évènements d'agenda : les
+     * ouvrir depuis le téléphone doit mener à la note, pas à la PWA.
+     *
+     * `/google` est l'adresse de retour du consentement Google. Elle est ici
+     * par nécessité et non par confort : Google a déprécié les schémas privés
+     * côté Android, la redirection ne peut donc plus être `cairn://`, et sans
+     * ce filtre la réponse s'ouvrirait dans le navigateur — l'application
+     * attendrait un code qui ne lui reviendrait jamais.
+     *
+     * `autoVerify` demande à Android de vérifier `/.well-known/assetlinks.json`
+     * à l'installation. Vérifié, le lien ouvre Cairn sans rien demander ; non
+     * vérifié, il part au navigateur sans erreur visible — d'où l'importance de
+     * `npm run assetlinks`, et le fait que la connexion à l'agenda en dépend.
+     */
     ...(hoteWeb
       ? {
           intentFilters: [
             {
               action: 'VIEW',
               autoVerify: true,
-              data: [{ scheme: 'https', host: hoteWeb, pathPrefix: '/note' }],
+              data: [
+                { scheme: 'https', host: hoteWeb, pathPrefix: '/note' },
+                { scheme: 'https', host: hoteWeb, pathPrefix: '/google' },
+              ],
               category: ['BROWSABLE', 'DEFAULT'],
             },
           ],
@@ -113,8 +131,9 @@ const config = {
 
   web: {
     bundler: 'metro',
-    // Rendu statique : nécessaire pour déployer la PWA sur Cloudflare Pages
-    // et pour que chaque route existe comme fichier servi tel quel.
+    // Rendu statique : nécessaire pour déployer la PWA sur un hébergeur de
+    // fichiers, et pour que chaque route existe comme fichier servi tel quel.
+    // La route dynamique fait exception, d'où la réécriture de netlify.toml.
     output: 'static',
     favicon: './assets/favicon.png',
   },

@@ -21,12 +21,7 @@
 
 import { withSupabase } from 'npm:@supabase/server@1'
 import { dechiffrer } from '../_shared/chiffrement.ts'
-import {
-  creerEvenement,
-  plateformeDepuisScopes,
-  rafraichirJeton,
-  supprimerEvenement,
-} from '../_shared/google.ts'
+import { creerEvenement, rafraichirJeton, supprimerEvenement } from '../_shared/google.ts'
 
 type Corps = {
   note_id?: string
@@ -106,18 +101,8 @@ export default {
       return Response.json({ erreur: 'agenda non connecté', code: 'non_connecte' }, { status: 428 })
     }
 
-    // Les scopes disent par quel client la connexion s'est faite. Le jeton
-    // n'est rafraîchissable que par celui-là.
-    const { data: compte } = await ctx.supabaseAdmin
-      .from('google_accounts')
-      .select('scopes')
-      .eq('user_id', utilisateur)
-      .maybeSingle()
-
     const jetonDurable = await dechiffrer(identifiants.refresh_token_encrypted)
-    const acces = jetonDurable
-      ? await rafraichirJeton(jetonDurable, plateformeDepuisScopes(compte?.scopes))
-      : null
+    const acces = jetonDurable ? await rafraichirJeton(jetonDurable) : null
 
     /**
      * Jeton mort : on le dit, on le note, et on n'insiste pas.

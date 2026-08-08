@@ -15,20 +15,12 @@
 
 import { withSupabase } from 'npm:@supabase/server@1'
 import { chiffrer } from '../_shared/chiffrement.ts'
-import {
-  adresseDepuisIdToken,
-  echangerCode,
-  MARQUE_ANDROID,
-  type Plateforme,
-  SCOPE_AGENDA,
-} from '../_shared/google.ts'
+import { adresseDepuisIdToken, echangerCode, SCOPE_AGENDA } from '../_shared/google.ts'
 
 type Corps = {
   code?: string
   redirect_uri?: string
   code_verifier?: string
-  /** 'android' pour l'APK, 'web' pour la PWA. Voir `identifiants` côté partagé. */
-  platform?: Plateforme
 }
 
 export default {
@@ -53,14 +45,9 @@ export default {
       )
     }
 
-    // Liste fermée plutôt que valeur reprise telle quelle : `platform` choisit
-    // un jeu d'identifiants côté serveur, et une valeur inattendue doit
-    // s'arrêter ici plutôt que de se propager.
-    const plateforme: Plateforme = corps.platform === 'android' ? 'android' : 'web'
-
     let jetons
     try {
-      jetons = await echangerCode(code, redirectUri, codeVerifier, plateforme)
+      jetons = await echangerCode(code, redirectUri, codeVerifier)
     } catch (erreur) {
       return Response.json({ erreur: (erreur as Error).message }, { status: 502 })
     }
@@ -124,11 +111,7 @@ export default {
     const { error: erreurCompte } = await ctx.supabaseAdmin.from('google_accounts').upsert({
       user_id: utilisateur,
       google_email: adresseDepuisIdToken(jetons.id_token),
-      // La marque de plateforme voyage avec les scopes. Le rafraîchissement en
-      // aura besoin : un jeton obtenu par le client Android ne se rafraîchit
-      // pas avec les identifiants Web, et rien d'autre dans la ligne ne dirait
-      // lequel des deux a servi.
-      scopes: plateforme === 'android' ? [...scopes, MARQUE_ANDROID] : scopes,
+      scopes,
       refresh_expires_at: expiration.toISOString(),
       needs_reauth: false,
       updated_at: new Date().toISOString(),

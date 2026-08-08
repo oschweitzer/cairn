@@ -8,7 +8,7 @@
 
 import { withSupabase } from 'npm:@supabase/server@1'
 import { dechiffrer } from '../_shared/chiffrement.ts'
-import { plateformeDepuisScopes, rafraichirJeton, revoquer } from '../_shared/google.ts'
+import { rafraichirJeton, revoquer } from '../_shared/google.ts'
 
 export default {
   fetch: withSupabase({ auth: 'user' }, async (_req: Request, ctx) => {
@@ -20,12 +20,6 @@ export default {
     const { data: ligne } = await ctx.supabaseAdmin
       .from('google_credentials')
       .select('refresh_token_encrypted')
-      .eq('user_id', utilisateur)
-      .maybeSingle()
-
-    const { data: compte } = await ctx.supabaseAdmin
-      .from('google_accounts')
-      .select('scopes')
       .eq('user_id', utilisateur)
       .maybeSingle()
 
@@ -44,7 +38,7 @@ export default {
     if (ligne?.refresh_token_encrypted) {
       const jeton = await dechiffrer(ligne.refresh_token_encrypted)
       if (jeton) {
-        const acces = await rafraichirJeton(jeton, plateformeDepuisScopes(compte?.scopes))
+        const acces = await rafraichirJeton(jeton)
         // On révoque le jeton d'accès quand on a pu en obtenir un : Google
         // révoque alors toute la grappe, jeton de rafraîchissement compris.
         revoque = await revoquer(acces ?? jeton)

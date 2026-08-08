@@ -4,8 +4,24 @@
     {
       "name": "cairn-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "web"],
+      "runtimeArgs": [
+        "run",
+        "web"
+      ],
       "port": 8081
+    },
+    {
+      "name": "cairn-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "-y",
+        "serve",
+        "dist",
+        "-l",
+        "4173",
+        "--no-clipboard"
+      ],
+      "port": 4173
     }
   ]
 }

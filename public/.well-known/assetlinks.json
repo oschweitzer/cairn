@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.cairn",
+      "sha256_cert_fingerprints": [
+        "8B:39:BE:AE:3A:84:8C:BE:9B:06:EC:84:3C:D0:D1:65:4E:3D:FD:2C:A9:6F:D4:B2:C1:D3:AE:4B:36:7D:08:6F"
+      ]
+    }
+  }
+]

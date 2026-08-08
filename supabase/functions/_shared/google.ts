@@ -3,12 +3,11 @@
  *
  * Tout ce qui touche aux identifiants de client vit ici, donc côté serveur.
  *
- * Pour la PWA la raison est évidente : l'échange exige un `client_secret`, et un
- * secret embarqué dans un bundle n'est pas un secret. Pour l'APK, où le client
- * Android est public et n'a pas de secret, la raison est autre et tient au jeton
- * obtenu : un jeton de rafraîchissement vaut l'accès permanent à un agenda. Le
- * faire transiter par l'appareil, puis dormir dans son stockage, multiplierait
- * les endroits d'où il peut fuir. Il ne quitte donc jamais le serveur.
+ * L'échange exige un `client_secret`, et un secret embarqué dans un bundle ou
+ * dans un APK n'est pas un secret. S'y ajoute le jeton obtenu : un jeton de
+ * rafraîchissement vaut l'accès permanent à un agenda, et le faire transiter
+ * par l'appareil puis dormir dans son stockage multiplierait les endroits d'où
+ * il peut fuir. Il ne quitte donc jamais le serveur.
  */
 
 /**
@@ -30,31 +29,14 @@ const POINT_REVOCATION = 'https://oauth2.googleapis.com/revoke'
 const POINT_EVENEMENTS = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
 
 /**
- * Deux clients OAuth, et ce n'est pas un choix mais une contrainte de Google.
+ * Un seul client OAuth, de type « Web », pour l'APK comme pour la PWA.
  *
- * Un client de type « Web » n'accepte que des redirections http(s) : `cairn://`
- * y est refusé. L'APK a donc besoin d'un client de type « Android », lequel est
- * un client public — sans `client_secret`, l'authenticité de l'échange reposant
- * sur PKCE et sur l'empreinte de signature déclarée chez Google.
- *
- * La PWA, elle, redirige vers sa propre origine et garde le client Web avec son
- * secret.
- *
- * Dans les deux cas c'est cette fonction qui échange le code, jamais le client :
- * le jeton de rafraîchissement ne transite donc pas par l'appareil, ce que la
- * tête du schéma SQL pose comme principe.
+ * Google a déprécié les schémas privés côté Android : la redirection y passe
+ * désormais par un lien d'application `https://`, que le système remet à
+ * l'application installée. Les deux plateformes partagent donc la même adresse
+ * de retour, et donc le même client — avec son secret, qui ne vit qu'ici.
  */
-export type Plateforme = 'android' | 'web'
-
-function identifiants(plateforme: Plateforme): { id: string; secret: string | null } {
-  if (plateforme === 'android') {
-    const id = Deno.env.get('GOOGLE_CLIENT_ID_ANDROID')
-    if (!id) {
-      throw new Error('secret GOOGLE_CLIENT_ID_ANDROID absent des Edge Functions')
-    }
-    return { id, secret: null }
-  }
-
+function identifiants(): { id: string; secret: string } {
   const id = Deno.env.get('GOOGLE_CLIENT_ID_WEB')
   const secret = Deno.env.get('GOOGLE_CLIENT_SECRET_WEB')
   if (!id || !secret) {
@@ -63,20 +45,6 @@ function identifiants(plateforme: Plateforme): { id: string; secret: string | nu
     )
   }
   return { id, secret }
-}
-
-/**
- * Le rafraîchissement ne sait pas d'où venait la connexion.
- *
- * Un jeton de rafraîchissement appartient au client qui l'a obtenu : le
- * rafraîchir avec l'autre jeu d'identifiants échoue. On mémorise donc la
- * plateforme au moment de la connexion, dans les scopes de `google_accounts`,
- * plutôt que de deviner. Voir `plateformeDepuisScopes`.
- */
-export const MARQUE_ANDROID = 'cairn:android'
-
-export function plateformeDepuisScopes(scopes: string[] | null | undefined): Plateforme {
-  return scopes?.includes(MARQUE_ANDROID) ? 'android' : 'web'
 }
 
 export type JetonsGoogle = {
@@ -99,18 +67,15 @@ export async function echangerCode(
   code: string,
   redirectUri: string,
   codeVerifier: string,
-  plateforme: Plateforme,
 ): Promise<JetonsGoogle> {
-  const { id, secret } = identifiants(plateforme)
+  const { id, secret } = identifiants()
   const reponse = await fetch(POINT_JETON, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       code,
       client_id: id,
-      // Absent pour un client Android : ce n'est pas un oubli mais la
-      // définition d'un client public, où PKCE remplace le secret.
-      ...(secret ? { client_secret: secret } : {}),
+      client_secret: secret,
       redirect_uri: redirectUri,
       code_verifier: codeVerifier,
       grant_type: 'authorization_code',
@@ -132,18 +97,15 @@ export async function echangerCode(
  * doit alors lever `needs_reauth` plutôt que de retenter — aucune répétition ne
  * fera revivre ce jeton.
  */
-export async function rafraichirJeton(
-  refreshToken: string,
-  plateforme: Plateforme,
-): Promise<string | null> {
-  const { id, secret } = identifiants(plateforme)
+export async function rafraichirJeton(refreshToken: string): Promise<string | null> {
+  const { id, secret } = identifiants()
   const reponse = await fetch(POINT_JETON, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       refresh_token: refreshToken,
       client_id: id,
-      ...(secret ? { client_secret: secret } : {}),
+      client_secret: secret,
       grant_type: 'refresh_token',
     }),
   })

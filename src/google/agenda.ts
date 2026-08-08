@@ -6,13 +6,22 @@
  * Functions — voir supabase/functions/_shared/google.ts, qui explique pourquoi
  * l'échange n'a pas sa place ici.
  *
- * Deux identifiants de client, parce que Google impose deux types de clients :
- * « Android » pour l'APK, qui seul accepte une redirection en schéma privé, et
- * « Web » pour la PWA. Les deux sont publics par nature — un identifiant de
- * client n'est pas un secret — d'où le préfixe EXPO_PUBLIC_.
+ * Un seul client OAuth, de type « Web », pour l'APK comme pour la PWA.
+ *
+ * Un client « Android » aurait semblé plus naturel pour l'APK, mais Google a
+ * déprécié les schémas privés de ce côté — « Custom URI schemes are no longer
+ * supported on Android » — et refuse la redirection avec un
+ * `invalid_request` laconique. La voie qu'il pousse désormais est celle des
+ * liens d'application : une redirection `https://` ordinaire, qu'Android remet
+ * à l'application installée plutôt qu'au navigateur, parce que le domaine et
+ * l'application se reconnaissent par `/.well-known/assetlinks.json`.
+ *
+ * D'où une seule adresse de retour, la même partout, et un seul identifiant de
+ * client. Il est public par nature — un identifiant de client n'est pas un
+ * secret — d'où le préfixe EXPO_PUBLIC_. Seul le secret associé reste côté
+ * Edge Functions.
  */
 
-import { Platform } from 'react-native'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AuthRequest, makeRedirectUri, type DiscoveryDocument } from 'expo-auth-session'
 import { getSupabase, isSupabaseConfigured } from '../db/supabase'
@@ -33,10 +42,7 @@ function lireEnv(valeur: string | undefined): string | null {
 }
 
 const URL_WEB = lireEnv(process.env.EXPO_PUBLIC_WEB_URL)?.replace(/\/+$/, '') ?? null
-const CLIENT_ANDROID = lireEnv(process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID)
 const CLIENT_WEB = lireEnv(process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB)
-
-const estAndroid = Platform.OS !== 'web'
 
 /**
  * Vrai quand la fonctionnalité peut fonctionner de bout en bout.
@@ -48,7 +54,7 @@ const estAndroid = Platform.OS !== 'web'
  * à déposer dans l'évènement).
  */
 export const agendaConfigure =
-  isSupabaseConfigured && URL_WEB !== null && (estAndroid ? CLIENT_ANDROID : CLIENT_WEB) !== null
+  isSupabaseConfigured && URL_WEB !== null && CLIENT_WEB !== null
 
 /** Adresse publique d'une note. C'est tout ce que Cairn confie à Google. */
 export function lienNote(id: string): string | null {
@@ -56,19 +62,20 @@ export function lienNote(id: string): string | null {
 }
 
 /**
- * Redirection de retour du consentement.
+ * Adresse de retour du consentement, identique sur les deux plateformes.
  *
- * Sur Android, le schéma privé de l'application. Google n'accepte cette forme
- * que pour un client de type « Android », dont la légitimité est vérifiée par
- * le nom de paquet et l'empreinte de signature plutôt que par une liste d'URL.
+ * Sur le web, la fenêtre surgissante y atterrit et rend la main à celle qui
+ * l'a ouverte — voir app/(auth)/google.tsx.
  *
- * Sur le web, une route de la PWA, à déclarer dans les origines autorisées du
- * client Web.
+ * Sur Android, cette même adresse est déclarée en lien d'application dans
+ * app.config.js : le système la remet à Cairn au lieu de l'ouvrir dans le
+ * navigateur, et la session d'authentification se referme avec le code. Si la
+ * vérification du domaine échouait, la page s'ouvrirait dans le navigateur et
+ * le consentement n'aboutirait pas — d'où l'importance du fichier produit par
+ * `npm run assetlinks`.
  */
 function redirection(): string {
-  return estAndroid
-    ? makeRedirectUri({ scheme: 'cairn', path: 'google' })
-    : `${URL_WEB ?? ''}/google`
+  return `${URL_WEB ?? ''}/google`
 }
 
 // ----------------------------------------------------------------- lecture
@@ -118,10 +125,9 @@ export function useConnecterAgenda() {
 
   return useMutation({
     mutationFn: async () => {
-      const clientId = estAndroid ? CLIENT_ANDROID : CLIENT_WEB
-      if (!clientId) {
+      if (!CLIENT_WEB) {
         throw new Error(
-          `Identifiant de client Google absent. Renseigne EXPO_PUBLIC_GOOGLE_CLIENT_ID_${estAndroid ? 'ANDROID' : 'WEB'} dans .env.`,
+          'Identifiant de client Google absent. Renseigne EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB dans .env.',
         )
       }
 
@@ -138,7 +144,7 @@ export function useConnecterAgenda() {
        * l'Edge Function n'a plus qu'à refuser.
        */
       const requete = new AuthRequest({
-        clientId,
+        clientId: CLIENT_WEB,
         redirectUri,
         scopes: [SCOPE_AGENDA],
         responseType: 'code',
@@ -161,7 +167,6 @@ export function useConnecterAgenda() {
           code,
           redirect_uri: redirectUri,
           code_verifier: requete.codeVerifier,
-          platform: estAndroid ? 'android' : 'web',
         },
       })
       if (error) throw new Error(await messageErreur(error))
