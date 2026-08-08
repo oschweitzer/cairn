@@ -36,6 +36,11 @@
     "react-native-web": "^0.21.2",
     "react-native-worklets": "0.10.1"
   },
+  "overrides": {
+    "xcode": {
+      "uuid": "^11.1.1"
+    }
+  },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
     "@types/node": "^26.1.2",
@@ -50,6 +55,7 @@
     "web": "expo start --web",
     "build:web": "expo export --platform web",
     "theme": "tsx scripts/gen-theme.ts",
+    "assetlinks": "tsx scripts/gen-assetlinks.ts",
     "theme:check": "tsx scripts/gen-theme.ts --check",
     "theme:contrast": "tsx scripts/gen-theme.ts --contrast",
     "typecheck": "tsc --noEmit && tsc -p scripts --noEmit",

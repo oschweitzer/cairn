@@ -9,6 +9,13 @@ import { Button, Card, Field, Inscription, Screen, Seam, Txt } from '@/ui/compon
 import { useToast } from '@/ui/Toast'
 import { Glyph } from '@/ui/glyphs'
 import { radius, space } from '@/ui/theme'
+import {
+  agendaConfigure,
+  agendaUtilisable,
+  useCompteGoogle,
+  useConnecterAgenda,
+  useDeconnecterAgenda,
+} from '@/google/agenda'
 
 const OPTIONS: { value: ThemePreference; label: string; icon: 'moon' | 'sun' | 'smartphone' }[] = [
   { value: 'dark', label: 'Sombre', icon: 'moon' },
@@ -347,6 +354,95 @@ function DeleteAccount() {
   )
 }
 
+/**
+ * Connexion à Google Agenda.
+ *
+ * Séparée de la section Compte, et ce n'est pas qu'une question de rangement :
+ * la connexion à Cairn et l'autorisation d'écrire dans l'agenda sont deux
+ * consentements distincts, l'un pouvant se retirer sans l'autre. Les afficher
+ * ensemble laisserait croire que se déconnecter de Cairn révoque l'accès à
+ * l'agenda, ou l'inverse.
+ *
+ * La carte n'apparaît pas quand l'installation n'est pas configurée pour :
+ * proposer une connexion qui échouera au premier clic n'apprend rien à
+ * personne.
+ */
+function AgendaSettings() {
+  const toast = useToast()
+  const compte = useCompteGoogle()
+  const connecter = useConnecterAgenda()
+  const deconnecter = useDeconnecterAgenda()
+
+  if (!agendaConfigure) return null
+
+  const connecte = agendaUtilisable(compte.data)
+  const expire = compte.data?.refresh_expires_at
+
+  return (
+    <Card style={{ gap: space.md }}>
+      <Txt variant="title">Agenda Google</Txt>
+      <Seam />
+
+      {connecte ? (
+        <>
+          <View style={{ gap: space.xxs }}>
+            <Txt variant="caption" tone="muted">
+              Autorisé sur le compte
+            </Txt>
+            <Txt variant="body">{compte.data?.google_email ?? 'compte Google'}</Txt>
+          </View>
+
+          {/* L'échéance est dite tant qu'elle existe, pas seulement une fois
+              dépassée : en mode test Google elle tombe tous les sept jours, et
+              l'apprendre au moment d'envoyer une note est trop tard. */}
+          {expire ? (
+            <Txt variant="caption" tone="muted">
+              Autorisation valable jusqu’au{' '}
+              {new Date(expire).toLocaleDateString('fr-FR', {
+                day: 'numeric',
+                month: 'long',
+              })}
+              . Google la coupe tous les sept jours tant que le projet est en mode test.
+            </Txt>
+          ) : null}
+
+          <Button
+            label="Retirer l’accès à l’agenda"
+            variant="ghost"
+            busy={deconnecter.isPending}
+            onPress={() => {
+              deconnecter.mutate(undefined, {
+                onSuccess: () => toast('Accès à l’agenda retiré.', { tone: 'success' }),
+                onError: (e) => toast((e as Error).message, { tone: 'danger' }),
+              })
+            }}
+          />
+        </>
+      ) : (
+        <>
+          <Txt variant="caption" tone="muted">
+            {compte.data?.needs_reauth
+              ? 'L’autorisation a expiré. Une note ne peut plus partir vers l’agenda tant qu’elle n’est pas renouvelée.'
+              : 'Permet d’ajouter une note à ton agenda, depuis l’écran de la note. Seuls le titre et un lien sont envoyés — jamais le contenu.'}
+          </Txt>
+          <Button
+            label={compte.data?.needs_reauth ? 'Réautoriser l’agenda' : 'Autoriser l’agenda'}
+            busy={connecter.isPending}
+            onPress={() => {
+              connecter.mutate(undefined, {
+                onSuccess: (r) => {
+                  if (!r.annule) toast('Agenda connecté.', { tone: 'success' })
+                },
+                onError: (e) => toast((e as Error).message, { tone: 'danger' }),
+              })
+            }}
+          />
+        </>
+      )}
+    </Card>
+  )
+}
+
 export default function Settings() {
   const { theme, preference, setPreference } = useTheme()
   const { session, signOut } = useAuth()
@@ -422,6 +518,8 @@ export default function Settings() {
       </Card>
 
       {vault.configured ? <VaultSettings /> : null}
+
+      <AgendaSettings />
 
       <Card style={{ gap: space.md }}>
         <Txt variant="title">Compte</Txt>

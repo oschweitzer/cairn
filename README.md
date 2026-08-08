@@ -19,7 +19,7 @@ palette, typographie, formes, mouvement et iconographie comprises.
 | 1 | Ossature, schéma, RLS, authentification, jetons de thème | fait |
 | 2 | Notes et listes, tags, filtrage, recherche | fait |
 | 3 | Coffre biométrique et noms de code | fait |
-| 4 | Notifications locales, export Google Tasks et Calendar | à venir |
+| 4 | Notifications locales, export Google Tasks et Calendar | export Agenda fait, le reste à venir |
 | 5 | Widget Android | à venir |
 | 6 | Chiffrement bout en bout activable par note | à venir |
 
@@ -55,8 +55,12 @@ palette, typographie, formes, mouvement et iconographie comprises.
 
    ```
    npm run web        # PWA sur navigateur
-   npm run android    # émulateur ou appareil
+   npm run android    # émulateur ou appareil, via Expo Go
    ```
+
+   La connexion Google ne fonctionne pas dans Expo Go, par construction : voir
+   « La connexion Google ne marche pas dans Expo Go » plus bas. Le mot de passe,
+   lui, marche partout.
 
 Sans `.env` rempli, l'application démarre quand même et affiche un écran
 expliquant ce qu'il manque, plutôt qu'un écran blanc.
@@ -79,6 +83,15 @@ dans deux endroits différents.
 valeur exacte est aussi affichée par Supabase sur la page du fournisseur Google,
 prête à copier.
 
+Une redirection qui aboutit sur `http://localhost:3000` dit toujours la même
+chose, et ce n'est jamais le port qu'on croit lire : 3000 est la Site URL d'usine
+d'un projet Supabase, celle sur laquelle il se rabat quand l'URL demandée n'est
+pas dans les Redirect URLs. Le symptôme désigne donc une entrée manquante dans
+cette liste, pas un serveur à démarrer. Sur mobile, l'entrée en question est
+`cairn://callback`. Cette même Site URL alimente le `{{ .SiteURL }}` des gabarits
+de courriel : la laisser à sa valeur d'usine envoie aussi les liens de
+confirmation vers ce port fantôme.
+
 Le type de client OAuth doit être « Web application », pas « Android », même en
 ciblant Android. La redirection part vers l'endpoint HTTPS de Supabase, et un
 client de type Android n'a pas de champ de redirection.
@@ -87,6 +100,194 @@ Deux causes plus discrètes du même message. Google compare la chaîne caractè
 pour caractère, donc une barre oblique finale en trop suffit à faire échouer la
 comparaison. Et une modification côté Google met parfois quelques minutes à se
 propager.
+
+### La connexion Google ne marche pas dans Expo Go
+
+C'est attendu, et ce n'est pas réparable côté code. Expo Go est une application
+déjà publiée, portant son propre schéma : le `scheme: 'cairn'` déclaré dans
+`app.config.js` n'existe pas dans le binaire qu'on lance. `makeRedirectUri` le
+sait et rend l'adresse du serveur de développement, `exp://192.168.x.x:8081/--/callback`,
+au lieu de `cairn://callback`.
+
+Cette adresse n'est pas dans la liste blanche du projet Supabase — elle ne peut
+pas y être, l'IP change de réseau en réseau. Supabase refuse donc la redirection
+et se rabat sur l'URL de site du projet, `http://localhost:8081`. Le téléphone
+ouvre alors un localhost qui, chez lui, n'héberge rien. D'où la page morte.
+
+La sortie est de lancer un vrai binaire, qui porte le schéma `cairn://` pour de
+bon. Section suivante.
+
+## Application Android
+
+Deux profils, dans `eas.json`, pour deux usages.
+
+| Profil | Ce qu'on obtient | Quand |
+|---|---|---|
+| `preview` | APK autonome, installable, bundle embarqué | Essayer l'application pour de vrai, la donner à quelqu'un |
+| `development` | APK qui se branche sur le serveur Metro, rafraîchissement conservé | Développer avec la connexion Google qui fonctionne |
+
+Le build passe par les serveurs d'Expo : ni Java ni le SDK Android ne sont requis
+sur la machine. Il faut un compte sur expo.dev, gratuit.
+
+1. Installer la CLI et s'identifier.
+
+   ```
+   npm install --global eas-cli
+   eas login
+   ```
+
+2. Rattacher le dossier à un projet EAS.
+
+   ```
+   eas init
+   ```
+
+   La commande crée le projet côté expo.dev puis affiche un identifiant. Elle ne
+   peut pas l'écrire elle-même : `app.config.js` est une configuration dynamique,
+   qu'un outil ne sait pas modifier sans risquer d'en perdre la logique. Le
+   reporter à la main dans `app.config.js`, à côté de `experiments`, puis
+   committer.
+
+   ```js
+   extra: {
+     eas: { projectId: '<identifiant affiché par eas init>' },
+   },
+   ```
+
+3. Poser les clés Supabase côté EAS. C'est l'étape qu'on oublie : `.env` est
+   ignoré par git, et EAS Build n'envoie que les fichiers suivis. Sans elle le
+   build réussit et l'application démarre sur l'écran de configuration, ce qui
+   ressemble à une panne alors qu'il ne manque que deux variables.
+
+   ```
+   eas env:set --name EXPO_PUBLIC_SUPABASE_URL --value "https://<ref>.supabase.co" --environment preview --visibility plaintext
+   eas env:set --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "<clé anon>" --environment preview --visibility plaintext
+   ```
+
+   `plaintext` est le bon niveau : ces deux valeurs partent de toute façon dans
+   le bundle, c'est RLS qui protège les données. Répéter avec
+   `--environment development` et `--environment production` selon les profils
+   utilisés. `eas env:list --environment preview` vérifie.
+
+   Pour l'export vers l'agenda, trois variables de plus, publiques elles aussi :
+
+   ```
+   eas env:set --name EXPO_PUBLIC_WEB_URL --value "https://<domaine>" --environment preview --visibility plaintext
+   eas env:set --name EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID --value "<id client Android>" --environment preview --visibility plaintext
+   eas env:set --name EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB --value "<id client Web>" --environment preview --visibility plaintext
+   ```
+
+4. Construire, puis installer.
+
+   ```
+   eas build --platform android --profile preview
+   ```
+
+   La commande rend une URL de téléchargement et un QR code. Ouvrir le QR depuis
+   le téléphone télécharge l'APK ; Android demandera d'autoriser l'installation
+   depuis cette source. Avec `adb` sous la main, `eas build:run -p android --latest`
+   pose le fichier sur l'appareil branché.
+
+Aucune clé de signature à fabriquer : au premier build Android, EAS en génère une
+et la garde. La conserver est ce qui permettra plus tard de publier une mise à
+jour du même paquet, `app.cairn`.
+
+Vérifier ensuite que `cairn://callback` est bien dans les Redirect URLs du projet
+Supabase — c'est cette entrée, et elle seule, qui fait aboutir la connexion
+Google depuis l'APK.
+
+Le profil `development` demande une dépendance de plus, `npx expo install expo-dev-client`,
+et se lance ensuite avec `npx expo start --dev-client`.
+
+## Agenda Google
+
+Depuis une note ou une liste, le bouton d'agenda de la barre basse ouvre un
+panneau : date, heure, durée, et l'évènement part dans l'agenda principal du
+compte Google autorisé.
+
+**Ce qui est envoyé : le titre de la note et un lien vers elle. Rien d'autre.**
+Pas le corps, pas les éléments cochables. L'évènement pointe vers
+`https://<domaine>/note/<id>` ; sur un téléphone où Cairn est installé, Android
+ouvre l'application directement grâce aux App Links déclarés plus haut, et
+ailleurs le lien ouvre la PWA.
+
+### Les notes protégées ne partent pas
+
+Une note chiffrée ou rangée dans le coffre n'a pas de bouton d'agenda, et n'en
+aura pas. Envoyer son titre chez Google déferait la promesse du chiffrement, et
+la déferait discrètement — rien, dans l'agenda, ne rappellerait d'où vient la
+ligne.
+
+Ce refus tient à trois profondeurs, et cette redondance est délibérée :
+l'interface masque le bouton, l'Edge Function relit la note avant tout appel à
+Google, et un déclencheur de la base refuse la ligne quoi qu'il arrive. Les deux
+premiers évitent du travail inutile ; seul le troisième tient si le client est
+contourné ou si la note est rangée dans le coffre pendant l'envoi. Les tests
+`npm run db:test` vérifient les trois cas, y compris la tentative de rediriger
+un export existant vers une note protégée.
+
+### Console Google
+
+Deux clients OAuth, et ce n'est pas un choix mais une contrainte : un client de
+type « Web » n'accepte que des redirections http(s), donc `cairn://` y est
+refusé. L'APK a besoin d'un client « Android ».
+
+| Client | Type | À renseigner |
+|---|---|---|
+| Android | Android | Nom de paquet `app.cairn`, empreinte SHA-1 du certificat de signature (`eas credentials`) |
+| Web | Web application | Origine autorisée `https://<domaine>`, URI de redirection `https://<domaine>/google` |
+
+Le scope à ajouter à l'écran de consentement est
+`https://www.googleapis.com/auth/calendar.events`. Google le classe comme
+sensible : tant que le projet reste en mode test, il est borné à cent comptes et
+les autorisations expirent **au bout de sept jours**. C'est la raison d'être de
+`refresh_expires_at` et `needs_reauth` — l'échéance est affichée dans les
+réglages, et la bannière de reconnexion apparaît d'elle-même plutôt que de
+laisser découvrir la coupure au moment d'envoyer une note.
+
+Cette autorisation est distincte de la connexion à Cairn. Se connecter avec
+Google ne donne aucun accès à l'agenda, et retirer l'accès à l'agenda ne
+déconnecte de rien.
+
+### Secrets des Edge Functions
+
+Le jeton de rafraîchissement ne transite jamais par l'appareil : les trois Edge
+Functions font l'échange et le gardent chiffré dans `google_credentials`, table
+dont RLS est actif sans aucune politique. Elles ont besoin de ceci :
+
+```
+supabase secrets set GOOGLE_CLIENT_ID_ANDROID=... GOOGLE_CLIENT_ID_WEB=... GOOGLE_CLIENT_SECRET_WEB=... CAIRN_WEB_URL=https://<domaine> GOOGLE_TOKEN_KEY=$(openssl rand -hex 32)
+```
+
+`GOOGLE_TOKEN_KEY` est la clé AES-GCM qui chiffre le jeton en base. Elle protège
+contre une fuite de la base seule, pas contre le serveur lui-même — prétendre
+l'inverse serait mentir sur la garantie, et
+`supabase/functions/_shared/chiffrement.ts` le dit en toutes lettres. **La
+changer rend les connexions existantes illisibles** : chacun devra réautoriser,
+ce que l'application demande d'elle-même.
+
+Le client Android n'a pas de secret : c'est un client public, où PKCE remplace
+le secret. Ce n'est pas un oubli.
+
+Déploiement :
+
+```bash
+supabase functions deploy google-connect google-disconnect calendar-event
+```
+
+### Côté application
+
+Trois valeurs dans `.env`, toutes publiques :
+`EXPO_PUBLIC_WEB_URL`, `EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID`,
+`EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB`. Sans elles la carte « Agenda Google » des
+réglages ne s'affiche pas et le panneau explique ce qui manque, plutôt que
+d'offrir un bouton qui échouerait au premier clic.
+
+Les fonctions Edge sont du Deno, pas du React Native : elles sont exclues de
+`tsconfig.json` et se vérifient avec `deno check` depuis
+`supabase/functions/`, où un `deno.json` les configure. Les laisser dans le
+typecheck de l'application ferait échouer celui-ci sur `Deno` et sur les imports
+`npm:`, qui sont pourtant corrects chez elles.
 
 ## Mot de passe oublié
 
@@ -143,6 +344,7 @@ sans quoi il déclarait fermée une fonction ouverte en production.
 | `npm run web` | serveur de développement, cible navigateur |
 | `npm run android` | serveur de développement, cible Android |
 | `npm run build:web` | export statique de la PWA, pour Cloudflare Pages |
+| `npm run assetlinks` | écrit public/.well-known/assetlinks.json depuis .env |
 | `npm run theme` | régénère `generated/` depuis `src/ui/theme.ts` |
 | `npm run theme:check` | échoue si `generated/` a dérivé de la source |
 | `npm run theme:contrast` | rapport de contraste WCAG des deux thèmes |
@@ -156,7 +358,7 @@ sans quoi il déclarait fermée une fonction ouverte en production.
 ### Les couleurs ont une source unique
 
 `src/ui/theme.ts` fait autorité. `npm run theme` en dérive `generated/theme.json`
-pour l'application et `app.config.ts`, la feuille de style de la PWA, et les
+pour l'application et `app.config.js`, la feuille de style de la PWA, et les
 ressources de couleurs du widget Android. Rien ne se recopie à la main, donc les
 trois surfaces ne peuvent pas diverger.
 
@@ -285,12 +487,17 @@ app/                    routes expo-router, partagées Android et web
 src/
   auth/                 session Supabase et actions d'authentification
   db/                   client Supabase, types du schéma, stockage clé-valeur
+  google/agenda.ts      consentement Google et envoi d'une note vers l'agenda
+  google/creneau.ts     lecture du créneau saisi, sans React, testée sous Node
   ui/theme.ts           source unique des couleurs, de la typographie et des formes
   ui/components.tsx     primitives d'interface
+  ui/AgendaPanel.tsx    panneau d'envoi vers l'agenda, dans l'écran de note
   ui/runes.tsx          futhark tracé en vectoriel, ornemental
   vault/policy.ts       règles du coffre, sans plateforme, testées sous Node
   vault/secret.ts       stockage du code sur l'appareil et dérivation
-scripts/                génération de thème, tests de schéma
+scripts/                génération de thème et d'assetlinks, tests
 supabase/migrations/    schéma SQL et politiques RLS
+supabase/functions/     Edge Functions Deno : échange OAuth et appels Google
 generated/              artefacts dérivés du thème, à committer
+public/                 fichiers servis tels quels par la PWA (assetlinks.json)
 ```

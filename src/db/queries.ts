@@ -47,6 +47,12 @@ export const keys = {
    * cases à cocher, elles, descendent sur le disque.
    */
   privateChecklistItems: [ROOT, 'volatile', 'private-checklist-items'] as const,
+  /**
+   * État de la connexion à Google Agenda. Volatile, comme le coffre : la ligne
+   * porte l'adresse du compte Google, et l'écrire dans localStorage pour
+   * épargner une requête au démarrage serait un mauvais échange.
+   */
+  googleAccount: [ROOT, 'volatile', 'google-account'] as const,
 }
 
 // -------------------------------------------------------------- lectures

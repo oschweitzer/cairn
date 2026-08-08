@@ -23,6 +23,7 @@ import { useTheme } from '@/ui/ThemeProvider'
 import { Button, Card, Seam, Txt, noWebOutline } from '@/ui/components'
 import { IconButton } from '@/ui/IconButton'
 import { ColorPicker, TagPicker } from '@/ui/pickers'
+import { AgendaBouton, AgendaPanel } from '@/ui/AgendaPanel'
 import { RuneLoader } from '@/ui/RuneLoader'
 import { useToast } from '@/ui/Toast'
 import { appear, reflow, useRise, vanish } from '@/ui/transitions'
@@ -31,7 +32,7 @@ import { radius, space, type, type TagColorKey } from '@/ui/theme'
 /** Délai avant enregistrement, pour ne pas écrire à chaque frappe. */
 const AUTOSAVE_MS = 600
 
-type Panel = 'none' | 'color' | 'tags'
+type Panel = 'none' | 'color' | 'tags' | 'agenda'
 
 export default function NoteEditor() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -752,6 +753,20 @@ export default function NoteEditor() {
           </Animated.View>
         ) : null}
 
+        {panel === 'agenda' ? (
+          <Animated.View
+            entering={appear}
+            exiting={vanish}
+            style={{ paddingHorizontal: space.md, paddingTop: space.md }}
+          >
+            <AgendaPanel
+              noteId={note.id}
+              noteProtegee={note.is_private || note.is_encrypted}
+              onFerme={() => setPanel('none')}
+            />
+          </Animated.View>
+        ) : null}
+
         <View style={{ flexDirection: 'row', paddingHorizontal: space.sm, paddingVertical: space.xs }}>
           {/* Barre basse : les bulles s'ouvrent vers le haut, sinon elles
               tomberaient hors de l'écran et basculeraient d'elles-mêmes. */}
@@ -770,6 +785,11 @@ export default function NoteEditor() {
             placement="top"
             active={panel === 'tags'}
             onPress={() => setPanel(panel === 'tags' ? 'none' : 'tags')}
+          />
+          <AgendaBouton
+            actif={panel === 'agenda'}
+            noteProtegee={note.is_private || note.is_encrypted}
+            onPress={() => setPanel(panel === 'agenda' ? 'none' : 'agenda')}
           />
           <View style={{ flex: 1 }} />
           {note.tags.length > 0 ? (

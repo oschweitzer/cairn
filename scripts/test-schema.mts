@@ -451,6 +451,91 @@ await asUser(USER_A)
   else fail('updated_at avance à la modification', 'la valeur n’a pas changé')
 }
 
+// --------------------------------------------- export vers Google Agenda
+
+console.log('')
+console.log('Export vers Google Agenda')
+
+await asUser(USER_A)
+
+// Deux notes de travail : une ordinaire, une rangée dans le coffre.
+await db.exec(
+  `insert into notes (id, title, body) values
+     ('aaaaaaaa-0000-0000-0000-0000000000e1', 'Réunion chantier', 'ordre du jour')`,
+)
+await db.exec(
+  `insert into notes (id, title, is_private, code_name) values
+     ('aaaaaaaa-0000-0000-0000-0000000000e2', 'Confidentiel', true, 'Grenat')`,
+)
+// Chiffrée mais hors coffre, pour éprouver les deux protections séparément :
+// si le test les cumulait, on ne saurait pas laquelle a fait refuser.
+await db.exec(
+  `insert into notes (id, is_encrypted, ciphertext) values
+     ('aaaaaaaa-0000-0000-0000-0000000000e3', true, 'nonce+chiffré')`,
+)
+
+await mustAccept(
+  'une note ordinaire s’exporte vers l’agenda',
+  `insert into reminders (note_id, remind_at, ends_at, google_kind, google_id)
+     values ('aaaaaaaa-0000-0000-0000-0000000000e1',
+             now() + interval '1 day', now() + interval '1 day 1 hour', 'event', 'evt_1')`,
+)
+
+await mustReject(
+  'un créneau qui finit avant de commencer est refusé',
+  `insert into reminders (note_id, remind_at, ends_at, google_kind, google_id)
+     values ('aaaaaaaa-0000-0000-0000-0000000000e1',
+             now() + interval '2 day', now() + interval '1 day', 'event', 'evt_2')`,
+  /ends_after_start/,
+)
+
+await mustReject(
+  'une note du coffre ne part pas vers Google',
+  `insert into reminders (note_id, remind_at, ends_at, google_kind, google_id)
+     values ('aaaaaaaa-0000-0000-0000-0000000000e2',
+             now() + interval '1 day', now() + interval '1 day 1 hour', 'event', 'evt_3')`,
+  /chiffrée ou rangée dans le coffre/,
+)
+
+await mustReject(
+  'une note chiffrée ne part pas vers Google',
+  `insert into reminders (note_id, remind_at, ends_at, google_kind, google_id)
+     values ('aaaaaaaa-0000-0000-0000-0000000000e3',
+             now() + interval '1 day', now() + interval '1 day 1 hour', 'event', 'evt_4')`,
+  /chiffrée ou rangée dans le coffre/,
+)
+
+// La règle vise l'export, pas le rappel. Une notification locale sur une note
+// du coffre ne quitte pas l'appareil, et le nom de code la couvre déjà.
+await mustAccept(
+  'un rappel purement local reste possible sur une note du coffre',
+  `insert into reminders (note_id, remind_at, local_notification_id)
+     values ('aaaaaaaa-0000-0000-0000-0000000000e2', now() + interval '1 day', 'notif_1')`,
+)
+
+// Le contournement le plus évident : créer l'export, puis ranger la note dans
+// le coffre. Le déclencheur tire aussi sur update, mais celui-ci porte sur
+// `notes`, pas sur `reminders` — l'export déjà écrit survit donc, et c'est
+// l'Edge Function qui refusera d'en créer d'autres. On vérifie au moins que
+// l'export ne peut pas être déplacé vers une note protégée après coup.
+await mustReject(
+  'un export ne peut pas être redirigé vers une note protégée',
+  `update reminders set note_id = 'aaaaaaaa-0000-0000-0000-0000000000e2'
+     where google_id = 'evt_1'`,
+  /chiffrée ou rangée dans le coffre/,
+)
+
+await asUser(USER_B)
+{
+  const vus = await db.query<{ n: number }>(
+    `select count(*)::int as n from reminders where google_id = 'evt_1'`,
+  )
+  if (vus.rows[0].n === 0) ok('B ne voit pas les exports agenda de A')
+  else fail('B ne voit pas les exports agenda de A', `${vus.rows[0].n} ligne(s) visible(s)`)
+}
+
+await asUser(USER_A)
+
 // ------------------------------------------------- suppression du compte
 
 /**

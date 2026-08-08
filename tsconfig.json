@@ -2,18 +2,31 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    // app.config.js est en JavaScript pour rester lisible par les chargeurs
+    // tiers (voir l'en-tête du fichier). Ces deux options le font vérifier
+    // quand même, via son `// @ts-check` et son annotation `ExpoConfig`.
+    // La portée reste ce seul fichier : `include` ne prend aucun autre .js.
+    "allowJs": true,
+    "checkJs": true,
     "paths": {
       "@/*": [
         "./src/*"
       ]
     }
   },
+  // Deux runtimes qui ne sont pas celui de l'application, et qui ont chacun
+  // leurs globales : `scripts` tourne sous Node, `supabase/functions` sous Deno.
+  // Les laisser ici ferait échouer le typecheck sur `Deno`, sur les imports
+  // `npm:` et sur les extensions `.ts` explicites, qui sont corrects chez eux.
+  // Les fonctions sont vérifiées par Deno, via `supabase/functions/deno.json`.
   "exclude": [
-    "scripts"
+    "scripts",
+    "supabase"
   ],
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    "app.config.js",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ]

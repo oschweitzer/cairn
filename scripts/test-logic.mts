@@ -28,6 +28,12 @@ import {
 import type { Note, PlainChecklistItem, Tag } from '../src/db/types'
 import { delayForFailures, judgePin, FREE_ATTEMPTS } from '../src/vault/policy'
 import { countInRange, splitHash } from '../src/auth/pwnedLogic'
+import {
+  decalerJours,
+  formaterDate,
+  lireCreneau,
+  prochainCreneau,
+} from '../src/google/creneau'
 import { randomBytes as nodeRandomBytes } from 'node:crypto'
 import {
   createDataKey,
@@ -542,4 +548,83 @@ test('une réponse illisible ne fait pas tomber le contrôle', () => {
   assert.equal(countInRange('', 'ABC'), 0)
   assert.equal(countInRange('pas de séparateur ici', 'ABC'), 0)
   assert.equal(countInRange('ABC:pas un nombre', 'ABC'), 0)
+})
+
+// ------------------------------------------------- créneaux d'agenda
+
+/**
+ * Une date de référence fixe, sinon ces tests passeraient ou non selon l'heure
+ * à laquelle on les lance — le pire genre de test, celui qui échoue le
+ * vendredi soir sans que rien n'ait changé.
+ */
+const MIDI = new Date(2026, 7, 8, 12, 0, 0, 0) // 8 août 2026, 12:00
+
+test('le créneau proposé est la prochaine heure ronde', () => {
+  const p = prochainCreneau(new Date(2026, 7, 8, 14, 37, 12))
+  assert.equal(p.date, '08/08/2026')
+  assert.equal(p.heure, '15:00')
+})
+
+test('la prochaine heure ronde passe au lendemain après 23 h', () => {
+  const p = prochainCreneau(new Date(2026, 7, 8, 23, 10))
+  assert.equal(p.date, '09/08/2026')
+  assert.equal(p.heure, '00:00')
+})
+
+test('un créneau valide donne un début et une fin cohérents', () => {
+  const r = lireCreneau('12/08/2026', '14:00', 60, MIDI)
+  assert.ok(r.ok)
+  assert.equal(r.creneau.debut.getHours(), 14)
+  assert.equal(r.creneau.fin.getTime() - r.creneau.debut.getTime(), 60 * 60_000)
+})
+
+test('le 31 février est refusé, et non décalé en mars', () => {
+  // `new Date(2026, 1, 31)` rend le 3 mars sans se plaindre : c'est
+  // précisément le glissement que cette validation existe pour empêcher.
+  const r = lireCreneau('31/02/2026', '10:00', 60, MIDI)
+  assert.equal(r.ok, false)
+})
+
+test('le 29 février d’une année commune est refusé', () => {
+  assert.equal(lireCreneau('29/02/2026', '10:00', 60, MIDI).ok, false)
+  // 2028 est bissextile : celui-là doit passer.
+  assert.equal(lireCreneau('29/02/2028', '10:00', 60, MIDI).ok, true)
+})
+
+test('les formats de date et d’heure sont contrôlés', () => {
+  assert.equal(lireCreneau('2026-08-12', '14:00', 60, MIDI).ok, false)
+  assert.equal(lireCreneau('12/08/2026', '14h00', 60, MIDI).ok, false)
+  assert.equal(lireCreneau('12/08/2026', '25:00', 60, MIDI).ok, false)
+  assert.equal(lireCreneau('12/08/2026', '14:60', 60, MIDI).ok, false)
+})
+
+test('un créneau passé est refusé', () => {
+  const r = lireCreneau('01/08/2026', '10:00', 60, MIDI)
+  assert.equal(r.ok, false)
+  if (!r.ok) assert.match(r.erreur, /passé/)
+})
+
+test('la minute de tolérance évite un refus pour quelques secondes', () => {
+  // Saisi à 12:00 pile, validé trente secondes plus tard.
+  const trenteSecondesApres = new Date(MIDI.getTime() + 30_000)
+  assert.equal(lireCreneau('08/08/2026', '12:00', 60, trenteSecondesApres).ok, true)
+})
+
+test('une durée nulle ou négative est refusée', () => {
+  assert.equal(lireCreneau('12/08/2026', '14:00', 0, MIDI).ok, false)
+  assert.equal(lireCreneau('12/08/2026', '14:00', -30, MIDI).ok, false)
+})
+
+test('le décalage de jours franchit les fins de mois', () => {
+  assert.equal(decalerJours('31/08/2026', 1), '01/09/2026')
+  assert.equal(decalerJours('28/02/2028', 1), '29/02/2028')
+  assert.equal(decalerJours('31/12/2026', 7), '07/01/2027')
+})
+
+test('le décalage laisse passer une date illisible sans planter', () => {
+  assert.equal(decalerJours('pas une date', 1), 'pas une date')
+})
+
+test('le format de date est bien à deux chiffres', () => {
+  assert.equal(formaterDate(new Date(2026, 0, 5)), '05/01/2026')
 })
