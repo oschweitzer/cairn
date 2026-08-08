@@ -183,6 +183,53 @@ export function inheritedColor(
   return addedTag.color_key
 }
 
+type TagRef = Pick<Tag, 'id' | 'color_key'>
+
+/**
+ * Ce qu'il faut écrire dans `color_key` après un changement de tags.
+ *
+ * Trois réponses possibles, et la distinction compte : `undefined` veut dire
+ * « ne rien écrire », `null` veut dire « effacer la couleur ». Les confondre
+ * repeindrait ou déteindrait des notes à chaque geste.
+ *
+ * ── Ce que cette fonction ajoute à `inheritedColor` ──────────────────────────
+ * L'héritage ne repeint jamais une note déjà colorée, ce qui est juste tant
+ * qu'on ne fait qu'ajouter des tags. Mais changer de tag, c'est en retirer un et
+ * en poser un autre : la note gardait alors la teinte de l'ancien, indéfiniment.
+ * On changeait de catégorie et la carte continuait d'afficher la couleur de la
+ * précédente, ce qui se lit comme un changement qui n'a pas pris.
+ *
+ * D'où la notion de couleur orpheline : celle que portait un tag qu'on vient de
+ * retirer, et que plus aucun tag restant ne porte. Elle est reprise par le tag
+ * qui remplace, ou effacée s'il n'y en a pas.
+ *
+ * Le commentaire précédent affirmait qu'un retrait ne devait rien défaire. Cet
+ * argument tenait pour une couleur choisie à la main — il ne tient pas pour une
+ * couleur que le tag avait posée lui-même, et que personne n'a demandé à garder.
+ * La coïncidence reste possible : une teinte choisie à la main qui se trouve
+ * être exactement celle du tag retiré sera relâchée. C'est le seul cas ambigu,
+ * il est rare, et il se répare d'un appui — là où l'ancien comportement laissait
+ * une note bloquée sur la couleur d'une catégorie qu'elle n'a plus.
+ */
+export function colorAfterTagChange(
+  note: Pick<Note, 'color_key'>,
+  before: TagRef[],
+  after: TagRef[],
+): TagColorKey | null | undefined {
+  const added = after.find((tag) => !before.some((b) => b.id === tag.id))
+
+  // Une note sans teinte prend celle du tag qu'on lui pose. Rien d'autre à
+  // décider : il n'y a aucune couleur à préserver ni à relâcher.
+  if (note.color_key === null) return inheritedColor(note, added) ?? undefined
+
+  const orpheline =
+    before.some((tag) => tag.color_key === note.color_key && !after.some((a) => a.id === tag.id)) &&
+    !after.some((tag) => tag.color_key === note.color_key)
+
+  if (!orpheline) return undefined
+  return added ? added.color_key : null
+}
+
 /**
  * Tag déjà nommé ainsi, ou `undefined`.
  *

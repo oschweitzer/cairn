@@ -814,35 +814,91 @@ export function useDeleteTag() {
 }
 
 /**
- * Remplace l'ensemble des tags d'une note. Plus simple à raisonner qu'un ajout
- * et un retrait séparés, et le volume par note est de quelques lignes.
+ * Pose ou retire **un** tag sur une note.
+ *
+ * ── Pourquoi un delta, et non le remplacement de l'ensemble ──────────────────
+ * La version précédente recevait la liste complète des tags voulus et
+ * l'appliquait par un `delete` de tous les liens de la note suivi d'un `insert`.
+ * C'est simple à lire, et faux dès qu'il y a deux gestes rapprochés — ce qui est
+ * précisément le cas du geste le plus courant : changer de tag, qui en retire un
+ * et en pose un autre.
+ *
+ * Rien ne sérialise deux appels à une même mutation dans React Query. Les deux
+ * `delete` et les deux `insert` s'entrelaçaient donc, et l'ordre d'arrivée
+ * décidait du résultat :
+ *
+ *   retirer A → delete(tous)  ────────────────▶ insert(rien)
+ *   poser   B →      delete(tous) ─▶ insert(A, B)
+ *                                    ▲ la liste du premier geste, lue avant
+ *                                      qu'il ne soit parti
+ *
+ * A revenait, et changer de tag « ne marchait pas ». Sérialiser les mutations
+ * (`scope`) refermerait la fenêtre, mais au prix du retour visuel : la mise à
+ * jour optimiste du second geste n'aurait lieu qu'à la fin du premier, et la
+ * seconde pastille resterait éteinte le temps d'un aller-retour réseau.
+ *
+ * Un delta n'a pas ce problème : deux gestes sur deux tags différents touchent
+ * deux lignes différentes, donc ils commutent. L'ordre d'arrivée n'a plus
+ * d'importance, et il n'y a rien à sérialiser.
+ *
+ * `upsert` plutôt qu'`insert` : reposer un tag déjà posé — deux appuis, une
+ * revalidation en retard — ne doit pas remonter une violation de clé primaire.
  */
-export function useSetNoteTags() {
+export function useSetNoteTag() {
   const qc = useQueryClient()
+
+  /** Applique le delta à une liste de liens, sans doublon possible. */
+  const apply = (links: NoteTag[], noteId: string, tagId: string, on: boolean) => {
+    const without = links.filter((nt) => !(nt.note_id === noteId && nt.tag_id === tagId))
+    // user_id est rempli par le défaut auth.uid() côté base ; la valeur
+    // optimiste locale n'est jamais relue, seule la paire compte.
+    return on ? [...without, { note_id: noteId, tag_id: tagId, user_id: '' }] : without
+  }
+
   return useMutation({
-    mutationFn: async ({ noteId, tagIds }: { noteId: string; tagIds: string[] }) => {
+    mutationFn: async ({
+      noteId,
+      tagId,
+      on,
+    }: {
+      noteId: string
+      tagId: string
+      /** Vrai pour poser le tag, faux pour le retirer. */
+      on: boolean
+    }) => {
       const supabase = getSupabase()
-      const { error: delError } = await supabase.from('note_tags').delete().eq('note_id', noteId)
-      if (delError) throw delError
-      if (tagIds.length === 0) return
+      if (on) {
+        const { error } = await supabase
+          .from('note_tags')
+          .upsert({ note_id: noteId, tag_id: tagId }, { onConflict: 'note_id,tag_id' })
+        if (error) throw error
+        return
+      }
       const { error } = await supabase
         .from('note_tags')
-        .insert(tagIds.map((tag_id) => ({ note_id: noteId, tag_id })))
+        .delete()
+        .eq('note_id', noteId)
+        .eq('tag_id', tagId)
       if (error) throw error
     },
-    onMutate: async ({ noteId, tagIds }) => {
+    onMutate: async ({ noteId, tagId, on }) => {
+      // Sans cette annulation, une lecture partie avant le geste peut revenir
+      // après et réécrire la liste telle qu'elle était : la pastille se
+      // rallumait toute seule une fraction de seconde plus tard.
+      await qc.cancelQueries({ queryKey: keys.noteTags })
       const previous = qc.getQueryData<NoteTag[]>(keys.noteTags)
-      if (previous) {
-        const others = previous.filter((nt) => nt.note_id !== noteId)
-        // user_id est rempli par le défaut auth.uid() côté base ; la valeur
-        // optimiste locale n'est jamais relue, seule la paire compte.
-        const next = tagIds.map((tag_id) => ({ note_id: noteId, tag_id, user_id: '' }))
-        qc.setQueryData<NoteTag[]>(keys.noteTags, [...others, ...next])
-      }
-      return { previous }
+      if (previous) qc.setQueryData<NoteTag[]>(keys.noteTags, apply(previous, noteId, tagId, on))
     },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) qc.setQueryData(keys.noteTags, context.previous)
+    /**
+     * On défait ce geste-ci, et rien d'autre.
+     *
+     * Restaurer l'instantané pris avant la mutation annulerait au passage les
+     * gestes voisins encore en vol — ce qui reproduirait, par une autre porte,
+     * le bug que ce delta corrige.
+     */
+    onError: (_err, { noteId, tagId, on }) => {
+      const current = qc.getQueryData<NoteTag[]>(keys.noteTags)
+      if (current) qc.setQueryData<NoteTag[]>(keys.noteTags, apply(current, noteId, tagId, !on))
     },
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: keys.noteTags })

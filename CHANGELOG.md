@@ -19,6 +19,12 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### Corrigé
 
+- Changer le tag d'une note qui en portait déjà un fonctionne. L'ancien
+  revenait : les tags étaient remplacés en bloc par une suppression suivie d'une
+  réinsertion, et deux gestes rapprochés s'entrelaçaient. Ils sont désormais
+  posés et retirés un par un, ce qui les rend indépendants. La couleur héritée
+  suit le changement au lieu de rester sur celle de l'ancienne catégorie ; une
+  couleur choisie à la main n'est toujours pas touchée. ([#4])
 - Éditeur de note : le champ de contenu occupe la hauteur disponible sous le
   titre au lieu de s'arrêter à 220 points. La grande zone morte qui le suivait —
   les deux tiers de l'écran sur un poste de bureau — était cliquable sans rien
@@ -45,3 +51,4 @@ au fil de l'eau.
 [Non publié]: https://github.com/oschweitzer/cairn/compare/f630263...HEAD
 [#1]: https://github.com/oschweitzer/cairn/issues/1
 [#2]: https://github.com/oschweitzer/cairn/issues/2
+[#4]: https://github.com/oschweitzer/cairn/issues/4

@@ -10,14 +10,14 @@ import {
   useDeleteChecklistItem,
   useReorderChecklistItems,
   useSetNotePrivate,
-  useSetNoteTags,
+  useSetNoteTag,
   useTags,
   usePurgeNote,
   useTrashNote,
   useUpdateChecklistItem,
   useUpdateNote,
 } from '@/db/queries'
-import { findTagNamed, inheritedColor, isEmptyNote, nextTagColor } from '@/db/noteLogic'
+import { colorAfterTagChange, findTagNamed, isEmptyNote, nextTagColor } from '@/db/noteLogic'
 import type { Tag } from '@/db/types'
 import { useNote } from '@/db/select'
 import { useVault } from '@/vault/VaultProvider'
@@ -50,7 +50,7 @@ export default function NoteEditor() {
   const updateNote = useUpdateNote()
   const trashNote = useTrashNote()
   const purgeNote = usePurgeNote()
-  const setNoteTags = useSetNoteTags()
+  const setNoteTag = useSetNoteTag()
   const createTag = useCreateTag()
   const setNotePrivate = useSetNotePrivate()
   const addItem = useAddChecklistItem()
@@ -364,34 +364,43 @@ export default function NoteEditor() {
   }
 
   /**
-   * Pose ou retire un tag, et laisse la note hériter de sa couleur.
+   * Pose ou retire un tag, et ajuste la couleur de la note.
    *
    * Deux écritures et non une : les tags vivent dans une table de liaison, la
    * couleur sur la note. Elles sont indépendantes, et c'est tant mieux — si la
    * seconde échoue, le tag reste posé, ce qui est le geste demandé. L'inverse
    * serait une couleur sans son tag.
    *
-   * La décision elle-même est dans `inheritedColor`, où elle est testée : elle
-   * n'a besoin ni de React ni du réseau, et c'est là que vivent les erreurs qui
-   * comptent — repeindre une note que l'on avait colorée à la main, par exemple.
+   * Un seul tag par appel, jamais la liste entière : voir `useSetNoteTag`, où
+   * l'on explique pourquoi remplacer l'ensemble faisait revenir l'ancien tag
+   * quand on en changeait.
+   *
+   * La décision sur la couleur est dans `colorAfterTagChange`, où elle est
+   * testée : elle n'a besoin ni de React ni du réseau, et c'est là que vivent
+   * les erreurs qui comptent — repeindre une note colorée à la main, ou laisser
+   * une note sur la teinte d'une catégorie qu'elle n'a plus.
+   *
+   * `extra` porte un tag que le cache ne connaît pas encore, celui qui vient
+   * d'être créé : sans lui la couleur ne pourrait pas être décidée.
    */
-  function applyTags(next: string[], addedTag?: Pick<Tag, 'color_key'>) {
+  function setTag(tagId: string, on: boolean, extra?: Tag) {
     if (!note) return
-    setNoteTags.mutate({ noteId: note.id, tagIds: next })
+    setNoteTag.mutate({ noteId: note.id, tagId, on })
 
-    const color = inheritedColor(note, addedTag)
-    if (color) {
+    const known = extra ? [...(tagsQuery.data ?? []), extra] : (tagsQuery.data ?? [])
+    const before = note.tags
+    const after = on
+      ? [...before, ...known.filter((t) => t.id === tagId && !before.some((b) => b.id === t.id))]
+      : before.filter((t) => t.id !== tagId)
+
+    const color = colorAfterTagChange(note, before, after)
+    if (color !== undefined) {
       updateNote.mutate({ id: note.id, patch: { color_key: color } })
     }
   }
 
   function toggleTag(tagId: string) {
-    const adding = !selectedTagIds.includes(tagId)
-    const next = adding
-      ? [...selectedTagIds, tagId]
-      : selectedTagIds.filter((t) => t !== tagId)
-
-    applyTags(next, adding ? tagsQuery.data?.find((t) => t.id === tagId) : undefined)
+    setTag(tagId, !selectedTagIds.includes(tagId))
   }
 
   /**
@@ -409,9 +418,9 @@ export default function NoteEditor() {
    * champ : rien n'a échoué, et l'absence de nouveau tag dans la liste ne doit
    * pas non plus passer pour un bouton mort.
    *
-   * Le tag fraîchement créé est passé à `applyTags` en main propre plutôt que
-   * cherché dans `tagsQuery` : le cache n'est revalidé qu'après, et l'héritage
-   * de couleur retomberait sur un `undefined` une fois sur deux.
+   * Le tag fraîchement créé est passé à `setTag` en main propre plutôt que
+   * cherché dans `tagsQuery` : le cache n'est revalidé qu'après, et la décision
+   * sur la couleur retomberait sur un `undefined` une fois sur deux.
    */
   async function createAndAttachTag(name: string) {
     if (!note) return
@@ -420,7 +429,7 @@ export default function NoteEditor() {
     const existing = findTagNamed(tags, name)
     if (existing) {
       const already = selectedTagIds.includes(existing.id)
-      if (!already) applyTags([...selectedTagIds, existing.id], existing)
+      if (!already) setTag(existing.id, true, existing)
       setTagError(null)
       toast(
         already
@@ -436,7 +445,7 @@ export default function NoteEditor() {
         name,
         colorKey: nextTagColor(tags, tagColorKeys),
       })
-      applyTags([...selectedTagIds, tag.id], tag)
+      setTag(tag.id, true, tag)
       setTagError(null)
       toast(`Tag « ${tag.name} » créé et posé.`, { tone: 'success' })
     } catch (e) {

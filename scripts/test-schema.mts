@@ -251,6 +251,52 @@ await mustReject(
   /invalid input value for enum tag_color/,
 )
 
+/*
+ * Poser et retirer un tag sur une note, un lien à la fois.
+ *
+ * C'est la forme exacte de ce qu'écrit `useSetNoteTag`, et elle est ici parce
+ * que le remplacement en bloc qu'elle a remplacé — supprimer tous les liens de
+ * la note puis les réinsérer — faisait revenir l'ancien tag quand deux gestes
+ * se croisaient. Un delta ne peut pas produire ce résultat : deux tags
+ * différents sont deux lignes différentes. Reste à vérifier que la base accepte
+ * la manœuvre, y compris répétée.
+ */
+await mustAccept(
+  'un tag se pose sur une note',
+  `insert into tags (id, name, color_key) values
+     ('bbbbbbbb-0000-0000-0000-000000000002', 'sentier', 'fjord');
+   insert into note_tags (note_id, tag_id) values
+     ('aaaaaaaa-0000-0000-0000-000000000001', 'bbbbbbbb-0000-0000-0000-000000000001')`,
+)
+
+await mustAccept(
+  'reposer le même tag ne casse rien',
+  `insert into note_tags (note_id, tag_id) values
+     ('aaaaaaaa-0000-0000-0000-000000000001', 'bbbbbbbb-0000-0000-0000-000000000001')
+   on conflict (note_id, tag_id) do nothing`,
+)
+
+{
+  await db.exec(`
+    insert into note_tags (note_id, tag_id) values
+      ('aaaaaaaa-0000-0000-0000-000000000001', 'bbbbbbbb-0000-0000-0000-000000000002')
+    on conflict (note_id, tag_id) do nothing;
+    delete from note_tags
+      where note_id = 'aaaaaaaa-0000-0000-0000-000000000001'
+        and tag_id = 'bbbbbbbb-0000-0000-0000-000000000001';
+  `)
+  const r = await db.query<{ tag_id: string }>(
+    `select tag_id from note_tags where note_id = 'aaaaaaaa-0000-0000-0000-000000000001'`,
+  )
+  const restant = r.rows.map((x) => x.tag_id)
+  if (restant.length === 1 && restant[0] === 'bbbbbbbb-0000-0000-0000-000000000002') {
+    ok('changer de tag ne laisse que le nouveau')
+  } else {
+    fail('changer de tag ne laisse que le nouveau', `liens restants : ${restant.join(', ') || 'aucun'}`)
+  }
+  await db.exec(`delete from note_tags where note_id = 'aaaaaaaa-0000-0000-0000-000000000001'`)
+}
+
 await mustAccept(
   'un élément de liste s’attache à sa note',
   `insert into checklist_items (id, note_id, content, position) values

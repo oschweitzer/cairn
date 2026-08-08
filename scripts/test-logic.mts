@@ -13,6 +13,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   byPinThenRecent,
+  colorAfterTagChange,
   columnsForWidth,
   composeNotes,
   displayTitle,
@@ -223,6 +224,57 @@ test('le second tag n’écrase pas la couleur héritée du premier', () => {
   // tag ajouté, sans que rien ne l'explique.
   const afterFirst = note({ color_key: inheritedColor(note(), tag({ color_key: 'fjord' })) })
   assert.equal(inheritedColor(afterFirst, tag({ id: 't2', color_key: 'airelle' })), null)
+})
+
+// ------------------------------------------- couleur après changement de tags
+
+/** Raccourci : `undefined` veut dire « ne rien écrire », `null` « effacer ». */
+const maison = tag({ id: 'a', color_key: 'ambre' })
+const sentier = tag({ id: 'b', color_key: 'fjord' })
+
+test('poser un tag sur une note sans couleur la teinte', () => {
+  assert.equal(colorAfterTagChange(note({ color_key: null }), [], [maison]), 'ambre')
+})
+
+test('poser un tag de plus ne repeint pas une note déjà colorée', () => {
+  // Le premier tag a donné sa teinte, le second ne la reprend pas : la carte
+  // changerait de couleur à chaque tag ajouté sans que rien ne l'explique.
+  const n = note({ color_key: 'ambre' })
+  assert.equal(colorAfterTagChange(n, [maison], [maison, sentier]), undefined)
+})
+
+test('changer de tag emmène la couleur avec lui', () => {
+  // Le cas du ticket : la note gardait la teinte de l'ancienne catégorie, et le
+  // changement se lisait comme n'ayant pas pris.
+  const n = note({ color_key: 'ambre' })
+  assert.equal(colorAfterTagChange(n, [maison], [sentier]), 'fjord')
+})
+
+test('retirer le tag dont la note tenait sa couleur la relâche', () => {
+  const n = note({ color_key: 'ambre' })
+  assert.equal(colorAfterTagChange(n, [maison], []), null)
+})
+
+test('une couleur choisie à la main survit au retrait d’un tag', () => {
+  // « braise » n'est la teinte d'aucun tag porté : elle vient de la main de
+  // l'utilisateur, et rien ne justifie de la reprendre.
+  const n = note({ color_key: 'braise' })
+  assert.equal(colorAfterTagChange(n, [maison], []), undefined)
+  assert.equal(colorAfterTagChange(n, [maison], [sentier]), undefined)
+})
+
+test('la couleur reste si un tag restant la porte encore', () => {
+  // Deux tags de la même teinte : en retirer un ne rend pas la couleur
+  // orpheline, l'autre la porte toujours.
+  const jumeau = tag({ id: 'c', color_key: 'ambre' })
+  const n = note({ color_key: 'ambre' })
+  assert.equal(colorAfterTagChange(n, [maison, jumeau], [jumeau]), undefined)
+})
+
+test('un geste qui ne change rien n’écrit rien', () => {
+  const n = note({ color_key: 'ambre' })
+  assert.equal(colorAfterTagChange(n, [maison], [maison]), undefined)
+  assert.equal(colorAfterTagChange(note({ color_key: null }), [], []), undefined)
 })
 
 // ------------------------------------------------- création de tag à la volée
