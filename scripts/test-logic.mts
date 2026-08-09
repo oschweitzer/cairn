@@ -39,6 +39,10 @@ import {
   plainText,
 } from '../src/text/markup'
 import { buildSnapshot } from '../src/widget/snapshot'
+import { PERSISTABLE_PREFIX, QUERY_ROOT, shouldPersistQuery } from '../src/db/persistLogic'
+// The cache round trip is replayed for real below. React Query brings its own
+// client and its dehydrate/hydrate pair, and neither needs React to run.
+import { QueryClient, dehydrate, hydrate } from '@tanstack/react-query'
 import { delayForFailures, judgePin, FREE_ATTEMPTS } from '../src/vault/policy'
 import { countInRange, splitHash } from '../src/auth/pwnedLogic'
 import {
@@ -1061,4 +1065,71 @@ test('nothing at all still produces something readable', () => {
     assert.equal(r.kind, 'unknown')
     assert.equal(r.message, 'Erreur inconnue.')
   }
+})
+
+// ------------------------------------------------ what reaches the disk
+
+test('a successful query in the shared scope is persisted', () => {
+  assert.equal(shouldPersistQuery([QUERY_ROOT, PERSISTABLE_PREFIX, 'notes'], 'success'), true)
+  assert.equal(
+    shouldPersistQuery([QUERY_ROOT, PERSISTABLE_PREFIX, 'checklist-items', 'a,b'], 'success'),
+    true,
+  )
+})
+
+test('the vault and the trash never reach the disk', () => {
+  // On the web the disk is localStorage, readable by any script on the origin.
+  for (const key of ['private-notes', 'private-checklist-items', 'trashed-notes']) {
+    assert.equal(shouldPersistQuery([QUERY_ROOT, 'volatile', key], 'success'), false)
+  }
+  assert.equal(shouldPersistQuery([QUERY_ROOT, 'volatile', 'google-account'], 'success'), false)
+  assert.equal(shouldPersistQuery([QUERY_ROOT, 'volatile', 'profile'], 'success'), false)
+})
+
+test('a query that has not succeeded is never persisted', () => {
+  // A pending query drags its in-flight promise into the payload, JSON turns it
+  // into `{}`, and the next hydrate throws on `{}.then` — taking the whole
+  // cache with it. This is the regression that made every startup start cold.
+  const key = [QUERY_ROOT, PERSISTABLE_PREFIX, 'notes']
+  assert.equal(shouldPersistQuery(key, 'pending'), false)
+  assert.equal(shouldPersistQuery(key, 'error'), false)
+})
+
+test('a key from outside Cairn is left alone', () => {
+  assert.equal(shouldPersistQuery(['autre', PERSISTABLE_PREFIX, 'notes'], 'success'), false)
+  assert.equal(shouldPersistQuery([], 'success'), false)
+})
+
+test('the cache survives the round trip to storage', async () => {
+  // The rule read on its own says little; what matters is the whole journey the
+  // cache actually makes, which is dehydrate → JSON → hydrate. This is what used
+  // to throw `promise.then is not a function` and discard everything on startup.
+  const client = new QueryClient()
+  client.setQueryData([QUERY_ROOT, PERSISTABLE_PREFIX, 'notes'], [{ id: 'n1', title: 'kept' }])
+  client.setQueryData([QUERY_ROOT, 'volatile', 'private-notes'], [{ id: 'vault-only' }])
+  client.setQueryData([QUERY_ROOT, 'volatile', 'trashed-notes'], [{ id: 'trashed-only' }])
+  // A request still in flight, which is the state every query passes through.
+  void client.prefetchQuery({
+    queryKey: [QUERY_ROOT, PERSISTABLE_PREFIX, 'checklist-items', 'n1'],
+    queryFn: () => new Promise(() => {}),
+  })
+  await new Promise((done) => setTimeout(done, 10))
+
+  const written = JSON.stringify(
+    dehydrate(client, {
+      shouldDehydrateQuery: (query) => shouldPersistQuery(query.queryKey, query.state.status),
+    }),
+  )
+
+  // An unresolved promise serialises to `{}`, and hydrate calls `.then` on it.
+  assert.equal(written.includes('"promise"'), false)
+  assert.equal(written.includes('vault-only'), false)
+  assert.equal(written.includes('trashed-only'), false)
+
+  const restored = new QueryClient()
+  hydrate(restored, JSON.parse(written))
+  assert.deepEqual(restored.getQueryData([QUERY_ROOT, PERSISTABLE_PREFIX, 'notes']), [
+    { id: 'n1', title: 'kept' },
+  ])
+  assert.equal(restored.getQueryData([QUERY_ROOT, 'volatile', 'private-notes']), undefined)
 })

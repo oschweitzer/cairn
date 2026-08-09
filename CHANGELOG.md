@@ -70,6 +70,12 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Fixed
 
+- The app opens on the notes it had already loaded, instead of starting from an
+  empty grid every time. The saved cache was being thrown away at every startup:
+  a request still in flight could be written down along with it, and what was
+  written back could not be read again. Starting the web app offline now shows
+  your notes, which was the whole point of saving them. Vault and trash notes
+  are still left out, on Android as on the web. ([#27])
 - Widget: a note's preview now uses the room the widget actually has. It was
   held to two lines whatever happened, so filtering down to a single list showed
   two of its items with the rest of the widget empty below. The height left under
@@ -148,3 +154,4 @@ work happened.
 [#20]: https://github.com/oschweitzer/cairn/issues/20
 [#21]: https://github.com/oschweitzer/cairn/issues/21
 [#24]: https://github.com/oschweitzer/cairn/issues/24
+[#27]: https://github.com/oschweitzer/cairn/issues/27

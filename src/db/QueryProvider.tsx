@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { keys, PERSISTABLE_PREFIX } from './queries'
+import { shouldPersistQuery } from './persistLogic'
 
 /**
  * Cache de requêtes, persisté pour que l'application s'ouvre sur du contenu même
@@ -53,13 +53,9 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
         // incompatible, pour invalider les caches déjà sur les appareils.
         buster: 'v1',
         dehydrateOptions: {
-          shouldDehydrateQuery: (query) => {
-            const root = query.queryKey[0]
-            const scope = query.queryKey[1]
-            if (root !== keys.root) return false
-            // Ni le coffre ni la corbeille ne descendent sur le disque.
-            return scope === PERSISTABLE_PREFIX
-          },
+          // Neither the vault nor the trash goes down to the disk, and neither
+          // does a query that has not succeeded yet. See `persistLogic.ts`.
+          shouldDehydrateQuery: (query) => shouldPersistQuery(query.queryKey, query.state.status),
         },
       }}
     >

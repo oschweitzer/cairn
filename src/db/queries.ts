@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { getSupabase, isSupabaseConfigured } from './supabase'
+// The root and the persistable scope live in `persistLogic.ts`, next to the rule
+// that decides what goes down to the disk: one source of truth for both.
+import { PERSISTABLE_PREFIX, QUERY_ROOT as ROOT } from './persistLogic'
 import { hasDataKey, openNote, sealItem, sealNote } from '../vault/keyring'
 import type { ChecklistItem, Note, NoteKind, NoteTag, Profile, Tag } from './types'
 import type { TagColorKey } from '../ui/theme'
@@ -17,15 +20,6 @@ import type { TagColorKey } from '../ui/theme'
  * garanties de fonctionner, se mettent en cache indépendamment les unes des
  * autres, et rendent les mises à jour optimistes beaucoup plus simples à écrire.
  */
-
-/** Racine de toutes les clés, pour pouvoir tout invalider d'un coup. */
-const ROOT = 'cairn'
-
-/**
- * Portée persistable sur le disque. Tout ce qui n'est pas sous ce préfixe reste
- * en mémoire seulement, ce qui vaut pour le coffre et la corbeille.
- */
-export const PERSISTABLE_PREFIX = 'shared'
 
 export const keys = {
   root: ROOT,
