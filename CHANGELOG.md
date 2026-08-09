@@ -62,9 +62,25 @@ and the project follows [semantic versioning](https://semver.org/).
 - The Android app now carries native code of its own, for the widget. It no
   longer runs inside Expo Go: `npm run android` builds a development version
   (`expo run:android`). The web app and the PWA are unaffected. ([#6])
+- Comments, documentation, commit messages and pull request bodies are written
+  in English. The app itself stays in French. ([#14])
+- The Android app now carries native code of its own, for the widget. It no
+  longer runs inside Expo Go: `npm run android` builds a development version
+  (`expo run:android`). The web app and the PWA are unaffected. ([#6])
 
 ### Fixed
 
+- Changing the tag of a note that already had one works. The old one used to
+  come back: tags were replaced wholesale by a delete followed by an insert, and
+  two quick gestures interleaved. They are now put on and taken off one at a
+  time, which makes them independent. The inherited colour follows the change
+  instead of staying on the old category's; a colour picked by hand is still
+  left alone. ([#4])
+- Note editor: the content field fills the height available under the title
+  instead of stopping at 220 points. The large dead zone that followed it — two
+  thirds of the screen on a desktop — was clickable and did nothing; it is now
+  part of the field. No scrollbar as long as the text fits the space on offer.
+  ([#2])
 - A failure to read the notes now says what kind of failure it is. A server that
   is unreachable, a session that has expired, an access refused and a database
   left behind by an app update called for the same shrug — `Lecture impossible`,
