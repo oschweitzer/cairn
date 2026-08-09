@@ -1,562 +1,560 @@
 # Cairn
 
-Notes et listes réunies dans une application, avec export des rappels vers Google
-Agenda, masquage des contenus privés et classement par tags colorés. Un seul dépôt
-produit l'application Android, la PWA web et le widget d'écran d'accueil.
+Notes and checklists in one app, with reminders exported to Google Calendar,
+private contents hidden behind a passcode, and colour-coded tags. A single
+repository produces the Android app, the web PWA and the home screen widget.
 
-Le plan complet, décisions et arbitrages inclus, vit hors du dépôt dans le fichier
-de plan de la session.
+**Just want the app on your phone?** See [INSTALL.md](INSTALL.md). This file is
+for people who want to run or change the code.
 
-## État
+The full plan, decisions and trade-offs included, lives outside the repository in
+the session's plan file.
 
-Les phases 1 à 3 sont en place. On peut créer, éditer, classer, chercher,
-archiver et supprimer des notes et des listes, et en masquer derrière un code.
-L'identité visuelle a basculé du registre minéral du Quercy au registre nordique,
-palette, typographie, formes, mouvement et iconographie comprises.
+## Status
 
-| Phase | Contenu | État |
+Phases 1 to 5 are in place. You can create, edit, organise, search, archive and
+delete notes and checklists, and hide some behind a passcode.
+
+| Phase | Contents | Status |
 |---|---|---|
-| 1 | Ossature, schéma, RLS, authentification, jetons de thème | fait |
-| 2 | Notes et listes, tags, filtrage, recherche | fait |
-| 3 | Coffre biométrique et noms de code | fait |
-| 4 | Notifications locales, export Google Tasks et Calendar | export Agenda fait, le reste à venir |
-| 5 | Widget Android | à venir |
-| 6 | Chiffrement bout en bout activable par note | à venir |
+| 1 | Skeleton, schema, RLS, authentication, theme tokens | done |
+| 2 | Notes and checklists, tags, filtering, search | done |
+| 3 | Biometric vault and code names | done |
+| 4 | Local notifications, Google Tasks and Calendar export | Calendar export done, the rest to come |
+| 5 | Android widget | done |
+| 6 | Per-note end-to-end encryption | to come |
 
-## Mise en route
+## Getting started
 
-1. Installer les dépendances.
+1. Install the dependencies.
 
    ```
    npm install
    ```
 
-2. Créer un projet gratuit sur supabase.com, puis récupérer l'URL et la clé anon
-   dans Project settings, API.
+2. Create a free project on supabase.com, then take the URL and the anon key from
+   Project settings, API.
 
-3. Copier la configuration locale et la remplir.
+3. Copy the local configuration and fill it in.
 
    ```
    cp .env.example .env
    ```
 
-4. Appliquer le schéma. Les fichiers de `supabase/migrations/` se collent tels
-   quels dans l'éditeur SQL du tableau de bord, dans l'ordre de leur nom. Avec la
-   CLI Supabase installée, `supabase db push` fait la même chose.
+4. Apply the schema. The files in `supabase/migrations/` paste as-is into the
+   dashboard's SQL editor, in filename order. With the Supabase CLI installed,
+   `supabase db push` does the same thing.
 
-   Sur un projet déjà en service, seules les migrations non encore appliquées
-   sont à passer. La dernière, `20260806090000_nordic_tag_colors.sql`, renomme
-   les dix clés de couleur de tag et ne réécrit aucune ligne.
+   On a project already in service, only the migrations not yet applied need
+   running.
 
-5. Pour la connexion Google, voir la section suivante. Rien à configurer côté
-   application, les identifiants restent chez Supabase.
+5. For Google sign-in, see the next section. Nothing to configure on the app
+   side; the credentials stay with Supabase.
 
-6. Lancer.
+6. Run it.
 
    ```
-   npm run web        # PWA sur navigateur
-   npm run android    # émulateur ou appareil, via Expo Go
+   npm run web        # PWA in a browser
+   npm run android    # development build on an emulator or device
    ```
 
-   La connexion Google ne fonctionne pas dans Expo Go, par construction : voir
-   « La connexion Google ne marche pas dans Expo Go » plus bas. Le mot de passe,
-   lui, marche partout.
+   Since the widget landed, the Android app carries native code of its own and no
+   longer runs inside Expo Go: `npm run android` builds a development version.
+   The web target is unaffected.
 
-Sans `.env` rempli, l'application démarre quand même et affiche un écran
-expliquant ce qu'il manque, plutôt qu'un écran blanc.
+Without a filled-in `.env`, the app still starts and shows a screen explaining
+what is missing, rather than a blank page.
 
-## Connexion Google
+## Google sign-in
 
-L'erreur `redirect_uri_mismatch` vient toujours de la même chose. Google ne
-redirige pas vers l'application, il redirige vers Supabase, qui redirige ensuite
-vers l'application. Il y a donc deux URL de redirection différentes, à déclarer
-dans deux endroits différents.
+The `redirect_uri_mismatch` error always comes from the same thing. Google does
+not redirect to the app, it redirects to Supabase, which then redirects to the
+app. So there are two different redirect URLs, to be declared in two different
+places.
 
-| Valeur | Où la déclarer | Champ |
+| Value | Where to declare it | Field |
 |---|---|---|
 | `https://<ref>.supabase.co/auth/v1/callback` | Google Cloud Console | Authorized redirect URIs |
-| `http://localhost:8081` | Google Cloud Console | Authorized JavaScript origins, développement seulement |
+| `http://localhost:8081` | Google Cloud Console | Authorized JavaScript origins, development only |
 | `http://localhost:8081/callback` | Supabase | Authentication, URL Configuration, Redirect URLs |
 | `cairn://callback` | Supabase | Authentication, URL Configuration, Redirect URLs |
 
-`<ref>` est la référence du projet, visible dans son URL de tableau de bord. La
-valeur exacte est aussi affichée par Supabase sur la page du fournisseur Google,
-prête à copier.
+`<ref>` is the project reference, visible in its dashboard URL. The exact value
+is also shown by Supabase on the Google provider page, ready to copy.
 
-Une redirection qui aboutit sur `http://localhost:3000` dit toujours la même
-chose, et ce n'est jamais le port qu'on croit lire : 3000 est la Site URL d'usine
-d'un projet Supabase, celle sur laquelle il se rabat quand l'URL demandée n'est
-pas dans les Redirect URLs. Le symptôme désigne donc une entrée manquante dans
-cette liste, pas un serveur à démarrer. Sur mobile, l'entrée en question est
-`cairn://callback`. Cette même Site URL alimente le `{{ .SiteURL }}` des gabarits
-de courriel : la laisser à sa valeur d'usine envoie aussi les liens de
-confirmation vers ce port fantôme.
+A redirect landing on `http://localhost:3000` always says the same thing, and it
+is never the port you think you are reading: 3000 is a Supabase project's factory
+Site URL, the one it falls back to when the requested URL is not in the Redirect
+URLs. So the symptom points at a missing entry in that list, not at a server to
+start. On mobile, the entry in question is `cairn://callback`. That same Site URL
+feeds the `{{ .SiteURL }}` of the email templates: leaving it at its factory
+value also sends confirmation links to that phantom port.
 
-Le type de client OAuth doit être « Web application », pas « Android », même en
-ciblant Android. La redirection part vers l'endpoint HTTPS de Supabase, et un
-client de type Android n'a pas de champ de redirection.
+The OAuth client type has to be "Web application", not "Android", even when
+targeting Android. The redirect goes to Supabase's HTTPS endpoint, and an
+Android-type client has no redirect field.
 
-Deux causes plus discrètes du même message. Google compare la chaîne caractère
-pour caractère, donc une barre oblique finale en trop suffit à faire échouer la
-comparaison. Et une modification côté Google met parfois quelques minutes à se
-propager.
+Two quieter causes of the same message. Google compares the string character by
+character, so one trailing slash too many is enough to fail the comparison. And a
+change on Google's side sometimes takes a few minutes to propagate.
 
-### La connexion Google ne marche pas dans Expo Go
+### Google sign-in does not work in Expo Go
 
-C'est attendu, et ce n'est pas réparable côté code. Expo Go est une application
-déjà publiée, portant son propre schéma : le `scheme: 'cairn'` déclaré dans
-`app.config.js` n'existe pas dans le binaire qu'on lance. `makeRedirectUri` le
-sait et rend l'adresse du serveur de développement, `exp://192.168.x.x:8081/--/callback`,
-au lieu de `cairn://callback`.
+That is expected, and it cannot be fixed in code. Expo Go is an already-published
+app carrying its own scheme: the `scheme: 'cairn'` declared in `app.config.js`
+does not exist in the binary being run. `makeRedirectUri` knows this and returns
+the development server's address, `exp://192.168.x.x:8081/--/callback`, instead
+of `cairn://callback`.
 
-Cette adresse n'est pas dans la liste blanche du projet Supabase — elle ne peut
-pas y être, l'IP change de réseau en réseau. Supabase refuse donc la redirection
-et se rabat sur l'URL de site du projet, `http://localhost:8081`. Le téléphone
-ouvre alors un localhost qui, chez lui, n'héberge rien. D'où la page morte.
+That address is not in the Supabase project's allow list — it cannot be, the IP
+changes from network to network. So Supabase refuses the redirect and falls back
+to the project's site URL, `http://localhost:8081`. The phone then opens a
+localhost that, on the phone, hosts nothing. Hence the dead page.
 
-La sortie est de lancer un vrai binaire, qui porte le schéma `cairn://` pour de
-bon. Section suivante.
+The way out is to run a real binary, which carries the `cairn://` scheme for
+real. Next section.
 
-## Application Android
+## Android app
 
-Deux profils, dans `eas.json`, pour deux usages.
+Two profiles in `eas.json`, for two uses.
 
-| Profil | Ce qu'on obtient | Quand |
+| Profile | What you get | When |
 |---|---|---|
-| `preview` | APK autonome, installable, bundle embarqué | Essayer l'application pour de vrai, la donner à quelqu'un |
-| `development` | APK qui se branche sur le serveur Metro, rafraîchissement conservé | Développer avec la connexion Google qui fonctionne |
+| `preview` | Standalone, installable APK with the bundle embedded | Trying the app for real, handing it to someone |
+| `development` | APK that connects to the Metro server, fast refresh kept | Developing with Google sign-in actually working |
 
-Le build passe par les serveurs d'Expo : ni Java ni le SDK Android ne sont requis
-sur la machine. Il faut un compte sur expo.dev, gratuit.
+The build runs on Expo's servers: neither Java nor the Android SDK is needed on
+your machine. A free account on expo.dev is.
 
-1. Installer la CLI et s'identifier.
+1. Install the CLI and sign in.
 
    ```
    npm install --global eas-cli
    eas login
    ```
 
-2. Rattacher le dossier à un projet EAS.
+2. Attach the folder to an EAS project.
 
    ```
    eas init
    ```
 
-   La commande crée le projet côté expo.dev puis affiche un identifiant. Elle ne
-   peut pas l'écrire elle-même : `app.config.js` est une configuration dynamique,
-   qu'un outil ne sait pas modifier sans risquer d'en perdre la logique. Le
-   reporter à la main dans `app.config.js`, à côté de `experiments`, puis
-   committer.
+   The command creates the project on expo.dev then prints an id. It cannot write
+   it itself: `app.config.js` is a dynamic configuration, which a tool cannot
+   modify without risking the loss of its logic. Copy it by hand into
+   `app.config.js`, next to `experiments`, then commit.
 
    ```js
    extra: {
-     eas: { projectId: '<identifiant affiché par eas init>' },
+     eas: { projectId: '<id printed by eas init>' },
    },
    ```
 
-3. Poser les clés Supabase côté EAS. C'est l'étape qu'on oublie : `.env` est
-   ignoré par git, et EAS Build n'envoie que les fichiers suivis. Sans elle le
-   build réussit et l'application démarre sur l'écran de configuration, ce qui
-   ressemble à une panne alors qu'il ne manque que deux variables.
+3. Put the Supabase keys on the EAS side. This is the step that gets forgotten:
+   `.env` is git-ignored, and EAS Build only uploads tracked files. Without it the
+   build succeeds and the app opens on the configuration screen, which looks like
+   a failure when only two variables are missing.
 
    ```
    eas env:set --name EXPO_PUBLIC_SUPABASE_URL --value "https://<ref>.supabase.co" --environment preview --visibility plaintext
-   eas env:set --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "<clé anon>" --environment preview --visibility plaintext
+   eas env:set --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "<anon key>" --environment preview --visibility plaintext
    ```
 
-   `plaintext` est le bon niveau : ces deux valeurs partent de toute façon dans
-   le bundle, c'est RLS qui protège les données. Répéter avec
-   `--environment development` et `--environment production` selon les profils
-   utilisés. `eas env:list --environment preview` vérifie.
+   `plaintext` is the right level: both values ship inside the bundle anyway, and
+   it is RLS that protects the data. Repeat with `--environment development` and
+   `--environment production` for whichever profiles you use.
+   `eas env:list --environment preview` checks.
 
-   Pour l'export vers l'agenda, trois variables de plus, publiques elles aussi :
+   For the calendar export, two more variables, also public:
 
    ```
-   eas env:set --name EXPO_PUBLIC_WEB_URL --value "https://<domaine>" --environment preview --visibility plaintext
-   eas env:set --name EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB --value "<id client Web>" --environment preview --visibility plaintext
+   eas env:set --name EXPO_PUBLIC_WEB_URL --value "https://<domain>" --environment preview --visibility plaintext
+   eas env:set --name EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB --value "<Web client id>" --environment preview --visibility plaintext
    ```
 
-4. Construire, puis installer.
+4. Build, then install.
 
    ```
    eas build --platform android --profile preview
    ```
 
-   La commande rend une URL de téléchargement et un QR code. Ouvrir le QR depuis
-   le téléphone télécharge l'APK ; Android demandera d'autoriser l'installation
-   depuis cette source. Avec `adb` sous la main, `eas build:run -p android --latest`
-   pose le fichier sur l'appareil branché.
+   The command returns a download URL and a QR code. Opening the QR from the
+   phone downloads the APK; Android will ask you to allow installing from that
+   source. With `adb` at hand, `eas build:run -p android --latest` puts the file
+   on the connected device.
 
-Aucune clé de signature à fabriquer : au premier build Android, EAS en génère une
-et la garde. La conserver est ce qui permettra plus tard de publier une mise à
-jour du même paquet, `app.cairn`.
+No signing key to make: on the first Android build, EAS generates one and keeps
+it. Keeping it is what will later allow publishing an update of the same package,
+`app.cairn`.
 
-Vérifier ensuite que `cairn://callback` est bien dans les Redirect URLs du projet
-Supabase — c'est cette entrée, et elle seule, qui fait aboutir la connexion
-Google depuis l'APK.
+Then check that `cairn://callback` really is in the Supabase project's Redirect
+URLs — that entry, and only it, is what makes Google sign-in succeed from the
+APK.
 
-Le profil `development` demande une dépendance de plus, `npx expo install expo-dev-client`,
-et se lance ensuite avec `npx expo start --dev-client`.
+The `development` profile needs one more dependency,
+`npx expo install expo-dev-client`, and is then launched with
+`npx expo start --dev-client`.
 
-## Déploiement de la PWA
+## Home screen widget
 
-Sur Netlify, projet `cairn-notes`, servi à **https://cairn-notes.netlify.app**.
-Le sous-domaine `netlify.app` est inclus dans le plan gratuit : aucun nom de
-domaine à acheter. Le nom `cairn` seul était déjà pris — ils sont uniques pour
-tout Netlify, pas seulement pour un compte.
+The Android widget lives in `modules/cairn-widget`, a local Expo module: Kotlin,
+`RemoteViews` layouts, and a bridge exposing two functions to JavaScript. It
+renders neither on the web nor in Expo Go, so checking it needs a native build.
 
-`netlify.toml` porte trois choses qui ne vont pas de soi.
+Its design and its trade-offs are documented in
+[`src/widget/README.md`](src/widget/README.md) — in particular why it reads a
+local snapshot rather than talking to Supabase, and why nothing from the vault
+goes into that snapshot by default.
 
-**La commande de build et la version de Node.** Le build tourne chez Netlify, pas
-en local. `NODE_VERSION` est figée à 22 parce que react-native 0.86 réclame
-`^20.19.4 || ^22.13.0 || ^24.3.0` et que la version par défaut de Netlify évolue
-sans prévenir.
+## Deploying the PWA
 
-**La réécriture des liens de note.** L'export statique d'expo-router écrit la
-route dynamique sous son nom littéral, `note/[id].html`. Sans règle, ouvrir
-`/note/<identifiant>` rendrait un 404 — c'est-à-dire précisément les liens
-déposés dans les évènements Google Agenda. La règle est en statut 200, une
-réécriture et non une redirection : l'adresse reste intacte dans la barre du
-navigateur, et le routeur y lit l'identifiant au premier rendu.
+On Netlify, project `cairn-notes`, served at
+**https://cairn-notes.netlify.app**. The `netlify.app` subdomain is included in
+the free plan: no domain name to buy. `cairn` on its own was already taken —
+names are unique across all of Netlify, not just within an account.
 
-**Le type MIME d'`assetlinks.json`.** Android exige `application/json` ; servi
-autrement, la vérification des App Links échoue en silence.
+`netlify.toml` carries three things that are not obvious.
 
-### Les variables d'environnement vivent chez Netlify
+**The build command and the Node version.** The build runs at Netlify's, not
+locally. `NODE_VERSION` is pinned to 22 because react-native 0.86 requires
+`^20.19.4 || ^22.13.0 || ^24.3.0` and Netlify's default version moves without
+warning.
 
-`.env` n'est pas suivi par git et ne monte donc jamais dans le build. Les trois
-clés publiques sont à déclarer dans les réglages du projet, portée « builds » :
+**The note link rewrite.** expo-router's static export writes the dynamic route
+under its literal name, `note/[id].html`. Without a rule, opening
+`/note/<id>` would return a 404 — which is precisely the links dropped into
+Google Calendar events. The rule is status 200, a rewrite and not a redirect: the
+address stays intact in the browser's bar, and the router reads the id from it on
+the first render.
 
-| Variable | Valeur |
+**The MIME type of `assetlinks.json`.** Android requires `application/json`;
+served otherwise, App Links verification fails silently.
+
+### Environment variables live at Netlify
+
+`.env` is not tracked by git and therefore never reaches the build. The three
+public keys have to be declared in the project settings, "builds" scope:
+
+| Variable | Value |
 |---|---|
-| `EXPO_PUBLIC_SUPABASE_URL` | l'URL du projet Supabase |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | la clé anon |
+| `EXPO_PUBLIC_SUPABASE_URL` | the Supabase project URL |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | the anon key |
 | `EXPO_PUBLIC_WEB_URL` | `https://cairn-notes.netlify.app` |
 
-Sans elles, le build réussit quand même et publie une application qui démarre
-sur son écran de configuration. C'est voulu — un écran qui explique ce qui
-manque vaut mieux qu'une page blanche — mais cela ressemble à une panne alors
-qu'il ne manque qu'une variable.
+Without them the build still succeeds and publishes an app that opens on its
+configuration screen. That is deliberate — a screen explaining what is missing
+beats a blank page — but it looks like a failure when only a variable is missing.
 
-Redéployer après coup :
+Redeploying afterwards:
 
 ```bash
-npx -y @netlify/mcp@latest --site-id <id du projet>
+npx -y @netlify/mcp@latest --site-id <project id>
 ```
 
-## Agenda Google
+## Google Calendar
 
-Depuis une note ou une liste, le bouton d'agenda de la barre basse ouvre un
-panneau : date, heure, durée, et l'évènement part dans l'agenda principal du
-compte Google autorisé.
+From a note or a checklist, the calendar button in the bottom bar opens a panel:
+date, time, duration, and the event goes into the main calendar of the authorised
+Google account.
 
-**Ce qui est envoyé : le titre de la note et un lien vers elle. Rien d'autre.**
-Pas le corps, pas les éléments cochables. L'évènement pointe vers
-`https://<domaine>/note/<id>` ; sur un téléphone où Cairn est installé, Android
-ouvre l'application directement grâce aux App Links déclarés plus haut, et
-ailleurs le lien ouvre la PWA.
+**What is sent: the note's title and a link to it. Nothing else.** Not the body,
+not the checkable items. The event points at `https://<domain>/note/<id>`; on a
+phone where Cairn is installed, Android opens the app directly thanks to the App
+Links declared above, and elsewhere the link opens the PWA.
 
-### Les notes protégées ne partent pas
+### Protected notes do not go
 
-Une note chiffrée ou rangée dans le coffre n'a pas de bouton d'agenda, et n'en
-aura pas. Envoyer son titre chez Google déferait la promesse du chiffrement, et
-la déferait discrètement — rien, dans l'agenda, ne rappellerait d'où vient la
-ligne.
+A note that is encrypted or filed in the vault has no calendar button, and will
+not get one. Sending its title to Google would undo the promise of encryption,
+and undo it quietly — nothing in the calendar would recall where the line came
+from.
 
-Ce refus tient à trois profondeurs, et cette redondance est délibérée :
-l'interface masque le bouton, l'Edge Function relit la note avant tout appel à
-Google, et un déclencheur de la base refuse la ligne quoi qu'il arrive. Les deux
-premiers évitent du travail inutile ; seul le troisième tient si le client est
-contourné ou si la note est rangée dans le coffre pendant l'envoi. Les tests
-`npm run db:test` vérifient les trois cas, y compris la tentative de rediriger
-un export existant vers une note protégée.
+This refusal holds at three depths, and the redundancy is deliberate: the
+interface hides the button, the Edge Function re-reads the note before any call
+to Google, and a database trigger refuses the row whatever happens. The first two
+avoid pointless work; only the third holds if the client is bypassed, or if the
+note is filed into the vault while the send is in flight. The `npm run db:test`
+suite covers all three cases, including an attempt to redirect an existing export
+towards a protected note.
 
-### Console Google
+### Google console
 
-**Un seul client OAuth**, de type « Web », pour l'APK comme pour la PWA.
+**A single OAuth client**, of type "Web", for the APK as well as for the PWA.
 
-Un client « Android » semblait pourtant l'évidence pour l'APK. Il a été essayé,
-et Google l'a refusé : *« Custom URI scheme is not enabled for your Android
-client »*, sa documentation précisant que « custom URI schemes are no longer
-supported on Android ». La redirection ne peut donc plus être `cairn://` ni
-`app.cairn:/`. La voie que Google pousse est celle des liens d'application : une
-adresse `https://` ordinaire, qu'Android remet à l'application installée plutôt
-qu'au navigateur parce que le domaine et l'application se reconnaissent par
-`/.well-known/assetlinks.json`.
+An "Android" client seemed the obvious choice for the APK. It was tried, and
+Google refused it: *"Custom URI scheme is not enabled for your Android client"*,
+its documentation adding that "custom URI schemes are no longer supported on
+Android". So the redirect can no longer be `cairn://` or `app.cairn:/`. The route
+Google pushes is App Links: an ordinary `https://` address that Android hands to
+the installed app rather than to the browser, because the domain and the app
+recognise each other through `/.well-known/assetlinks.json`.
 
-Les deux plateformes partagent donc la même adresse de retour, donc le même
-client, ce qui simplifie tout — un identifiant, un secret, pas de branchement.
+Both platforms therefore share the same return address, and so the same client,
+which simplifies everything — one id, one secret, no branching.
 
-| Champ du client Web | Valeur |
+| Web client field | Value |
 |---|---|
-| Authorized JavaScript origins | `https://<domaine>` |
-| Authorized redirect URIs | `https://<domaine>/google` |
+| Authorized JavaScript origins | `https://<domain>` |
+| Authorized redirect URIs | `https://<domain>/google` |
 
-**Conséquence à ne pas manquer** : sur Android, `npm run assetlinks` n'est plus
-un confort. Sans fichier vérifié, le retour du consentement s'ouvre dans le
-navigateur et l'application attend un code qui ne lui reviendra jamais. La
-connexion à l'agenda depuis l'APK en dépend entièrement.
+**A consequence not to miss**: on Android, `npm run assetlinks` is no longer a
+convenience. Without a verified file, the consent return opens in the browser and
+the app waits for a code that will never come back to it. Calendar sign-in from
+the APK depends on it entirely.
 
-Pensez aussi à activer **Google Calendar API** dans APIs & Services → Library, et
-à vous ajouter en *test user* tant que le projet est en mode test.
+Remember also to enable **Google Calendar API** under APIs & Services → Library,
+and to add yourself as a *test user* while the project is in test mode.
 
-Le scope à ajouter à l'écran de consentement est
-`https://www.googleapis.com/auth/calendar.events`. Google le classe comme
-sensible : tant que le projet reste en mode test, il est borné à cent comptes et
-les autorisations expirent **au bout de sept jours**. C'est la raison d'être de
-`refresh_expires_at` et `needs_reauth` — l'échéance est affichée dans les
-réglages, et la bannière de reconnexion apparaît d'elle-même plutôt que de
-laisser découvrir la coupure au moment d'envoyer une note.
+The scope to add to the consent screen is
+`https://www.googleapis.com/auth/calendar.events`. Google classes it as
+sensitive: while the project stays in test mode it is capped at a hundred
+accounts and authorisations expire **after seven days**. That is the reason
+`refresh_expires_at` and `needs_reauth` exist — the deadline is shown in the
+settings, and the reconnect banner appears by itself rather than letting you
+discover the break at the moment you send a note.
 
-Cette autorisation est distincte de la connexion à Cairn. Se connecter avec
-Google ne donne aucun accès à l'agenda, et retirer l'accès à l'agenda ne
-déconnecte de rien.
+This authorisation is separate from signing in to Cairn. Signing in with Google
+grants no calendar access, and revoking calendar access signs you out of nothing.
 
-### Secrets des Edge Functions
+### Edge Function secrets
 
-Le jeton de rafraîchissement ne transite jamais par l'appareil : les trois Edge
-Functions font l'échange et le gardent chiffré dans `google_credentials`, table
-dont RLS est actif sans aucune politique. Elles ont besoin de ceci :
+The refresh token never passes through the device: the three Edge Functions do
+the exchange and keep it encrypted in `google_credentials`, a table with RLS
+enabled and no policy at all. They need this:
 
 ```
-supabase secrets set GOOGLE_CLIENT_ID_WEB=... GOOGLE_CLIENT_SECRET_WEB=... CAIRN_WEB_URL=https://<domaine> GOOGLE_TOKEN_KEY=$(openssl rand -hex 32)
+supabase secrets set GOOGLE_CLIENT_ID_WEB=... GOOGLE_CLIENT_SECRET_WEB=... CAIRN_WEB_URL=https://<domain> GOOGLE_TOKEN_KEY=$(openssl rand -hex 32)
 ```
 
-`GOOGLE_TOKEN_KEY` est la clé AES-GCM qui chiffre le jeton en base. Elle protège
-contre une fuite de la base seule, pas contre le serveur lui-même — prétendre
-l'inverse serait mentir sur la garantie, et
-`supabase/functions/_shared/chiffrement.ts` le dit en toutes lettres. **La
-changer rend les connexions existantes illisibles** : chacun devra réautoriser,
-ce que l'application demande d'elle-même.
+`GOOGLE_TOKEN_KEY` is the AES-GCM key that encrypts the token in the database. It
+protects against a leak of the database alone, not against the server itself —
+claiming otherwise would misrepresent the guarantee, and
+`supabase/functions/_shared/chiffrement.ts` says so in as many words. **Changing
+it makes existing connections unreadable**: everyone will have to re-authorise,
+which the app asks for by itself.
 
-Déploiement :
+Deployment:
 
 ```bash
 supabase functions deploy google-connect google-disconnect calendar-event
 ```
 
-### Côté application
+### On the app side
 
-Deux valeurs dans `.env`, toutes deux publiques : `EXPO_PUBLIC_WEB_URL` et
-`EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB`. Sans elles la carte « Agenda Google » des
-réglages ne s'affiche pas et le panneau explique ce qui manque, plutôt que
-d'offrir un bouton qui échouerait au premier clic.
+Two values in `.env`, both public: `EXPO_PUBLIC_WEB_URL` and
+`EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB`. Without them the "Google Calendar" card in
+settings does not appear, and the panel explains what is missing rather than
+offering a button that would fail on the first click.
 
-Les fonctions Edge sont du Deno, pas du React Native : elles sont exclues de
-`tsconfig.json` et se vérifient avec `deno check` depuis
-`supabase/functions/`, où un `deno.json` les configure. Les laisser dans le
-typecheck de l'application ferait échouer celui-ci sur `Deno` et sur les imports
-`npm:`, qui sont pourtant corrects chez elles.
+The Edge Functions are Deno, not React Native: they are excluded from
+`tsconfig.json` and are checked with `deno check` from `supabase/functions/`,
+where a `deno.json` configures them. Leaving them in the app's typecheck would
+make it fail on `Deno` and on `npm:` imports, which are perfectly correct where
+they live.
 
-## Mot de passe oublié
+## Forgotten password
 
-Le lien reçu par courriel ne fonctionne que dans le navigateur qui l'a demandé.
-Ce n'est pas un défaut : le client est en `flowType: 'pkce'`, la demande dépose
-un vérificateur dans le stockage local, et seul ce navigateur peut échanger le
-code contre une session. Demander depuis l'ordinateur puis ouvrir le lien sur le
-téléphone échoue silencieusement — on retombe sur l'écran de connexion, sans
-message. À dire aux utilisateurs plutôt qu'à corriger : l'alternative, le flux
-implicite, laisse les jetons dans l'URL.
+The link received by email only works in the browser that requested it. This is
+not a defect: the client is in `flowType: 'pkce'`, the request leaves a verifier
+in local storage, and only that browser can exchange the code for a session.
+Requesting from the computer then opening the link on the phone fails silently —
+you land back on the sign-in screen, with no message. Something to tell users
+rather than to fix: the alternative, the implicit flow, leaves tokens in the URL.
 
-Le lien ouvre une vraie session avant que le mot de passe soit choisi. La
-navigation est donc retenue sur `/new-password` jusqu'à ce qu'il le soit, et
-cette retenue survit au rechargement : `PASSWORD_RECOVERY` n'est annoncé qu'une
-fois, à l'échange du code, d'où une marque écrite dans le stockage
-(`cairn.recuperation-en-cours`). Sans elle, un simple F5 emmenait dans les notes
-et le mot de passe oublié le restait.
+The link opens a real session before the password has been chosen. Navigation is
+therefore held on `/new-password` until it is, and that hold survives a reload:
+`PASSWORD_RECOVERY` is announced only once, at the code exchange, hence a marker
+written to storage (`cairn.recuperation-en-cours`). Without it, a simple refresh
+took you into the notes and the forgotten password stayed forgotten.
 
-Le serveur de courriel intégré de Supabase plafonne les envois à quelques-uns
-par heure, pour tout le projet. En développement on l'atteint vite ; l'écran
-l'annonce alors en français. Un SMTP personnalisé lève ce plafond.
+Supabase's built-in mail server caps sending at a few per hour, for the whole
+project. In development you hit that quickly; the screen then says so, in French.
+A custom SMTP lifts the cap.
 
-## Suppression du compte
+## Deleting an account
 
-Réglages, section Compte. Il faut recopier l'adresse du compte : un second
-bouton se clique du même geste que le premier, recopier l'adresse oblige à la
-lire, donc à savoir lequel disparaît.
+Settings, Account section. You have to retype the account's address: a second
+button is clicked with the same gesture as the first, whereas retyping the
+address forces you to read it, and therefore to know which one is disappearing.
 
-Une seule ligne est supprimée, celle d'`auth.users`. Tout le reste suit par
-cascade — les tables de l'application comme celles du schéma `auth` de Supabase.
-Rien à tenir à jour ici quand une table s'ajoutera, à condition qu'elle cascade
-comme les autres ; une liste d'ordres `DELETE` aurait vieilli en silence.
+A single row is deleted, the one in `auth.users`. Everything else follows by
+cascade — the app's tables as well as those of Supabase's `auth` schema. Nothing
+to maintain here when a table is added, provided it cascades like the others; a
+list of `DELETE` statements would have aged silently.
 
-L'appel passe par `delete_own_account()`, en droits du définisseur parce que
-`auth` est hors de portée du rôle client. Le pouvoir emprunté est borné à une
-ligne : `auth.uid()` est lu dans la fonction et n'est pas un paramètre.
+The call goes through `delete_own_account()`, in definer rights because `auth` is
+out of reach of the client role. The borrowed power is bounded to one row:
+`auth.uid()` is read inside the function and is not a parameter.
 
-Le client efface ensuite ce qui dort sur l'appareil — code du coffre, clé de
-données, cache persisté. **Le serveur d'abord, l'appareil ensuite** : si l'appel
-échoue, la clé est encore là et le compte reste utilisable. Dans l'autre sens, un
-échec laisserait un compte vivant dont les notes chiffrées seraient devenues
-illisibles.
+The client then wipes what sleeps on the device — vault passcode, data key,
+persisted cache. **Server first, device second**: if the call fails, the key is
+still there and the account remains usable. The other way round, a failure would
+leave a living account whose encrypted notes had become unreadable.
 
-Deux sources accordent `execute` sur une fonction du schéma `public` : PUBLIC,
-par défaut Postgres, et un `alter default privileges` de Supabase qui l'accorde
-nommément à `anon`, `authenticated` et `service_role`. **Retirer l'une laisse
-l'autre debout.** `npm run db:test` reproduit désormais ces droits par défaut,
-sans quoi il déclarait fermée une fonction ouverte en production.
+Two sources grant `execute` on a function in the `public` schema: PUBLIC, by
+Postgres default, and a Supabase `alter default privileges` that grants it by
+name to `anon`, `authenticated` and `service_role`. **Removing one leaves the
+other standing.** `npm run db:test` now reproduces those default grants, without
+which it declared closed a function that was open in production.
 
-## Commandes
+## Commands
 
-| Commande | Rôle |
+| Command | Role |
 |---|---|
-| `npm run web` | serveur de développement, cible navigateur |
-| `npm run android` | serveur de développement, cible Android |
-| `npm run build:web` | export statique de la PWA, vers dist/ |
-| `npm run assetlinks` | écrit public/.well-known/assetlinks.json depuis .env |
-| `npm run theme` | régénère `generated/` depuis `src/ui/theme.ts` |
-| `npm run theme:check` | échoue si `generated/` a dérivé de la source |
-| `npm run theme:contrast` | rapport de contraste WCAG des deux thèmes |
-| `npm run db:test` | rejoue les migrations et leurs invariants sur PGlite |
-| `npm run test:logic` | teste la composition, le filtrage, la recherche, la grille et les règles du coffre |
-| `npm run typecheck` | TypeScript sans émission |
-| `npm run verify` | enchaîne les quatre vérifications ci-dessus |
+| `npm run web` | development server, browser target |
+| `npm run android` | development build, Android target |
+| `npm run build:web` | static export of the PWA, into dist/ |
+| `npm run assetlinks` | writes public/.well-known/assetlinks.json from .env |
+| `npm run theme` | regenerates `generated/` from `src/ui/theme.ts` |
+| `npm run theme:check` | fails if the derived resources have drifted from the source |
+| `npm run theme:contrast` | WCAG contrast report for both themes |
+| `npm run db:test` | replays the migrations and their invariants on PGlite |
+| `npm run test:logic` | tests composition, filtering, search, the grid, markup and the vault rules |
+| `npm run typecheck` | TypeScript with no emit |
+| `npm run verify` | chains the four checks above |
 
-## Deux mécanismes à connaître avant de toucher au code
+## Two mechanisms to know before touching the code
 
-### Les couleurs ont une source unique
+### Colours have a single source
 
-`src/ui/theme.ts` fait autorité. `npm run theme` en dérive `generated/theme.json`
-pour l'application et `app.config.js`, la feuille de style de la PWA, et les
-ressources de couleurs du widget Android. Rien ne se recopie à la main, donc les
-trois surfaces ne peuvent pas diverger.
+`src/ui/theme.ts` is authoritative. `npm run theme` derives from it
+`generated/theme.json` for the app and `app.config.js`, the PWA's stylesheet, and
+the Android widget's colour resources. Nothing is copied by hand, so the three
+surfaces cannot drift apart.
 
-Le script mesure aussi le contraste des deux thèmes et refuse d'écrire si une
-paire texte sur fond tombe sous les seuils WCAG AA. Les valeurs actuelles ne sont
-pas un choix à l'œil, elles sont issues d'une résolution sous contrainte : les
-modifier sans relancer `npm run theme:contrast` casse très probablement
-l'accessibilité.
+The script also measures the contrast of both themes and refuses to write when a
+text-on-background pair falls below the WCAG AA thresholds. The current values
+are not an eyeballed choice, they come out of a constrained solve: changing them
+without re-running `npm run theme:contrast` very probably breaks accessibility.
 
-Une couleur de tag est stockée par clé (`ambre`), jamais en hexadécimal. C'est ce
-qui permet au thème clair de réinterpréter la palette. Ces clés sont aussi les
-valeurs du type `tag_color` en base : les renommer demande une migration, la
-dernière en date est `20260806090000_nordic_tag_colors.sql`.
+A tag colour is stored by key (`ambre`), never as hexadecimal. That is what lets
+the light theme reinterpret the palette. Those keys are also the values of the
+`tag_color` type in the database: renaming them takes a migration, the most
+recent being `20260806090000_nordic_tag_colors.sql`.
 
-### L'identité est nordique, et les runes ne veulent rien dire
+### The identity is Nordic, and the runes mean nothing
 
-La pierre levée du Nord plutôt que le calcaire du Quercy : gris froids autour de
-200° de teinte, aurore boréale en accent, angles taillés au ciseau plutôt
-qu'arrondis, et un mouvement frappé plutôt que posé. Viking pour les capitales
-gravées, Junicode pour la lecture, Archivo pour les commandes. Les deux
-premières sont embarquées dans `assets/fonts`, licence à côté de chaque
-fichier — Viking sous licence 1001fonts, Junicode sous SIL Open Font.
+The standing stone of the North rather than the limestone of the Quercy: cold
+greys around 200° of hue, aurora borealis as the accent, chisel-cut angles rather
+than rounded ones, and a struck rather than settled sense of motion. Viking for
+engraved capitals, Junicode for reading, Archivo for controls. The first two are
+bundled in `assets/fonts`, with a licence beside each file — Viking under the
+1001fonts licence, Junicode under SIL Open Font.
 
-Les runes de `src/ui/runes.tsx` sont ornementales et le restent. Une rune ne
-remplace jamais une icône qu'il faut comprendre pour agir : la case à cocher
-reste une case à cocher, la corbeille garde son icône de corbeille. Elles sont
-toutes masquées aux lecteurs d'écran, et le logotype affiche le nom écrit
-au-dessus de sa translittération ᚲᚨᛁᚱᚾ, jamais à sa place.
+The runes in `src/ui/runes.tsx` are ornamental and stay that way. A rune never
+replaces an icon you have to understand in order to act: the checkbox stays a
+checkbox, the trash keeps its trash icon. They are all hidden from screen
+readers, and the logotype shows the written name above its transliteration
+ᚲᚨᛁᚱᚾ, never in its place.
 
-Elles sont tracées en vectoriel et non écrites en Unicode : le bloc Runique
-(U+16A0 à U+16FF) n'est couvert par presque aucune police système, un caractère
-runique posé dans un `Text` afficherait un rectangle vide sur la majorité des
-appareils.
+They are drawn as vectors rather than written in Unicode: the Runic block (U+16A0
+to U+16FF) is covered by almost no system font, and a runic character placed in a
+`Text` would show an empty rectangle on most devices.
 
-### Le coffre masque, il ne chiffre pas
+### The vault hides, it does not encrypt
 
-C'est la phrase à retenir avant d'y ranger quoi que ce soit, et l'application la
-dit elle-même sur l'écran de configuration. Une note du coffre disparaît de la
-grille et ne revient que derrière un code, mais elle reste en clair dans
-Postgres, gardée par RLS comme toutes les autres. La menace visée est quelqu'un
-qui regarde ton écran ou qui prend ton téléphone déverrouillé, pas quelqu'un qui
-accède à la base. Ce niveau-là, c'est la phase 6.
+That is the sentence to remember before filing anything in it, and the app says
+so itself on the setup screen. A vault note disappears from the grid and only
+comes back behind a passcode, but it stays in the clear in Postgres, guarded by
+RLS like all the others. The threat it addresses is someone looking at your
+screen or picking up your unlocked phone, not someone reaching the database. That
+level is phase 6.
 
-Trois conséquences dans le code.
+Three consequences in the code.
 
-Le nom de code remplace le titre partout où la note est listée, et une note du
-coffre sans nom de code n'affiche **rien** plutôt que son titre. Un repli sur le
-titre serait invisible à l'usage et laisserait fuir exactement ce qu'on cachait.
+The code name replaces the title everywhere the note is listed, and a vault note
+with no code name displays **nothing** rather than its title. Falling back to the
+title would be invisible in use and would leak exactly what was being hidden.
 
-Les notes masquées vivent dans une clé de requête distincte, volatile, et leurs
-éléments de liste aussi. Refermer le coffre ne masque pas une vue, cela laisse
-expirer les données du cache. Sans la seconde clé, les cases à cocher des notes
-masquées descendraient dans le cache persisté par la bande.
+Hidden notes live in a separate, volatile query key, and so do their checklist
+items. Closing the vault does not hide a view, it lets the cached data expire.
+Without the second key, the checkboxes of hidden notes would slip into the
+persisted cache sideways.
 
-Le code n'est pas dérivé par PBKDF2, et c'est délibéré. Un secret de quatre
-chiffres se parcourt entièrement en une fraction de seconde quel que soit le
-nombre d'itérations, alors que chaque itération coûte un passage du pont natif.
-Ce qui protège un code court, c'est le nombre d'essais : la temporisation de
-`src/vault/policy.ts` est gratuite trois fois, puis double à chaque échec et
-plafonne à cinq minutes. Elle est testée sous Node, y compris le cas où le bon
-code est refusé parce que l'attente court encore.
+The passcode is not derived through PBKDF2, and that is deliberate. A four-digit
+secret is exhausted in a fraction of a second whatever the iteration count, while
+each iteration costs a crossing of the native bridge. What protects a short code
+is the number of attempts: the delay in `src/vault/policy.ts` is free three
+times, then doubles on each failure and caps at five minutes. It is tested under
+Node, including the case where the right code is refused because the wait is
+still running.
 
-Le coffre se referme au passage en arrière-plan, cinq minutes après son
-ouverture, et en quittant l'écran. Si une note du coffre était ouverte au moment
-de la fermeture, l'éditeur l'annonce au lieu de prétendre que la note a été
-supprimée ailleurs.
+The vault closes on going to the background, five minutes after opening, and on
+leaving the screen. If a vault note was open at closing time, the editor says so
+instead of pretending the note was deleted elsewhere.
 
-Le secret vit dans le Keystore Android via `expo-secure-store`. Sur le web, ce
-module n'existe pas et le secret retombe dans `localStorage`, donc lisible par
-n'importe quel script de l'origine. C'est écrit à l'utilisateur sur l'écran de
-configuration quand il est sur le web, pas seulement ici.
+The secret lives in the Android Keystore through `expo-secure-store`. On the web
+that module does not exist and the secret falls back to `localStorage`, and so is
+readable by any script on the origin. That is written to the user on the setup
+screen when they are on the web, not only here.
 
-### La recherche est côté client, et c'est un choix
+### Search is client-side, and that is a choice
 
-Toutes les notes visibles sont déjà en cache, donc interroger `search_vector`
-côté Postgres ajouterait un aller-retour réseau pour un résultat identique, en
-moins bon : latence à chaque frappe et échec hors ligne. La recherche filtre donc
-le cache, avec repli d'accents pour que « cafe » trouve « café ».
+Every visible note is already cached, so querying `search_vector` on the Postgres
+side would add a network round trip for an identical result, only worse: latency
+on every keystroke and failure offline. So search filters the cache, with accent
+folding so that "cafe" finds "café".
 
-L'index GIN de la migration n'est pas inutile pour autant. Il devient nécessaire
-le jour où le corpus dépasse ce qu'on garde raisonnablement en cache et où la
-liste sera paginée. Ce jour-là, le filtre client devient le repli hors ligne et
-la requête serveur passe devant.
+The migration's GIN index is not useless for all that. It becomes necessary the
+day the corpus outgrows what can reasonably be cached and the list is paginated.
+On that day the client filter becomes the offline fallback and the server query
+moves in front.
 
-### Une note laissée vide est écartée en sortant
+### A note left empty is discarded on the way out
 
-Ouvrir un bouton de création puis revenir en arrière sans rien écrire ne laisse
-aucun résidu : la note est supprimée définitivement en quittant l'éditeur, comme
-le fait Google Keep. Il n'y a rien à récupérer, et remplir la corbeille de
-coquilles vides n'aiderait personne.
+Opening a create button then going back without writing anything leaves no
+residue: the note is permanently deleted on leaving the editor, as Google Keep
+does. There is nothing to recover, and filling the trash with empty shells would
+help nobody.
 
-« Vide » veut dire sans titre, sans corps, sans élément de liste, sans tag et sans
-couleur. Teinter une note ou lui poser un tag est une intention explicite, donc
-elle est conservée même sans texte. Le verdict est calculé sur l'état local de la
-saisie et non sur la note du serveur, qui peut être en retard de 600 millisecondes
-sur la frappe.
+"Empty" means no title, no body, no checklist item, no tag and no colour. Tinting
+a note or putting a tag on it is an explicit intent, so it is kept even without
+text. The verdict is computed on the local state of the input and not on the
+server's note, which can be 600 milliseconds behind the typing.
 
-### Ce qui n'est pas persisté sur le disque
+### What is not persisted to disk
 
-Le cache de requêtes descend dans le stockage local, mais pas en entier. Sur le
-web, ce stockage est lisible par n'importe quel script de l'origine, donc le
-coffre et la corbeille restent en mémoire seulement. C'est aussi la raison pour
-laquelle les notes masquées vivent dans une clé de requête distincte plutôt que
-dans la liste principale filtrée à l'affichage : la séparation est structurelle.
+The query cache goes down into local storage, but not all of it. On the web that
+storage is readable by any script on the origin, so the vault and the trash stay
+in memory only. That is also why hidden notes live in a separate query key rather
+than in the main list filtered at display time: the separation is structural.
 
-### Les invariants vivent dans la base
+### Invariants live in the database
 
-Une note chiffrée ne peut pas contenir de titre en clair, un rappel ne peut pas
-viser deux cibles à la fois, un élément de liste ne peut pas être rattaché à la
-note d'un autre utilisateur. Ce sont des contraintes SQL et des clés étrangères
-composites, pas des règles que le code applicatif devrait se rappeler de
-respecter.
+An encrypted note cannot hold a plaintext title, a reminder cannot aim at two
+targets at once, a checklist item cannot be attached to another user's note.
+These are SQL constraints and composite foreign keys, not rules the application
+code would have to remember to respect.
 
-`npm run db:test` le prouve sur du vrai Postgres, compilé en WebAssembly, donc
-sans Docker ni projet distant. Il vérifie aussi l'isolation entre deux
-utilisateurs et le fait que le jeton Google reste hors de portée d'un client
-authentifié.
+`npm run db:test` proves it against real Postgres, compiled to WebAssembly, so
+without Docker or a remote project. It also checks isolation between two users
+and that the Google token stays out of reach of an authenticated client.
 
-## Structure
+## Layout
 
 ```
-app/                    routes expo-router, partagées Android et web
-  +html.tsx             document de la PWA, script anti-flash de thème
-  (auth)/               connexion et inscription
-  (tabs)/               zone authentifiée
+app/                    expo-router routes, shared by Android and web
+  +html.tsx             the PWA document, theme anti-flash script
+  (auth)/               sign-in and sign-up
+  (tabs)/               authenticated area
+modules/
+  cairn-widget/         local Expo module: the Android home screen widget
 src/
-  auth/                 session Supabase et actions d'authentification
-  db/                   client Supabase, types du schéma, stockage clé-valeur
-  google/agenda.ts      consentement Google et envoi d'une note vers l'agenda
-  google/creneau.ts     lecture du créneau saisi, sans React, testée sous Node
-  ui/theme.ts           source unique des couleurs, de la typographie et des formes
-  ui/components.tsx     primitives d'interface
-  ui/AgendaPanel.tsx    panneau d'envoi vers l'agenda, dans l'écran de note
-  ui/runes.tsx          futhark tracé en vectoriel, ornemental
-  vault/policy.ts       règles du coffre, sans plateforme, testées sous Node
-  vault/secret.ts       stockage du code sur l'appareil et dérivation
-scripts/                génération de thème et d'assetlinks, tests
-supabase/migrations/    schéma SQL et politiques RLS
-supabase/functions/     Edge Functions Deno : échange OAuth et appels Google
-generated/              artefacts dérivés du thème, à committer
-public/                 fichiers servis tels quels par la PWA (assetlinks.json)
+  auth/                 Supabase session and authentication actions
+  db/                   Supabase client, schema types, key-value storage
+  google/agenda.ts      Google consent and sending a note to the calendar
+  google/creneau.ts     parsing the entered time slot, no React, tested under Node
+  text/markup.ts        note formatting and link detection, tested under Node
+  ui/theme.ts           single source of colours, typography and shapes
+  ui/components.tsx     interface primitives
+  ui/AgendaPanel.tsx    calendar send panel, inside the note screen
+  ui/runes.tsx          futhark drawn as vectors, ornamental
+  vault/policy.ts       vault rules, platform-free, tested under Node
+  vault/secret.ts       on-device passcode storage and derivation
+  widget/               the snapshot the widget reads, and what keeps it current
+scripts/                theme and assetlinks generation, tests
+supabase/migrations/    SQL schema and RLS policies
+supabase/functions/     Deno Edge Functions: OAuth exchange and Google calls
+generated/              theme-derived artefacts, committed
+public/                 files served as-is by the PWA (assetlinks.json)
 ```
