@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Les glyphes sont des caractères et non des images.
+  The glyphs are characters, not images.
 
-  Une `RemoteViews` ne sait pas rendre un SVG, et embarquer des PNG pour trois
-  pictogrammes ajouterait quatre fichiers par densité au paquet. Les caractères
-  choisis existent dans toutes les polices système d'Android depuis longtemps.
+  A `RemoteViews` cannot render an SVG, and shipping PNGs for three pictograms
+  would add four files per density to the package. The characters chosen have
+  been present in every Android system font for a long time.
+
+  The strings themselves stay in French: they are what the user reads.
 -->
 <resources>
   <string name="cairn_widget_label">Cairn — notes</string>

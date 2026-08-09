@@ -1,8 +1,8 @@
 @AGENTS.md
 
 <!--
-Une seule ligne, et c'est voulu : les règles vivent dans AGENTS.md, que la
-directive ci-dessus inclut mot pour mot. Les recopier ici en donnerait deux
-versions, qui divergeraient. Les conventions de commit et de CHANGELOG sont donc
-à lire, et à modifier, dans AGENTS.md.
+One line, on purpose: the rules live in AGENTS.md, which the directive above
+includes verbatim. Copying them here would give two versions, and they would
+drift. Commit, changelog and language conventions are to be read — and changed —
+in AGENTS.md.
 -->

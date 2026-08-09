@@ -1,36 +1,36 @@
 /**
- * Mise en forme du texte des notes, et reconnaissance des liens.
+ * Text formatting for notes, and link detection.
  *
- * ── Pourquoi un balisage dans le texte, et pas des colonnes ──────────────────
- * Le corps d'une note et le contenu d'un élément de liste sont des colonnes
- * `text`, et ils le restent. Ce n'est pas une économie de migration : c'est ce
- * qui garde tout le reste intact.
+ * ── Why markup inside the text, and not columns ──────────────────────────────
+ * A note's body and a checklist item's content are `text` columns, and they stay
+ * that way. This is not a migration we are dodging: it is what keeps everything
+ * else intact.
  *
- * Le coffre chiffre une chaîne, une seule, par note — un document structuré
- * demanderait de rouvrir le format scellé. La recherche plein texte de Postgres
- * indexe `title || body`. L'export vers Google Agenda recopie le corps dans la
- * description d'un évènement. Et un jour où quelque chose affichera ce texte
- * sans le rendre — un export, une notification, une sauvegarde — `**gras**` se
- * lit encore, là où un JSON de spans ne se lirait pas.
+ * The vault encrypts one string, exactly one, per note — a structured document
+ * would mean reopening the sealed format. Postgres full-text search indexes
+ * `title || body`. The Google Calendar export copies the body into an event
+ * description. And the day something displays this text without rendering it —
+ * an export, a notification, a backup — `**bold**` still reads, where a JSON
+ * array of spans would not.
  *
- * D'où le choix d'une syntaxe déjà connue plutôt que d'une invention.
+ * Hence a syntax people already know rather than one we invent.
  *
- * ── La syntaxe ───────────────────────────────────────────────────────────────
+ * ── The syntax ───────────────────────────────────────────────────────────────
  *
- *   **gras**        *italique*        ~~barré~~        __souligné__
- *   # grand titre   ## sous-titre     - élément de liste à puces
- *   [libellé](https://exemple.fr)     et toute URL écrite au fil du texte
+ *   **bold**        *italic*          ~~struck~~       __underlined__
+ *   # heading       ## subheading     - bullet item
+ *   [label](https://example.com)      and any URL written mid-sentence
  *
- * `__` est un écart assumé par rapport à CommonMark, où il vaut gras. Il n'y a
- * pas de souligné en Markdown, il fallait donc prendre une marque quelque part,
- * et un double tiret bas ressemble à ce qu'il produit. Le gras garde `**`, qui
- * est la forme qu'écrivent les gens.
+ * `__` is a deliberate departure from CommonMark, where it means bold. Markdown
+ * has no underline, so a mark had to be taken from somewhere, and a double
+ * underscore looks like what it produces. Bold keeps `**`, which is the form
+ * people actually type.
  *
- * ── Pourquoi ce module ne connaît ni React ni react-native ───────────────────
- * Il rend une structure, pas des composants. C'est ce qui permet de le tester
- * sous Node par `npm run test:logic`, et c'est là que vivent les erreurs qui
- * comptent : une URL coupée au mauvais endroit, un `*` isolé qui avale la fin
- * d'une ligne, une recherche qui ne trouve plus un mot devenu gras.
+ * ── Why this module knows nothing of React or react-native ───────────────────
+ * It returns a structure, not components. That is what lets it be tested under
+ * Node by `npm run test:logic`, and that is where the mistakes that matter live:
+ * a URL cut at the wrong character, a stray `*` swallowing the rest of a line, a
+ * search that no longer finds a word once it has been made bold.
  */
 
 export type Marks = {
@@ -40,7 +40,7 @@ export type Marks = {
   strike?: boolean
 }
 
-/** Fragment de texte homogène. `href` en fait un lien. */
+/** A run of text with uniform styling. `href` turns it into a link. */
 export type Span = Marks & {
   text: string
   href?: string
@@ -48,18 +48,17 @@ export type Span = Marks & {
 
 export type Block = {
   kind: 'paragraph' | 'bullet'
-  /** 0 corps, 1 grand titre, 2 sous-titre. Toujours 0 sur une puce. */
+  /** 0 body, 1 heading, 2 subheading. Always 0 on a bullet. */
   level: 0 | 1 | 2
   spans: Span[]
 }
 
 /**
- * Marques d'emphase, dans l'ordre où elles sont essayées.
+ * Emphasis marks, in the order they are tried.
  *
- * L'ordre n'est pas décoratif : sur `**gras**`, la règle de l'italique trouve
- * elle aussi une correspondance à la position zéro — un `*`, du texte, un `*` —
- * et capturerait `*gras`. À égalité de position, c'est donc la première déclarée
- * qui gagne, et le gras doit passer avant l'italique.
+ * The order is not decorative: on `**bold**`, the italic rule also matches at
+ * position zero — a `*`, some text, a `*` — and would capture `*bold`. On a tie,
+ * the first one declared wins, so bold has to come before italic.
  */
 const EMPHASES: { open: string; close: string; mark: keyof Marks }[] = [
   { open: '**', close: '**', mark: 'bold' },
@@ -69,25 +68,24 @@ const EMPHASES: { open: string; close: string; mark: keyof Marks }[] = [
 ]
 
 /**
- * Lien nommé. Le libellé s'arrête au premier crochet fermant, l'adresse à la
- * première parenthèse fermante : personne n'écrit à la main un lien qui en
- * contient, et une expression permissive coûterait ici bien plus qu'elle ne
- * rapporte.
+ * A named link. The label stops at the first closing bracket, the address at the
+ * first closing parenthesis: nobody hand-writes a link containing either, and a
+ * permissive expression would cost far more here than it earns.
  */
 const NAMED_LINK = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+|www\.[^\s)]+)\)/
 
 /**
- * URL écrite au fil du texte.
+ * A URL written mid-sentence.
  *
- * `www.` sans protocole est reconnu : c'est ce que les gens collent, et le
- * refuser laisserait la moitié des liens inertes. La classe finale exclut la
- * ponctuation courante pour que « voir https://exemple.fr. » ne fasse pas du
- * point final un morceau de l'adresse — erreur classique, et invisible jusqu'au
- * jour où le lien ne s'ouvre pas.
+ * `www.` without a protocol is recognised: that is what people paste, and
+ * refusing it would leave half the links inert. The final character class
+ * excludes ordinary punctuation so that "see https://example.com." does not make
+ * the full stop part of the address — a classic mistake, and invisible until the
+ * day the link fails to open.
  */
 const BARE_LINK = /(?:https?:\/\/|www\.)[^\s<>()[\]]*[^\s<>()[\].,;:!?'"]/
 
-/** Complète une adresse écrite sans protocole. */
+/** Completes an address written without a protocol. */
 export function normalizeHref(raw: string): string {
   return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
 }
@@ -95,26 +93,26 @@ export function normalizeHref(raw: string): string {
 type Found = {
   index: number
   length: number
-  /** Contenu à analyser à son tour, avec la marque ajoutée. */
+  /** Content to parse in turn, with the mark added. */
   inner: string
   marks: Marks
   href?: string
   /**
-   * Texte à afficher tel quel, sans être réanalysé. Sert aux liens nus : les
-   * points et les barres obliques d'une adresse ne sont pas du balisage, et
-   * `www.exemple.fr` doit rester écrit ainsi même si le lien pointe sur
-   * `https://www.exemple.fr`.
+   * Text to display as-is, without being parsed again. Used by bare links: the
+   * dots and slashes of an address are not markup, and `www.example.com` must
+   * stay written that way even though the link points at
+   * `https://www.example.com`.
    */
   literal?: string
 }
 
-/** Première marque rencontrée dans la ligne, ou `null` s'il n'y en a plus. */
+/** The first mark found in the line, or `null` when there are none left. */
 function findNext(line: string): Found | null {
   let best: Found | null = null
 
   const consider = (candidate: Found) => {
-    // Strictement plus tôt : à égalité, la marque déjà retenue gagne, ce qui
-    // fait respecter l'ordre de déclaration ci-dessus.
+    // Strictly earlier: on a tie the mark already held wins, which is what makes
+    // the declaration order above take effect.
     if (!best || candidate.index < best.index) best = candidate
   }
 
@@ -129,8 +127,8 @@ function findNext(line: string): Found | null {
     })
   }
 
-  // Un lien nommé commence par `[`, un lien nu par `h` ou `w` : les deux ne
-  // peuvent pas débuter au même endroit, il n'y a donc rien à arbitrer entre eux.
+  // A named link starts with `[`, a bare one with `h` or `w`: the two cannot
+  // begin at the same place, so there is nothing to arbitrate between them.
   const bare = BARE_LINK.exec(line)
   if (bare) {
     consider({
@@ -148,18 +146,17 @@ function findNext(line: string): Found | null {
     if (start === -1) continue
     const from = start + open.length
     let end = line.indexOf(close, from)
-    // Il faut au moins un caractère entre les deux marques : `****` n'est pas
-    // du gras vide, c'est du texte.
+    // At least one character is needed between the two marks: `****` is not
+    // empty bold, it is text.
     if (end === -1 || end === from) continue
 
     /**
-     * Sur une marque de deux caractères, la fermeture se prend à la fin de la
-     * suite de marques, pas à son début.
+     * For a two-character mark, the closing one is taken at the end of the run
+     * of marks, not at its start.
      *
-     * `**gras et *ital***` finit sur trois astérisques : le premier ferme
-     * l'italique intérieur, les deux suivants le gras. Une recherche naïve
-     * prenait les deux premiers, laissait l'italique ouvert, et rendait le
-     * troisième astérisque en toutes lettres à l'écran.
+     * `**bold and *italic***` ends on three asterisks: the first closes the
+     * inner italic, the next two the bold. A naive search took the first two,
+     * left the italic open, and rendered the third asterisk literally on screen.
      */
     if (close.length === 2) {
       while (line[end + 2] === close[0]) end++
@@ -176,7 +173,7 @@ function findNext(line: string): Found | null {
   return best
 }
 
-/** Découpe une ligne en fragments homogènes. */
+/** Splits a line into uniformly styled runs. */
 export function parseInline(line: string, inherited: Marks = {}): Span[] {
   const spans: Span[] = []
   let rest = line
@@ -190,9 +187,9 @@ export function parseInline(line: string, inherited: Marks = {}): Span[] {
     }
 
     if (found.href) {
-      // Le libellé peut être mis en forme, l'adresse non. Chaque fragment issu
-      // du libellé emporte l'adresse : c'est ce qui rend tout le lien cliquable
-      // quand une partie seulement est en gras.
+      // The label can be styled, the address cannot. Every run coming out of the
+      // label carries the address: that is what keeps the whole link clickable
+      // when only part of it is bold.
       const label = found.literal
         ? [{ text: found.literal }]
         : parseInline(found.inner, inherited)
@@ -211,11 +208,11 @@ export function parseInline(line: string, inherited: Marks = {}): Span[] {
 }
 
 /**
- * Découpe un texte en blocs.
+ * Splits text into blocks.
  *
- * Les lignes vides sont conservées comme paragraphes vides : elles portent
- * l'aération voulue par qui a écrit la note, et les avaler resserrerait le
- * texte à l'affichage sans que rien ne l'explique.
+ * Blank lines are kept as empty paragraphs: they carry the spacing whoever wrote
+ * the note wanted, and swallowing them would tighten the text on screen with
+ * nothing to explain why.
  */
 export function parseMarkup(source: string | null | undefined): Block[] {
   if (!source) return []
@@ -227,8 +224,8 @@ export function parseMarkup(source: string | null | undefined): Block[] {
     if (raw.startsWith('# ')) {
       return { kind: 'paragraph', level: 1, spans: parseInline(raw.slice(2)) }
     }
-    // Le point médian est accepté à l'entrée parce que c'est ce que rend
-    // l'affichage : recopier une puce depuis une note affichée doit marcher.
+    // The bullet character is accepted on input because that is what the display
+    // produces: copying a bullet out of a rendered note has to work.
     if (raw.startsWith('- ') || raw.startsWith('• ')) {
       return { kind: 'bullet', level: 0, spans: parseInline(raw.slice(2)) }
     }
@@ -237,13 +234,12 @@ export function parseMarkup(source: string | null | undefined): Block[] {
 }
 
 /**
- * Le texte sans son balisage.
+ * The text without its markup.
  *
- * Sert à la recherche, aux estimations de hauteur et à tout ce qui compte des
- * caractères. Sans lui, chercher « courses » ne trouvait plus une note où le mot
- * avait été mis en gras : le haystack contenait `**courses**`, ce qui marche par
- * chance, mais « liste de courses » écrit `liste de **courses**` ne se trouvait
- * plus du tout.
+ * Used by search, by height estimates, and by anything that counts characters.
+ * Without it, searching for "courses" no longer found a note where the word had
+ * been made bold: the haystack held `**courses**`, which happens to work, but
+ * "liste de courses" written `liste de **courses**` was not found at all.
  */
 export function plainText(source: string | null | undefined): string {
   return parseMarkup(source)
@@ -254,13 +250,13 @@ export function plainText(source: string | null | undefined): string {
     .join('\n')
 }
 
-// --------------------------------------------------------------- édition
+// --------------------------------------------------------------- editing
 
 export type Format = 'bold' | 'italic' | 'underline' | 'strike' | 'bullet' | 'title' | 'subtitle'
 
 export type Selection = { start: number; end: number }
 
-/** Résultat d'une commande de mise en forme : le nouveau texte et où poser le curseur. */
+/** The result of a formatting command: the new text, and where the caret goes. */
 export type Edit = { text: string; selection: Selection }
 
 const WRAPPERS: Record<'bold' | 'italic' | 'underline' | 'strike', string> = {
@@ -276,7 +272,7 @@ const PREFIXES: Record<'bullet' | 'title' | 'subtitle', string> = {
   subtitle: '## ',
 }
 
-/** Bornes de la ligne qui contient `position`. */
+/** Bounds of the line containing `position`. */
 function lineBounds(text: string, position: number): { start: number; end: number } {
   const start = text.lastIndexOf('\n', Math.max(0, position - 1)) + 1
   const end = text.indexOf('\n', position)
@@ -284,11 +280,11 @@ function lineBounds(text: string, position: number): { start: number; end: numbe
 }
 
 /**
- * Étend une sélection vide au mot sous le curseur.
+ * Widens an empty selection to the word under the caret.
  *
- * Sans cela, appuyer sur « gras » sans rien avoir sélectionné posait deux paires
- * d'astérisques autour du vide — le geste le plus naturel, écrire un mot puis le
- * mettre en gras, ne marchait pas.
+ * Without this, pressing "bold" with nothing selected put two pairs of asterisks
+ * around nothing — the most natural gesture of all, type a word then make it
+ * bold, did not work.
  */
 function widenToWord(text: string, selection: Selection): Selection {
   if (selection.start !== selection.end) return selection
@@ -302,15 +298,15 @@ function widenToWord(text: string, selection: Selection): Selection {
 }
 
 /**
- * Applique une commande de mise en forme.
+ * Applies a formatting command.
  *
- * Fonction pure, et c'est délibéré : c'est ici que se cachent les fautes d'index
- * qui décalent tout le texte d'un caractère, et elles se testent bien plus
- * facilement qu'à travers un champ de saisie.
+ * A pure function, deliberately: this is where off-by-one index mistakes hide,
+ * the ones that shift the whole text by a character, and they are far easier to
+ * test here than through a text field.
  *
- * Les commandes de bloc — puce, titre, sous-titre — basculent : réappuyer sur
- * « titre » sur une ligne qui en est déjà un la ramène en texte courant, plutôt
- * que d'empiler les dièses.
+ * Block commands — bullet, heading, subheading — toggle: pressing "heading"
+ * again on a line that already is one brings it back to body text rather than
+ * stacking hashes.
  */
 export function applyFormat(text: string, selection: Selection, format: Format): Edit {
   if (format === 'bullet' || format === 'title' || format === 'subtitle') {
@@ -318,8 +314,8 @@ export function applyFormat(text: string, selection: Selection, format: Format):
     const line = text.slice(start)
     const prefix = PREFIXES[format]
 
-    // Une ligne ne porte qu'une marque de bloc : passer de titre à puce retire
-    // le dièse au lieu de préfixer une ligne déjà préfixée.
+    // A line carries only one block mark: going from heading to bullet removes
+    // the hash instead of prefixing an already-prefixed line.
     const existing = ['## ', '# ', '- ', '• '].find((p) => line.startsWith(p))
     const removed = existing ? existing.length : 0
     const toggling = existing === prefix
@@ -342,7 +338,7 @@ export function applyFormat(text: string, selection: Selection, format: Format):
   const inner = text.slice(target.start, target.end)
   const after = text.slice(target.end)
 
-  // Retirer la marque plutôt que la doubler quand elle est déjà là.
+  // Remove the mark rather than doubling it when it is already there.
   if (before.endsWith(wrapper) && after.startsWith(wrapper)) {
     const next = before.slice(0, -wrapper.length) + inner + after.slice(wrapper.length)
     return {
@@ -357,8 +353,8 @@ export function applyFormat(text: string, selection: Selection, format: Format):
   const next = `${before}${wrapper}${inner}${wrapper}${after}`
   return {
     text: next,
-    // Le curseur se pose entre les marques quand il n'y avait rien à envelopper,
-    // pour qu'on puisse écrire dans la foulée.
+    // The caret lands between the marks when there was nothing to wrap, so that
+    // typing can carry straight on.
     selection: {
       start: target.start + wrapper.length,
       end: target.end + wrapper.length,
@@ -367,19 +363,20 @@ export function applyFormat(text: string, selection: Selection, format: Format):
 }
 
 /**
- * Insère un lien, en réutilisant la sélection comme libellé.
+ * Inserts a link, reusing the selection as its label.
  *
- * L'adresse est laissée à remplir plutôt que demandée dans une boîte de
- * dialogue : sur un téléphone, une invite modale par-dessus le clavier coûte
- * plus cher que de taper l'adresse là où elle ira.
+ * The address is left to fill in rather than asked for in a dialog: on a phone,
+ * a modal prompt over the keyboard costs more than typing the address where it
+ * is going to live.
  */
 export function insertLink(text: string, selection: Selection): Edit {
   const target = widenToWord(text, selection)
+  // French: this placeholder is written into the user's note.
   const label = text.slice(target.start, target.end) || 'libellé'
   const inserted = `[${label}]()`
   return {
     text: text.slice(0, target.start) + inserted + text.slice(target.end),
-    // Curseur entre les parenthèses, là où l'adresse doit être collée.
+    // Caret between the parentheses, where the address has to be pasted.
     selection: {
       start: target.start + inserted.length - 1,
       end: target.start + inserted.length - 1,

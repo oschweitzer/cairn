@@ -6,12 +6,12 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 /**
- * Ce que l'application JavaScript peut demander au widget.
+ * What the JavaScript app may ask of the widget.
  *
- * Deux fonctions, et pas une de plus : déposer l'instantané, et savoir si
- * quelqu'un le lira. Tout le reste — la mise en page, le filtre, l'ouverture
- * d'une note — vit du côté natif, où le lanceur l'exécute sans que
- * l'application ait besoin de tourner.
+ * Two functions, and not one more: drop off the snapshot, and find out whether
+ * anyone will read it. Everything else — the layout, the filter, opening a note
+ * — lives on the native side, where the launcher runs it without the app having
+ * to be running at all.
  */
 class CairnWidgetModule : Module() {
 
@@ -23,16 +23,16 @@ class CairnWidgetModule : Module() {
       Snapshot.write(context, json)
 
       /**
-       * Deux notifications, et il faut les deux.
+       * Two notifications, and both are needed.
        *
-       * `notifyAppWidgetViewDataChanged` dit à la liste de se relire — c'est ce
-       * qui rafraîchit les lignes. Mais l'en-tête, lui, n'est pas une liste :
-       * il porte le nom du filtre, qui dépend des tags de l'instantané. Sans la
-       * mise à jour du fournisseur, un tag renommé gardait son ancien nom
-       * au-dessus d'une liste pourtant à jour.
+       * `notifyAppWidgetViewDataChanged` tells the list to re-read itself — that
+       * is what refreshes the rows. But the header is not a list: it carries the
+       * filter's name, which depends on the snapshot's tags. Without the
+       * provider update, a renamed tag kept its old name above a list that was
+       * otherwise current.
        *
-       * L'avertissement de dépréciation qui accompagne cet appel va de pair avec
-       * `setRemoteAdapter(Int, Intent)` : voir la raison de le garder dans
+       * The deprecation warning on this call goes hand in hand with
+       * `setRemoteAdapter(Int, Intent)`: see why it is kept in
        * `CairnWidgetProvider.render`.
        */
       val manager = AppWidgetManager.getInstance(context)

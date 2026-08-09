@@ -9,23 +9,23 @@ import {
 import { buildSnapshot } from './snapshot'
 
 /**
- * Tient l'instantané du widget à jour.
+ * Keeps the widget's snapshot up to date.
  *
- * Rien à l'écran : ce composant existe pour son effet. Il est monté haut dans
- * l'arbre, au-dessus des onglets, pour que l'instantané suive les notes quel que
- * soit l'écran ouvert — cocher une case depuis l'éditeur doit se voir sur
- * l'écran d'accueil du téléphone, pas seulement en repassant par la grille.
+ * Nothing on screen: this component exists for its effect. It is mounted high in
+ * the tree, above the tabs, so the snapshot follows the notes whatever screen is
+ * open — ticking a box from the editor has to show on the phone's home screen,
+ * not only after going back through the grid.
  *
- * ── Ce qui déclenche une écriture ────────────────────────────────────────────
- * Le contenu, et lui seul. Les listes composées changent d'identité à chaque
- * rendu — ce sont des tableaux reconstruits — donc les comparer par référence
- * écrirait à chaque frappe. On compare donc le JSON produit, ce qui a l'avantage
- * d'être exactement ce qui part en base de préférences : deux instantanés
- * identiques ne provoquent aucune écriture, ni aucun réveil du lanceur.
+ * ── What triggers a write ────────────────────────────────────────────────────
+ * The content, and nothing else. The composed lists get a new identity on every
+ * render — they are rebuilt arrays — so comparing them by reference would write
+ * on every keystroke. We compare the JSON instead, which has the advantage of
+ * being exactly what goes into the preference store: two identical snapshots
+ * cause no write, and no wake-up for the launcher.
  *
- * Rien n'est écrit non plus quand aucun widget n'est posé. Sérialiser des notes
- * dans un fichier que personne ne lira n'a aucun intérêt, et en recopier le
- * contenu hors de la base pour rien en a un négatif.
+ * Nothing is written either when no widget is placed. Serialising notes into a
+ * file nobody will read has no upside, and copying their content out of the
+ * database for nothing has a downside.
  */
 export function WidgetSync() {
   const { all: notes } = useNoteList()
@@ -34,10 +34,10 @@ export function WidgetSync() {
   const profileQuery = useProfile()
 
   /**
-   * Le coffre est exclu par défaut, y compris quand le profil n'a pas encore
-   * répondu. Le défaut d'un réglage de confidentialité est le plus fermé : une
-   * fraction de seconde où l'on écrirait des noms de code dans un fichier de
-   * préférences suffirait à les y laisser.
+   * The vault is excluded by default, including while the profile has yet to
+   * answer. The default of a privacy setting is the closed one: a fraction of a
+   * second spent writing code names into a preferences file would be enough to
+   * leave them there.
    */
   const showPrivate = profileQuery.data?.widget_show_private ?? false
 
@@ -53,10 +53,10 @@ export function WidgetSync() {
     )
 
     /**
-     * L'horodatage est retiré de la comparaison, sinon il n'y en aurait aucune :
-     * il change à chaque construction, et deux instantanés au contenu identique
-     * paraîtraient différents. Il reste dans ce qui est écrit, où il sert à
-     * savoir quand l'application a parlé au widget pour la dernière fois.
+     * The timestamp is taken out of the comparison, otherwise there would be no
+     * comparison at all: it changes on every build, and two snapshots with
+     * identical content would look different. It stays in what gets written,
+     * where it tells you when the app last spoke to the widget.
      */
     const signature = JSON.stringify({ ...snapshot, writtenAt: null })
     if (signature === lastWritten.current) return

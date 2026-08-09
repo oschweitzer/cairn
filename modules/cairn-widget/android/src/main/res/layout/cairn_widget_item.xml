@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Une ligne de la liste : la veine colorée du tag, le titre, un aperçu.
+  One row of the list: the tag's coloured vein, the title, a preview.
 
-  Même langage que les cartes de la grille — un filon dans la roche plutôt qu'un
-  bloc teinté — et pour la même raison : la palette de tags est calibrée pour des
-  filets, pas pour porter du texte par-dessus.
+  The same language as the grid's cards — a seam in the rock rather than a tinted
+  block — and for the same reason: the tag palette is calibrated for hairlines,
+  not for carrying text on top.
 -->
 <LinearLayout
   xmlns:android="http://schemas.android.com/apk/res/android"
@@ -14,8 +14,8 @@
   android:orientation="horizontal"
   android:background="@drawable/cairn_widget_row">
 
-  <!-- ImageView, pour la même raison que le séparateur de l'en-tête : une
-       `View` nue n'est pas inflatable dans une `RemoteViews`. -->
+  <!-- ImageView, for the same reason as the header's divider: a bare `View`
+       cannot be inflated inside a `RemoteViews`. -->
   <ImageView
     android:id="@+id/cairn_item_vein"
     android:layout_width="3dp"

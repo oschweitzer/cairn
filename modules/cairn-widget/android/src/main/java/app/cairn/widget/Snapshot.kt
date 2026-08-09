@@ -6,19 +6,19 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * L'instantané que l'application dépose, et ce que le widget en lit.
+ * The snapshot the app drops off, and what the widget reads from it.
  *
- * Un seul fichier de préférences pour tout : les notes, les tags, et le filtre
- * choisi sur chaque widget posé. Les widgets sont plusieurs, chacun avec son
- * filtre, mais ils partagent la même liste — la recopier par widget ferait
- * grossir le fichier sans rien apporter.
+ * One preferences file for everything: the notes, the tags, and the filter
+ * chosen on each placed widget. There can be several widgets, each with its own
+ * filter, but they share a single list — copying it per widget would grow the
+ * file without adding anything.
  */
 object Snapshot {
 
   private const val PREFS = "cairn.widget"
   private const val KEY_DATA = "snapshot"
 
-  /** Filtre par tag, un par widget posé. Vide veut dire « tous les tags ». */
+  /** Tag filter, one per placed widget. Empty means "all tags". */
   private fun filterKey(widgetId: Int) = "filter.$widgetId"
 
   fun prefs(context: Context): SharedPreferences =
@@ -35,12 +35,12 @@ object Snapshot {
     prefs(context).edit().putString(filterKey(widgetId), tagId).apply()
   }
 
-  /** Oublie le filtre d'un widget retiré de l'écran d'accueil. */
+  /** Forgets the filter of a widget removed from the home screen. */
   fun forget(context: Context, widgetId: Int) {
     prefs(context).edit().remove(filterKey(widgetId)).apply()
   }
 
-  // ------------------------------------------------------------- lecture
+  // ------------------------------------------------------------- reading
 
   data class Note(
     val id: String,
@@ -57,13 +57,13 @@ object Snapshot {
   data class Data(val notes: List<Note>, val tags: List<Tag>)
 
   /**
-   * Lit l'instantané.
+   * Reads the snapshot.
    *
-   * Toute lecture peut échouer : l'application n'a jamais tourné, le fichier est
-   * d'une version antérieure, le JSON est tronqué. Le widget rend alors une
-   * liste vide et son message d'accueil, ce qui est infiniment préférable à un
-   * plantage sur l'écran d'accueil du téléphone — un widget qui se ferme tout
-   * seul est indiscernable d'une application cassée.
+   * Any read can fail: the app has never run, the file is from an earlier
+   * version, the JSON is truncated. The widget then renders an empty list and
+   * its welcome message, which is infinitely preferable to a crash on the
+   * phone's home screen — a widget that closes on its own is indistinguishable
+   * from a broken app.
    */
   fun read(context: Context): Data {
     val raw = prefs(context).getString(KEY_DATA, null) ?: return Data(emptyList(), emptyList())

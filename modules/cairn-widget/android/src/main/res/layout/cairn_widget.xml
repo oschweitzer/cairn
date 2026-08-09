@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  En-tête fixe, liste dessous.
+  Fixed header, list below.
 
-  L'en-tête est une vue sœur de la ListView, pas sa première ligne : glissé dans
-  la liste, il partirait vers le haut au premier défilement et les boutons de
-  création deviendraient introuvables sur une longue liste.
+  The header is a sibling of the ListView, not its first row: slipped into the
+  list, it would disappear upwards on the first scroll and the create buttons
+  would be unreachable on a long list.
 -->
 <LinearLayout
   xmlns:android="http://schemas.android.com/apk/res/android"
@@ -24,8 +24,8 @@
     android:paddingTop="8dp"
     android:paddingBottom="8dp">
 
-    <!-- Le filtre en cours, à gauche : c'est ce qu'on lit d'abord, et il dit ce
-         que la liste montre. Le bouton qui le fait tourner l'entoure. -->
+    <!-- The current filter, on the left: it is read first, and it says what the
+         list is showing. The button that cycles it wraps around it. -->
     <LinearLayout
       android:id="@+id/cairn_widget_filter_button"
       android:layout_width="0dp"
@@ -48,8 +48,8 @@
         android:textColor="@color/cairn_text_secondary" />
     </LinearLayout>
 
-    <!-- 48 points de côté : le plancher tactile d'Android, et un widget se
-         touche au pouce sur un écran d'accueil encombré. -->
+    <!-- 48 points across: Android's touch-target floor, and a widget is tapped
+         with a thumb on a crowded home screen. -->
     <TextView
       android:id="@+id/cairn_widget_new_note"
       android:layout_width="48dp"
@@ -76,10 +76,10 @@
   </LinearLayout>
 
   <!--
-    Une ImageView et non une View : `RemoteViews` n'accepte qu'une liste fermée
-    de classes, celles annotées @RemoteView, et `android.view.View` n'en fait pas
-    partie. Le paquet se construit sans rien dire, et le lanceur refuse d'inflater
-    la mise en page — le widget apparaît alors comme « problème de chargement ».
+    An ImageView and not a View: `RemoteViews` accepts only a closed set of
+    classes, those annotated @RemoteView, and `android.view.View` is not among
+    them. The package builds without a word, then the launcher refuses to inflate
+    the layout — the widget shows up as "couldn't load widget" instead.
   -->
   <ImageView
     android:layout_width="match_parent"

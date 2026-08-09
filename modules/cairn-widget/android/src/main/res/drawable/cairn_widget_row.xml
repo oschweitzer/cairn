@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Une ligne de liste : réagit à l'appui, sinon transparente. Le fond du widget
-     porte déjà la strate, la répéter par ligne l'assombrirait. -->
+<!-- A list row: reacts to a press, transparent otherwise. The widget's
+     background already carries the stratum; repeating it per row would darken
+     it. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
   <item android:state_pressed="true">
     <shape android:shape="rectangle">

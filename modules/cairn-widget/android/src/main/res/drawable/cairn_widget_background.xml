@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fond du widget. Angle de 6dp, comme `radius.lg` du thème : la pierre est
-     taillée au ciseau, pas roulée par la rivière. -->
+<!-- The widget's background. A 6dp corner, like the theme's `radius.lg`: the
+     stone is chisel-cut, not rolled smooth by a river. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
   <solid android:color="@color/cairn_surface_card" />
   <corners android:radius="6dp" />

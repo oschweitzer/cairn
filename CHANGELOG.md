@@ -1,87 +1,88 @@
-# Journal des modifications
+# Changelog
 
-Toutes les modifications notables de Cairn sont consignées ici.
+All notable changes to Cairn are recorded here.
 
-Le format suit [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
-et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
+The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
+and the project follows [semantic versioning](https://semver.org/).
 
-## [Non publié]
+## [Unreleased]
 
-### Ajouté
+### Added
 
-- Widget Android : la liste des notes et des listes sur l'écran d'accueil, avec
-  les boutons de création en haut, en barre fixe, et un filtre par tag. Toucher
-  une note l'ouvre. Le widget lit une copie locale écrite par l'application, donc
-  il s'affiche hors ligne et sans interroger le serveur. Les notes du coffre en
-  sont exclues, sauf réglage explicite — et même alors, seul le nom de code sort.
-  ([#6])
-- Réglages ▸ Widget, pour ce dernier réglage. ([#6])
-- Réordonner les notes de l'écran d'accueil par glisser-déposer, à la poignée en
-  haut à gauche de chaque carte. Les épinglées restent en tête : une note
-  ordinaire déposée parmi elles se pose juste après. L'ordre est enregistré et
-  suit les appareils, une note modifiée ne remonte plus, une note créée arrive en
-  tête. La poignée disparaît en mode sélection et sous un filtre, où l'ordre
-  d'une vue partielle ne voudrait rien dire. ([#5])
-- Mise en forme du texte des notes et des listes : gras, italique, souligné,
-  barré, grand titre, sous-titre et liste à puces, par une barre de commandes
-  sous le bouton **B** de l'éditeur. Le balisage voyage dans le texte
-  (`**gras**`, `# titre`, `- puce`), donc rien ne change ni pour le coffre, ni
-  pour la recherche, ni pour l'export vers l'agenda. ([#3])
-- Les liens sont cliquables. Une URL écrite au fil du texte est reconnue sans
-  balisage — les notes déjà écrites deviennent donc cliquables sans rien y
-  toucher — et `[libellé](adresse)` pose un lien nommé. Un bouton bascule
-  l'éditeur entre écriture et lecture ; c'est en lecture que les liens s'ouvrent
-  et que la mise en forme se voit. ([#3])
-- Créer un tag depuis l'éditeur de note, sous le bouton tag : il est posé sur la
-  note dans la foulée, et prend la teinte la moins servie de la palette. Un nom
-  déjà pris pose le tag existant au lieu de refuser. ([#1])
-- Conventions du dépôt : messages de commit selon
+- Android widget: your notes and lists on the home screen, with the create
+  buttons pinned along the top and a tag filter. Touching a note opens it. The
+  widget reads a local copy written by the app, so it shows up offline and
+  without ever asking the server. Vault notes are left out unless you say
+  otherwise — and even then, only the code name goes across. ([#6])
+- Settings ▸ Widget, for that last setting. ([#6])
+- Reorder the home screen by dragging the handle at the top left of each card.
+  Pinned notes stay on top: an ordinary note dropped among them lands just
+  after. The order is saved and follows your devices, editing a note no longer
+  floats it back up, and a new note arrives at the top. The handle disappears in
+  selection mode and under a filter, where the order of a partial view would
+  mean nothing. ([#5])
+- Text formatting in notes and lists: bold, italic, underline, strikethrough,
+  heading, subheading and bullet lists, from a toolbar under the editor's **B**
+  button. The markup travels inside the text (`**bold**`, `# heading`,
+  `- bullet`), so nothing changes for the vault, for search, or for the calendar
+  export. ([#3])
+- Links are clickable. A URL written mid-sentence is recognised without any
+  markup — so notes written before this become clickable with nothing to do to
+  them — and `[label](address)` makes a named link. A button switches the editor
+  between writing and reading; reading is where links open and formatting
+  shows. ([#3])
+- Create a tag straight from the note editor, under the tag button: it is put on
+  the note right away, in the least-used colour of the palette. A name already
+  taken puts the existing tag on the note instead of refusing. ([#1])
+- Repository conventions: commit messages following
   [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/),
-  journal des modifications selon Keep a Changelog 1.1.0. Elles vivent dans
-  `AGENTS.md`, que `CLAUDE.md` inclut.
+  changelog following Keep a Changelog 1.1.0. They live in `AGENTS.md`, which
+  `CLAUDE.md` includes.
 
-### Modifié
+### Changed
 
-- L'application Android embarque désormais du code natif à elle, pour le widget.
-  Elle ne se lance donc plus dans Expo Go : `npm run android` construit une
-  version de développement (`expo run:android`). Le web et la PWA ne changent
-  pas. ([#6])
+- Comments, documentation, commit messages and pull request bodies are written
+  in English. The app itself stays in French. ([#14])
+- The Android app now carries native code of its own, for the widget. It no
+  longer runs inside Expo Go: `npm run android` builds a development version
+  (`expo run:android`). The web app and the PWA are unaffected. ([#6])
 
-### Corrigé
+### Fixed
 
-- Changer le tag d'une note qui en portait déjà un fonctionne. L'ancien
-  revenait : les tags étaient remplacés en bloc par une suppression suivie d'une
-  réinsertion, et deux gestes rapprochés s'entrelaçaient. Ils sont désormais
-  posés et retirés un par un, ce qui les rend indépendants. La couleur héritée
-  suit le changement au lieu de rester sur celle de l'ancienne catégorie ; une
-  couleur choisie à la main n'est toujours pas touchée. ([#4])
-- Éditeur de note : le champ de contenu occupe la hauteur disponible sous le
-  titre au lieu de s'arrêter à 220 points. La grande zone morte qui le suivait —
-  les deux tiers de l'écran sur un poste de bureau — était cliquable sans rien
-  faire ; elle fait maintenant partie du champ. Aucune barre de défilement tant
-  que le texte tient dans la place offerte. ([#2])
+- Changing the tag of a note that already had one works. The old one used to
+  come back: tags were replaced wholesale by a delete followed by an insert, and
+  two quick gestures interleaved. They are now put on and taken off one at a
+  time, which makes them independent. The inherited colour follows the change
+  instead of staying on the old category's; a colour picked by hand is still
+  left alone. ([#4])
+- Note editor: the content field fills the height available under the title
+  instead of stopping at 220 points. The large dead zone that followed it — two
+  thirds of the screen on a desktop — was clickable and did nothing; it is now
+  part of the field. No scrollbar as long as the text fits the space on offer.
+  ([#2])
 
 ## [0.1.0] - 2026-08-08
 
-Première version, avant la mise en place de ce journal. Les entrées ci-dessous
-résument les quatre commits initiaux ; elles sont reconstituées, pas rédigées
-au fil de l'eau.
+First version, written before this changelog existed. The entries below
+summarise the four initial commits; they are reconstructed, not written as the
+work happened.
 
-### Ajouté
+### Added
 
-- Notes et listes multiplateformes : grille en maçonnerie, épinglage, archive,
-  corbeille, tags colorés, recherche hors ligne, thème clair et sombre.
-- Coffre chiffré de bout en bout : une clé de données par personne, scellée par
-  une clé de secours affichée une seule fois, verrouillage par code ou biométrie.
-- Infobulles sur toutes les commandes d'icône.
-- Récupération de mot de passe et suppression de compte.
-- Export d'une note vers Google Agenda, construction d'APK, et configuration
-  Expo en JavaScript.
+- Cross-platform notes and lists: masonry grid, pinning, archive, trash,
+  coloured tags, offline search, light and dark themes.
+- End-to-end encrypted vault: one data key per person, sealed by a recovery key
+  shown exactly once, locked behind a passcode or biometrics.
+- Tooltips on every icon control.
+- Password recovery and account deletion.
+- Exporting a note to Google Calendar, APK builds, and Expo configuration in
+  JavaScript.
 
-[Non publié]: https://github.com/oschweitzer/cairn/compare/f630263...HEAD
+[Unreleased]: https://github.com/oschweitzer/cairn/compare/f630263...HEAD
 [#1]: https://github.com/oschweitzer/cairn/issues/1
 [#2]: https://github.com/oschweitzer/cairn/issues/2
 [#3]: https://github.com/oschweitzer/cairn/issues/3
 [#4]: https://github.com/oschweitzer/cairn/issues/4
 [#5]: https://github.com/oschweitzer/cairn/issues/5
 [#6]: https://github.com/oschweitzer/cairn/issues/6
+[#14]: https://github.com/oschweitzer/cairn/issues/14

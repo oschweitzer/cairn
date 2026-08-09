@@ -5,37 +5,37 @@ import type { Tag } from '../db/types'
 import type { TagColorKey } from '../ui/theme'
 
 /**
- * Instantané des notes pour le widget Android.
+ * Snapshot of the notes, for the Android widget.
  *
- * ── Pourquoi un instantané, et non une requête ───────────────────────────────
- * Le widget vit hors de l'application : c'est un processus du système, réveillé
- * par le lanceur, sans session Supabase et souvent sans réseau. Il ne peut donc
- * pas aller chercher les notes lui-même, et lui confier un jeton pour qu'il
- * essaie serait à la fois compliqué et imprudent.
+ * ── Why a snapshot, and not a query ──────────────────────────────────────────
+ * The widget lives outside the app: it is a system process, woken by the
+ * launcher, with no Supabase session and often no network. It cannot go and
+ * fetch the notes itself, and handing it a token so it could try would be both
+ * complicated and unwise.
  *
- * L'application écrit donc ce qu'elle sait, à chaque fois que la liste change.
- * Le widget lit un fichier local et n'a plus rien à demander à personne : il
- * s'affiche instantanément, hors ligne comme en ligne.
+ * So the app writes down what it knows, every time the list changes. The widget
+ * reads a local file and has nothing left to ask anyone: it shows up instantly,
+ * offline as well as online.
  *
- * ── Ce qui n'y entre pas ─────────────────────────────────────────────────────
- * Rien du coffre, sauf réglage explicite — et même alors, seulement le nom de
- * code. Le corps d'une note masquée ne sort jamais, quel que soit le réglage :
- * l'instantané est un fichier en clair dans les préférences de l'application,
- * et le coffre existe précisément pour que son contenu ne traîne pas là.
+ * ── What does not go in ──────────────────────────────────────────────────────
+ * Nothing from the vault, unless explicitly enabled — and even then, only the
+ * code name. The body of a hidden note never leaves, whatever the setting: the
+ * snapshot is a plaintext file in the app's preferences, and the vault exists
+ * precisely so that its contents do not sit somewhere like that.
  *
- * Les notes archivées et la corbeille non plus : le widget montre ce sur quoi on
- * travaille, pas ce qu'on a rangé.
+ * Archived notes and the trash stay out too: the widget shows what you are
+ * working on, not what you have filed away.
  */
 
 export type WidgetNote = {
   id: string
-  /** Nom de code pour une note du coffre, titre sinon. Peut être vide. */
+  /** Code name for a vault note, title otherwise. May be empty. */
   title: string
-  /** Aperçu déjà débarrassé de son balisage. Vide pour une note du coffre. */
+  /** Preview, already stripped of its markup. Empty for a vault note. */
   preview: string
-  /** Clé de palette, ou chaîne vide. Le widget la résout en couleur. */
+  /** Palette key, or an empty string. The widget resolves it to a colour. */
   color: TagColorKey | ''
-  /** Vrai pour une liste, pour que le widget montre le bon pictogramme. */
+  /** True for a checklist, so the widget can show the right glyph. */
   checklist: boolean
   pinned: boolean
   tagIds: string[]
@@ -44,18 +44,18 @@ export type WidgetNote = {
 export type WidgetTag = { id: string; name: string; color: TagColorKey }
 
 export type WidgetSnapshot = {
-  /** Incrémenté à chaque changement de forme, pour que le natif sache lire. */
+  /** Bumped whenever the shape changes, so the native side knows how to read. */
   version: 1
   notes: WidgetNote[]
   tags: WidgetTag[]
-  /** Horodatage d'écriture, affiché nulle part : sert au diagnostic. */
+  /** Write timestamp, displayed nowhere: it is there for diagnosis. */
   writtenAt: string
 }
 
-/** Au-delà, la liste du widget devient un fichier lourd pour rien. */
+/** Beyond this, the widget's list becomes a heavy file for no gain. */
 const MAX_NOTES = 60
 
-/** Longueur d'aperçu : deux lignes sur un widget large, guère plus. */
+/** Preview length: two lines on a wide widget, hardly more. */
 const PREVIEW = 120
 
 export function buildSnapshot(
@@ -79,9 +79,9 @@ export function buildSnapshot(
       id: note.id,
       title: displayTitle(note) ?? '',
       /**
-       * Une note du coffre n'a pas d'aperçu, même quand on a choisi de la
-       * montrer. Le réglage dit « je veux savoir qu'elle est là », pas « je veux
-       * que son contenu s'affiche sur l'écran d'accueil du téléphone ».
+       * A vault note has no preview, even when you have chosen to show it. The
+       * setting says "I want to know it is there", not "I want its contents on
+       * my phone's home screen".
        */
       preview: note.is_private ? '' : previewOf(note),
       color: note.color_key ?? '',
@@ -94,9 +94,9 @@ export function buildSnapshot(
 }
 
 /**
- * Aperçu d'une note : son corps, ou ses premiers éléments s'il s'agit d'une
- * liste. Sans balisage — `**gras**` s'afficherait tel quel dans une `RemoteViews`,
- * qui ne sait pas ce qu'est une astérisque.
+ * A note's preview: its body, or its first items when it is a checklist. Without
+ * markup — `**bold**` would show literally in a `RemoteViews`, which has no idea
+ * what an asterisk is.
  */
 function previewOf(note: NoteWithRelations): string {
   const source =

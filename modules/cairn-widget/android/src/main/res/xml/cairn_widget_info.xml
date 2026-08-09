@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Déclaration du widget pour le sélecteur du lanceur.
+  The widget's declaration for the launcher's picker.
 
-  `resizeMode` sur les deux axes : une liste de notes n'a pas de taille juste,
-  elle a la taille que son propriétaire lui donne. La taille par défaut couvre
-  trois cases sur quatre, de quoi lire quatre ou cinq notes sans défiler.
+  `resizeMode` on both axes: a list of notes has no correct size, it has the size
+  its owner gives it. The default covers three cells by three, enough to read
+  four or five notes without scrolling.
 
-  `updatePeriodMillis` à zéro, volontairement : le contenu ne change que quand
-  l'application l'écrit, et un réveil périodique consommerait de la batterie pour
-  relire un fichier inchangé.
+  `updatePeriodMillis` is zero on purpose: the content only changes when the app
+  writes it, and a periodic wake-up would spend battery re-reading an unchanged
+  file.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
   android:minWidth="180dp"

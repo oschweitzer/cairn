@@ -10,12 +10,11 @@ import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 
 /**
- * Alimente la liste du widget.
+ * Feeds the widget's list.
  *
- * Le lanceur se connecte à ce service, lui demande une `RemoteViews` par ligne,
- * et les affiche dans son propre processus. Rien de tout cela ne fait tourner
- * l'application : c'est pour cette raison que le widget s'affiche instantanément,
- * même après un redémarrage du téléphone.
+ * The launcher binds to this service, asks it for one `RemoteViews` per row, and
+ * displays them in its own process. None of this runs the app: that is why the
+ * widget appears instantly, even after the phone has restarted.
  */
 class CairnWidgetService : RemoteViewsService() {
   override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
@@ -37,11 +36,11 @@ private class CairnWidgetFactory(
   override fun onCreate() = Unit
 
   /**
-   * Relit l'instantané et applique le filtre.
+   * Re-reads the snapshot and applies the filter.
    *
-   * Appelée par le système à chaque `notifyAppWidgetViewDataChanged`, hors du
-   * fil principal : c'est l'endroit prévu pour le travail de lecture, et le seul
-   * où l'on a le droit d'en faire.
+   * Called by the system on every `notifyAppWidgetViewDataChanged`, off the main
+   * thread: this is the place meant for the reading work, and the only one where
+   * doing any is allowed.
    */
   override fun onDataSetChanged() {
     val data = Snapshot.read(context)
@@ -59,9 +58,9 @@ private class CairnWidgetFactory(
     val note = notes.getOrNull(position) ?: return RemoteViews(context.packageName, R.layout.cairn_widget_item)
     val row = RemoteViews(context.packageName, R.layout.cairn_widget_item)
 
-    // Une note sans titre n'affiche pas une ligne vide : elle annonce ce qu'elle
-    // est. C'est aussi le cas d'une note du coffre sans nom de code, qui ne doit
-    // surtout pas se rabattre sur son titre.
+    // A note without a title does not show a blank row: it says what it is. The
+    // same goes for a vault note with no code name, which must on no account
+    // fall back to its title.
     val title = note.title.ifBlank {
       context.getString(
         if (note.checklist) R.string.cairn_widget_untitled_list else R.string.cairn_widget_untitled_note,
@@ -79,13 +78,13 @@ private class CairnWidgetFactory(
     row.setViewVisibility(R.id.cairn_item_pin, if (note.pinned) View.VISIBLE else View.GONE)
 
     /**
-     * La veine colorée, comme sur les cartes de la grille.
+     * The coloured vein, as on the grid's cards.
      *
-     * Un filet sur le bord gauche, et non un fond teinté : la palette de tags
-     * est calibrée pour des puces et des bordures, pas pour porter du texte
-     * par-dessus. Le même raisonnement que dans `NoteCard`, et la même raison de
-     * ne pas y déroger ici — le widget n'a pas de thème à lui, il est peint sur
-     * le fond du lanceur.
+     * A hairline down the left edge, not a tinted background: the tag palette is
+     * calibrated for dots and borders, not for carrying text on top. The same
+     * reasoning as in `NoteCard`, and the same reason not to depart from it here
+     * — the widget has no theme of its own, it is painted on the launcher's
+     * wallpaper.
      */
     val vein = tagColor(note.color)
     if (vein == null) {
@@ -95,8 +94,8 @@ private class CairnWidgetFactory(
       row.setInt(R.id.cairn_item_vein, "setBackgroundColor", vein)
     }
 
-    // Remplit le gabarit posé par le fournisseur : seule l'adresse change d'une
-    // ligne à l'autre.
+    // Fills in the template set by the provider: only the address changes from
+    // one row to the next.
     row.setOnClickFillInIntent(
       R.id.cairn_item_root,
       Intent().setData(Uri.parse("cairn://note/${note.id}")),
@@ -110,11 +109,11 @@ private class CairnWidgetFactory(
   override fun getViewTypeCount() = 1
 
   /**
-   * L'identifiant de la note, et non sa position.
+   * The note's identifier, not its position.
    *
-   * Avec la position, le lanceur croit que la ligne 3 est toujours la même note
-   * et recycle sa vue telle quelle : après un réordonnancement, l'ancienne note
-   * restait affichée à sa place jusqu'au prochain défilement.
+   * With the position, the launcher believes row 3 is always the same note and
+   * recycles its view as-is: after a reorder, the old note stayed on screen in
+   * its place until the next scroll.
    */
   override fun getItemId(position: Int) =
     notes.getOrNull(position)?.id?.hashCode()?.toLong() ?: position.toLong()
@@ -122,14 +121,14 @@ private class CairnWidgetFactory(
   override fun hasStableIds() = true
 
   /**
-   * Palette de tags, en dur et assumée.
+   * The tag palette, hard-coded and owned as such.
    *
-   * Les valeurs viennent de `tagPalette` dans src/ui/theme.ts, variante sombre.
-   * Ce sont les seules couleurs du projet recopiées à la main hors du
-   * générateur : une `RemoteViews` ne peut pas lire une ressource par son nom
-   * calculé, il faut un entier. Le test `npm run theme:check` couvre les
-   * ressources générées, pas celles-ci — d'où le commentaire, et la règle : une
-   * teinte modifiée dans theme.ts se reporte ici.
+   * The values come from `tagPalette` in src/ui/theme.ts, dark variant. These
+   * are the only colours in the project copied by hand outside the generator: a
+   * `RemoteViews` cannot resolve a resource by a computed name, it needs an
+   * integer. `npm run theme:check` covers the generated resources, not these —
+   * hence this comment, and the rule: a shade changed in theme.ts is carried
+   * over here.
    */
   private fun tagColor(key: String): Int? = when (key) {
     "ambre" -> Color.parseColor("#DFB369")

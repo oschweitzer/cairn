@@ -10,19 +10,19 @@ import android.net.Uri
 import android.widget.RemoteViews
 
 /**
- * Le widget lui-même : un en-tête fixe, et dessous la liste des notes.
+ * The widget itself: a fixed header, with the list of notes below it.
  *
- * ── L'en-tête est en haut, et c'est un choix ─────────────────────────────────
- * Le widget de Google Keep range ses boutons de création dans une colonne
- * latérale. Sur un widget étroit — deux cases de large, ce que la plupart des
- * gens posent — cette colonne mange un tiers de la largeur pour quatre
- * pictogrammes, et le texte des notes se retrouve dans un couloir. En haut, la
- * même barre coûte une hauteur de ligne et laisse toute la largeur au contenu.
+ * ── The header is on top, and that is a decision ─────────────────────────────
+ * Google Keep's widget puts its create buttons in a side column. On a narrow
+ * widget — two cells across, which is what most people place — that column eats
+ * a third of the width for four glyphs, and the note text ends up in a corridor.
+ * Along the top, the same bar costs one line's height and leaves the full width
+ * to the content.
  *
- * Elle ne défile pas : c'est une `RemoteViews` de plein droit, sœur de la
- * `ListView` et non sa première ligne. Une ligne d'en-tête glissée dans la liste
- * partirait vers le haut au premier défilement, et les boutons de création
- * seraient introuvables sur une longue liste.
+ * It does not scroll: it is a `RemoteViews` in its own right, a sibling of the
+ * `ListView` and not its first row. A header row slipped into the list would
+ * disappear upwards on the first scroll, and the create buttons would be
+ * unreachable on a long list.
  */
 class CairnWidgetProvider : AppWidgetProvider() {
 
@@ -31,8 +31,8 @@ class CairnWidgetProvider : AppWidgetProvider() {
   }
 
   override fun onDeleted(context: Context, ids: IntArray) {
-    // Le filtre d'un widget retiré n'a plus d'objet, et Android réattribue les
-    // identifiants : le laisser traîner donnerait son filtre au prochain widget.
+    // The filter of a removed widget has no purpose left, and Android reuses
+    // identifiers: leaving it behind would hand its filter to the next widget.
     ids.forEach { Snapshot.forget(context, it) }
   }
 
@@ -54,13 +54,13 @@ class CairnWidgetProvider : AppWidgetProvider() {
   }
 
   /**
-   * Passe au tag suivant, puis revient à « tous ».
+   * Moves to the next tag, then back to "all".
    *
-   * Une activité de configuration serait plus riche et beaucoup plus lourde :
-   * une seconde `Activity`, sa mise en page, son cycle de vie, pour choisir
-   * parmi une poignée d'étiquettes. Le cycle fait le même travail en un appui,
-   * et le nom du filtre en cours est écrit dans l'en-tête — sans quoi on ne
-   * saurait pas ce qu'on regarde.
+   * A configuration activity would be richer and a great deal heavier: a second
+   * `Activity`, its layout, its lifecycle, to pick among a handful of labels.
+   * The cycle does the same job in one tap, and the current filter's name is
+   * written in the header — without which you would not know what you are
+   * looking at.
    */
   private fun cycleTag(context: Context, widgetId: Int) {
     val tags = Snapshot.read(context).tags
@@ -69,7 +69,7 @@ class CairnWidgetProvider : AppWidgetProvider() {
     val current = Snapshot.tagFilter(context, widgetId)
     val index = tags.indexOfFirst { it.id == current }
     val next = when {
-      // Aucun filtre posé, ou filtre pointant un tag supprimé : on prend le premier.
+      // No filter set, or a filter pointing at a deleted tag: take the first.
       index == -1 -> tags.first().id
       index == tags.lastIndex -> ""
       else -> tags[index + 1].id
@@ -96,8 +96,8 @@ class CairnWidgetProvider : AppWidgetProvider() {
         tag?.name ?: context.getString(R.string.cairn_widget_all_tags),
       )
 
-      // Création : deux liens profonds, l'un pour une note, l'autre pour une
-      // liste. Le même écran les traite, le type voyage dans l'adresse.
+      // Creation: two deep links, one for a note, one for a checklist. The same
+      // screen handles both; the kind travels in the address.
       views.setOnClickPendingIntent(
         R.id.cairn_widget_new_note,
         deepLink(context, "cairn://nouvelle?kind=note", requestCode = 1),
@@ -109,40 +109,39 @@ class CairnWidgetProvider : AppWidgetProvider() {
       views.setOnClickPendingIntent(R.id.cairn_widget_filter_button, cycleIntent(context, widgetId))
 
       /**
-       * La liste est peuplée par le service, qui relit l'instantané à chaque
-       * notification. L'identifiant du widget voyage dans l'intention : c'est ce
-       * qui permet à deux widgets posés côte à côte d'avoir deux filtres.
+       * The list is filled by the service, which re-reads the snapshot on every
+       * notification. The widget id travels inside the intent: that is what lets
+       * two widgets placed side by side hold two different filters.
        *
-       * `setRemoteAdapter(Int, Intent)` est déprimé depuis l'API 31 au profit de
-       * `RemoteCollectionItems`, qui pousse les lignes déjà construites au lieu
-       * de brancher un service. On garde le service pour deux raisons : le
-       * plancher du projet est l'API 24, où l'autre n'existe pas ; et une
-       * collection poussée doit tenir dans le quota mémoire d'une `RemoteViews`,
-       * ce qu'une liste de soixante notes n'est pas garantie de faire. Le
-       * compilateur émet donc un avertissement, et il est assumé.
+       * `setRemoteAdapter(Int, Intent)` has been deprecated since API 31 in
+       * favour of `RemoteCollectionItems`, which pushes already-built rows
+       * instead of binding a service. We keep the service for two reasons: the
+       * project's floor is API 24, where the alternative does not exist; and a
+       * pushed collection has to fit inside a `RemoteViews` memory quota, which
+       * a list of sixty notes is not guaranteed to do. The compiler warns, and
+       * the warning is owned.
        */
       val service = Intent(context, CairnWidgetService::class.java).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-        // Sans une donnée unique, Android considère que deux intentions ne
-        // différant que par leurs extras sont la même, et les deux widgets
-        // partageraient la même fabrique — donc le même filtre.
+        // Without unique data, Android considers two intents differing only by
+        // their extras to be the same one, and the two widgets would share a
+        // single factory — and therefore a single filter.
         //
-        // `this.data` et non `data` : dans un bloc `apply`, une variable locale
-        // du même nom l'emporte sur le membre du récepteur. C'est ce qui s'est
-        // produit ici, et le compilateur l'a dit de deux façons — « 'val' cannot
-        // be reassigned » puis un type attendu qui n'avait rien à voir.
+        // `this.data`, not `data`: inside an `apply` block a local variable of
+        // the same name wins over the receiver's member. That is exactly what
+        // happened here, and the compiler said so in two ways — "'val' cannot be
+        // reassigned", then an expected type with no relation to anything.
         this.data = Uri.parse("cairn-widget://$widgetId")
       }
       views.setRemoteAdapter(R.id.cairn_widget_list, service)
       views.setEmptyView(R.id.cairn_widget_list, R.id.cairn_widget_empty)
 
       /**
-       * Un seul gabarit d'intention pour toute la liste.
+       * A single intent template for the whole list.
        *
-       * Une `PendingIntent` par ligne serait refusée au-delà de quelques
-       * dizaines d'éléments — le système en limite le nombre par application.
-       * Le gabarit est rempli ligne par ligne par la fabrique, qui n'y ajoute
-       * que l'identifiant de la note.
+       * One `PendingIntent` per row would be refused past a few dozen items —
+       * the system caps how many an app may hold. The template is filled in row
+       * by row by the factory, which adds nothing to it but the note's address.
        */
       views.setPendingIntentTemplate(R.id.cairn_widget_list, openTemplate(context))
 
@@ -177,11 +176,11 @@ class CairnWidgetProvider : AppWidgetProvider() {
     }
 
     /**
-     * Gabarit d'ouverture d'une note.
+     * Template for opening a note.
      *
-     * `FLAG_MUTABLE` est obligatoire ici, et c'est le seul endroit : un gabarit
-     * de liste est complété par le lanceur avec l'intention de remplissage de la
-     * ligne touchée. Immuable, il ouvrirait toujours la même note — la première.
+     * `FLAG_MUTABLE` is mandatory here, and only here: a list template is
+     * completed by the launcher with the fill-in intent of the row that was
+     * touched. Immutable, it would always open the same note — the first one.
      */
     private fun openTemplate(context: Context): PendingIntent {
       val intent = Intent(Intent.ACTION_VIEW).apply {

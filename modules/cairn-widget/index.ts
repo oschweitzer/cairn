@@ -3,23 +3,23 @@ import { requireOptionalNativeModule } from 'expo'
 import type { WidgetSnapshot } from '../../src/widget/snapshot'
 
 /**
- * Pont vers le widget Android.
+ * Bridge to the Android widget.
  *
- * `requireOptionalNativeModule` et non `requireNativeModule` : sur le web et
- * dans Expo Go, le module natif n'existe pas. Un accès obligatoire y lèverait au
- * chargement du module JavaScript, c'est-à-dire au démarrage de la PWA, pour une
- * fonctionnalité qui n'y a de toute façon aucun sens.
+ * `requireOptionalNativeModule` rather than `requireNativeModule`: on the web
+ * and inside Expo Go the native module does not exist. A required lookup would
+ * throw while the JavaScript module loads — that is, as the PWA starts — for a
+ * feature that makes no sense there anyway.
  */
 type CairnWidgetNativeModule = {
-  /** Écrit l'instantané et demande au lanceur de redessiner les widgets posés. */
+  /** Writes the snapshot and asks the launcher to redraw the placed widgets. */
   setSnapshot(json: string): void
-  /** Nombre de widgets actuellement posés sur un écran d'accueil. */
+  /** How many widgets are currently placed on a home screen. */
   widgetCount(): number
 }
 
 const native = requireOptionalNativeModule<CairnWidgetNativeModule>('CairnWidget')
 
-/** Vrai quand un widget peut exister : Android, et build natif. */
+/** True when a widget can exist at all: Android, and a native build. */
 export const widgetAvailable = Platform.OS === 'android' && native !== null
 
 export function setWidgetSnapshot(snapshot: WidgetSnapshot): void {
@@ -28,11 +28,11 @@ export function setWidgetSnapshot(snapshot: WidgetSnapshot): void {
 }
 
 /**
- * Combien de widgets sont posés.
+ * How many widgets are placed.
  *
- * Sert à ne pas écrire l'instantané quand personne ne le lira : le sérialiser à
- * chaque frappe pour un écran d'accueil qui n'en porte aucun serait du travail
- * pur perte, et surtout des notes recopiées dans les préférences sans raison.
+ * Used to avoid writing the snapshot when nobody will read it: serialising it on
+ * every keystroke for a home screen that carries none would be wasted work, and
+ * more importantly notes copied into the preference store for no reason.
  */
 export function placedWidgetCount(): number {
   return native?.widgetCount() ?? 0

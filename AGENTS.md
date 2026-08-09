@@ -2,64 +2,87 @@
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
 
-# Conventions du dépôt
+# Repository conventions
 
-## Messages de commit — Conventional Commits 1.0.0
+## Language: English for the repository, French for the app
 
-Norme : <https://www.conventionalcommits.org/en/v1.0.0/>
+Everything a *contributor* reads is in English:
 
-    <type>[portée facultative][!]: <description>
+- code comments, in every language — TypeScript, Kotlin, SQL, XML, JS;
+- documentation: `README.md`, `INSTALL.md`, `AGENTS.md`, `CHANGELOG.md`, and any
+  `README.md` living next to a module;
+- commit messages and pull request bodies.
 
-    [corps facultatif]
+Everything a *user* reads is in French, and stays that way:
 
-    [pieds de page facultatifs]
+- labels, tooltips, placeholders, toasts, error messages;
+- `accessibilityLabel` and `accessibilityHint` — a screen reader speaks to the
+  user, not to us;
+- anything inside `<Txt>`, `Alert`, or a `label=` prop.
 
-Types utilisés ici : `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`,
+Cairn is a French app. The distinction is not cosmetic: a translation pass that
+leaks into on-screen copy is a product change wearing a documentation change's
+clothes.
+
+Comments are not decoration here. They carry *why* a decision was made — why the
+vault holds one data key, why the masonry grid does not reorder while you drag,
+why `__` means underline rather than bold. When you touch code that carries such
+a comment, keep the reasoning true. A stale explanation is worse than none: it
+is believed.
+
+## Commit messages — Conventional Commits 1.0.0
+
+Spec: <https://www.conventionalcommits.org/en/v1.0.0/>
+
+    <type>[optional scope][!]: <description>
+
+    [optional body]
+
+    [optional footers]
+
+Types used here: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`,
 `ci`, `chore`, `style`, `revert`.
 
-Règles qui comptent :
+The rules that matter:
 
-- la description est à l'impératif, en minuscule, sans point final ;
-- une rupture se signale par un `!` avant le `:` **et** un pied de page
-  `BREAKING CHANGE: …` ;
-- le ticket se met en pied de page, pas dans la description :
-  `Refs: #12` ou `Closes: #12`.
+- the description is imperative, lowercase, with no trailing period;
+- a breaking change is flagged by a `!` before the `:` **and** a
+  `BREAKING CHANGE: …` footer;
+- the ticket goes in a footer, never in the description:
+  `Refs: #12` or `Closes: #12`.
 
-La portée nomme la zone touchée, pas le fichier : `note`, `grille`, `coffre`,
-`tags`, `agenda`, `widget`, `db`, `web`, `android`.
+The scope names the area touched, not the file: `note`, `grid`, `vault`, `tags`,
+`calendar`, `widget`, `db`, `web`, `android`.
 
 ```
-feat(note): créer un tag depuis le panneau de l'éditeur
+feat(note): create a tag from the editor panel
 
 Closes: #1
 ```
 
 ## CHANGELOG.md — Keep a Changelog 1.1.0
 
-Norme : <https://keepachangelog.com/en/1.1.0/>
+Spec: <https://keepachangelog.com/en/1.1.0/>
 
-Un journal se lit par des humains, pas par un outil : ce n'est pas `git log`
-recopié. Chaque entrée dit ce qui change **pour qui se sert de Cairn**, pas quel
-fichier a bougé.
+A changelog is read by humans, not by a tool: it is not `git log` copied out.
+Each entry says what changes **for someone using Cairn**, not which file moved.
 
-- une section `## [Non publié]` en haut, où atterrissent les changements en
-  cours ;
-- les versions ensuite, la plus récente d'abord, au format
-  `## [0.2.0] - 2026-08-08` ;
-- à l'intérieur, uniquement ces titres, dans cet ordre : `### Ajouté`,
-  `### Modifié`, `### Déprécié`, `### Retiré`, `### Corrigé`, `### Sécurité` ;
-- une ligne par changement, terminée par le lien du ticket :
-  `- Créer un tag depuis l'éditeur de note. ([#1])` ;
-- les références de liens (`[#1]: https://…/issues/1`) vivent en bas du fichier ;
-- les dates sont en ISO 8601, `AAAA-MM-JJ`.
+- an `## [Unreleased]` section on top, where in-flight changes land;
+- versions below it, most recent first, as `## [0.2.0] - 2026-08-08`;
+- inside, only these headings, in this order: `### Added`, `### Changed`,
+  `### Deprecated`, `### Removed`, `### Fixed`, `### Security`;
+- one line per change, ending with its ticket link:
+  `- Create a tag from the note editor. ([#1])`;
+- link references (`[#1]: https://…/issues/1`) live at the bottom of the file;
+- dates are ISO 8601, `YYYY-MM-DD`.
 
-**Chaque pull request met le CHANGELOG à jour dans le même commit que le code
-qu'elle décrit.** Une entrée ajoutée après coup n'est plus reliée à rien.
+**Every pull request updates the changelog in the same commit as the code it
+describes.** An entry added afterwards is no longer attached to anything.
 
 ## Pull requests
 
-Une pull request par ticket. Le corps rappelle le ticket (`Closes #n`), ce qui
-change, et comment le vérifier.
+One pull request per ticket. The body recalls the ticket (`Closes #n`), what
+changes, and how to check it.
 
-Avant d'ouvrir, `npm run verify` doit passer : typage, contrastes du thème,
-logique pure, et schéma SQL joué sur du vrai Postgres.
+Before opening, `npm run verify` must pass: types, theme contrast, pure logic,
+and the SQL schema replayed against real Postgres.
