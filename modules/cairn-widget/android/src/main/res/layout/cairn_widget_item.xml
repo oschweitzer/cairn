@@ -14,12 +14,15 @@
   android:orientation="horizontal"
   android:background="@drawable/cairn_widget_row">
 
-  <View
+  <!-- ImageView, pour la même raison que le séparateur de l'en-tête : une
+       `View` nue n'est pas inflatable dans une `RemoteViews`. -->
+  <ImageView
     android:id="@+id/cairn_item_vein"
     android:layout_width="3dp"
     android:layout_height="match_parent"
     android:layout_marginTop="4dp"
-    android:layout_marginBottom="4dp" />
+    android:layout_marginBottom="4dp"
+    android:contentDescription="@null" />
 
   <LinearLayout
     android:layout_width="0dp"

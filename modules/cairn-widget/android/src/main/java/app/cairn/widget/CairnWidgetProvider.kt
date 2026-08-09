@@ -80,8 +80,6 @@ class CairnWidgetProvider : AppWidgetProvider() {
   companion object {
 
     const val ACTION_CYCLE_TAG = "app.cairn.widget.CYCLE_TAG"
-    const val ACTION_OPEN_NOTE = "app.cairn.widget.OPEN_NOTE"
-    const val EXTRA_NOTE_ID = "noteId"
 
     fun renderAll(context: Context, manager: AppWidgetManager, ids: IntArray) {
       ids.forEach { manager.updateAppWidget(it, render(context, it)) }
@@ -89,9 +87,9 @@ class CairnWidgetProvider : AppWidgetProvider() {
 
     private fun render(context: Context, widgetId: Int): RemoteViews {
       val views = RemoteViews(context.packageName, R.layout.cairn_widget)
-      val data = Snapshot.read(context)
+      val snapshot = Snapshot.read(context)
       val filter = Snapshot.tagFilter(context, widgetId)
-      val tag = data.tags.firstOrNull { it.id == filter }
+      val tag = snapshot.tags.firstOrNull { it.id == filter }
 
       views.setTextViewText(
         R.id.cairn_widget_filter,
@@ -118,7 +116,12 @@ class CairnWidgetProvider : AppWidgetProvider() {
         // Sans une donnée unique, Android considère que deux intentions ne
         // différant que par leurs extras sont la même, et les deux widgets
         // partageraient la même fabrique — donc le même filtre.
-        data = Uri.parse("cairn-widget://$widgetId")
+        //
+        // `this.data` et non `data` : dans un bloc `apply`, une variable locale
+        // du même nom l'emporte sur le membre du récepteur. C'est ce qui s'est
+        // produit ici, et le compilateur l'a dit de deux façons — « 'val' cannot
+        // be reassigned » puis un type attendu qui n'avait rien à voir.
+        this.data = Uri.parse("cairn-widget://$widgetId")
       }
       views.setRemoteAdapter(R.id.cairn_widget_list, service)
       views.setEmptyView(R.id.cairn_widget_list, R.id.cairn_widget_empty)
@@ -153,7 +156,7 @@ class CairnWidgetProvider : AppWidgetProvider() {
       val intent = Intent(context, CairnWidgetProvider::class.java).apply {
         action = ACTION_CYCLE_TAG
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-        data = Uri.parse("cairn-widget://filtre/$widgetId")
+        this.data = Uri.parse("cairn-widget://filtre/$widgetId")
       }
       return PendingIntent.getBroadcast(
         context,

@@ -75,9 +75,16 @@
       android:contentDescription="@string/cairn_widget_new_list" />
   </LinearLayout>
 
-  <View
+  <!--
+    Une ImageView et non une View : `RemoteViews` n'accepte qu'une liste fermée
+    de classes, celles annotées @RemoteView, et `android.view.View` n'en fait pas
+    partie. Le paquet se construit sans rien dire, et le lanceur refuse d'inflater
+    la mise en page — le widget apparaît alors comme « problème de chargement ».
+  -->
+  <ImageView
     android:layout_width="match_parent"
     android:layout_height="1dp"
+    android:contentDescription="@null"
     android:background="@color/cairn_line_hairline" />
 
   <ListView
