@@ -10,6 +10,8 @@
  *   generated/theme.css         variables CSS pour la PWA
  *   generated/colors.xml        ressources Android, mode clair (valeurs par défaut)
  *   generated/colors-night.xml  ressources Android, mode sombre
+ *   modules/cairn-widget/…/res/values{,-night}/colors.xml  les mêmes, dans le
+ *     module du widget, qui est compilé contre ses propres ressources
  *
  * Sur le widget, la couleur de rendu vient de theme.ts résolu en JS selon le
  * réglage stocké, ce qui permet de forcer le sombre même quand le système est
@@ -293,6 +295,26 @@ const artifacts: Record<string, string> = {
   'colors-night.xml': buildXml(themes.dark),
 }
 
+/**
+ * Les mêmes couleurs, posées dans le module du widget.
+ *
+ * Ce n'est pas une redite de confort : une bibliothèque Android est compilée
+ * contre ses propres ressources, pas contre celles de l'application qui
+ * l'embarque. Une mise en page du widget qui dirait `@color/cairn_surface_page`
+ * sans que la couleur existe *dans le module* ne compilerait pas — l'erreur
+ * arrive à la construction du paquet, longtemps après qu'on a cru le travail
+ * fini.
+ *
+ * Les écrire ici plutôt qu'à la main garde une seule source : une teinte
+ * modifiée dans theme.ts se propage au widget par `npm run theme`, et
+ * `npm run theme:check` refuse de laisser les deux diverger.
+ */
+const widgetRes = join(root, 'modules', 'cairn-widget', 'android', 'src', 'main', 'res')
+const widgetArtifacts: Record<string, string> = {
+  [join(widgetRes, 'values', 'colors.xml')]: artifacts['colors.xml'],
+  [join(widgetRes, 'values-night', 'colors.xml')]: artifacts['colors-night.xml'],
+}
+
 console.log('Écart entre strates')
 reportStrata()
 console.log('')
@@ -307,15 +329,20 @@ if (mode === '--check') {
   const drifted: string[] = []
   for (const [name, content] of Object.entries(artifacts)) {
     const path = join(outDir, name)
-    if (!existsSync(path) || readFileSync(path, 'utf8') !== content) drifted.push(name)
+    if (!existsSync(path) || readFileSync(path, 'utf8') !== content) drifted.push(`generated/${name}`)
+  }
+  for (const [path, content] of Object.entries(widgetArtifacts)) {
+    if (!existsSync(path) || readFileSync(path, 'utf8') !== content) {
+      drifted.push(path.slice(root.length + 1))
+    }
   }
   console.log('')
   if (drifted.length) {
-    console.error(`generated/ a dérivé de la source : ${drifted.join(', ')}`)
+    console.error(`Les ressources dérivées du thème ont dérivé : ${drifted.join(', ')}`)
     console.error('Lancer `npm run theme` puis committer le résultat.')
     process.exit(1)
   }
-  console.log('generated/ est à jour.')
+  console.log('Les ressources dérivées du thème sont à jour.')
   process.exit(contrastOk ? 0 : 1)
 }
 
@@ -323,6 +350,11 @@ mkdirSync(outDir, { recursive: true })
 for (const [name, content] of Object.entries(artifacts)) {
   writeFileSync(join(outDir, name), content)
 }
+for (const [path, content] of Object.entries(widgetArtifacts)) {
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, content)
+}
 console.log('')
 console.log(`Écrit dans generated/ : ${Object.keys(artifacts).join(', ')}`)
+console.log('Écrit dans modules/cairn-widget/ : values/colors.xml, values-night/colors.xml')
 if (!contrastOk) process.exit(1)

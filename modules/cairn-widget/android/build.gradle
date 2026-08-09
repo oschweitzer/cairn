@@ -1,39 +1,14 @@
-apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
+plugins {
+  id 'com.android.library'
+  // Pose Kotlin, les niveaux de SDK, la version de Java et la dépendance à
+  // expo-modules-core. Tout écrire à la main ici, c'est recopier des valeurs qui
+  // suivent la version d'Expo, et les laisser diverger au premier changement.
+  id 'expo-module-gradle-plugin'
+}
 
-group = 'app.cairn.widget'
+group = 'app.cairn'
 version = '0.1.0'
-
-def expoModulesCorePlugin = new File(
-  project(':expo-modules-core').projectDir.absolutePath,
-  'ExpoModulesCorePlugin.gradle',
-)
-apply from: expoModulesCorePlugin
-applyKotlinExpoModulesCorePlugin()
 
 android {
   namespace 'app.cairn.widget'
-  defaultConfig {
-    // Les widgets de liste demandent RemoteViewsService, présent depuis
-    // Android 3.0 ; le plancher réel est celui de l'application.
-    minSdkVersion safeExtGet('minSdkVersion', 24)
-    compileSdkVersion safeExtGet('compileSdkVersion', 35)
-    targetSdkVersion safeExtGet('targetSdkVersion', 35)
-  }
-  compileOptions {
-    sourceCompatibility JavaVersion.VERSION_17
-    targetCompatibility JavaVersion.VERSION_17
-  }
-  kotlinOptions {
-    jvmTarget = '17'
-  }
-}
-
-def safeExtGet(prop, fallback) {
-  rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
-}
-
-dependencies {
-  implementation project(':expo-modules-core')
-  implementation "org.jetbrains.kotlin:kotlin-stdlib:${safeExtGet('kotlinVersion', '2.0.21')}"
 }

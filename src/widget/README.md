@@ -65,9 +65,13 @@ npx eas build --platform android --profile preview
 
 Puis, sur l'appareil : appui long sur l'écran d'accueil ▸ Widgets ▸ Cairn.
 
-`npm run theme` doit avoir tourné avant `prebuild` : le plugin recopie
-`generated/colors.xml` et `generated/colors-night.xml` dans les ressources de
-l'application, et échoue franchement s'ils manquent.
+Les couleurs du module sont produites par `npm run theme`, qui écrit
+`values/colors.xml` et `values-night/colors.xml` **dans le module** en plus de
+`generated/`. Ce n'est pas une redite de confort : une bibliothèque Android est
+compilée contre ses propres ressources, pas contre celles de l'application qui
+l'embarque — une mise en page qui dirait `@color/cairn_surface_page` sans que la
+couleur existe ici ne compilerait pas. `npm run theme:check` refuse de laisser
+les deux copies diverger.
 
 ## Ce qui reste à faire
 

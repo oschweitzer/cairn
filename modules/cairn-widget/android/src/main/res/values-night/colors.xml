@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Généré par scripts/gen-theme.ts. Ne pas modifier à la main. -->
+<resources>
+  <color name="cairn_surface_page">#FF0D1214</color>
+  <color name="cairn_surface_card">#FF161E22</color>
+  <color name="cairn_surface_raised">#FF212C31</color>
+  <color name="cairn_surface_recessed">#FF070A0B</color>
+  <color name="cairn_line_hairline">#FF5C6E75</color>
+  <color name="cairn_line_strong">#FF7C9099</color>
+  <color name="cairn_text_primary">#FFE3EAEC</color>
+  <color name="cairn_text_secondary">#FFB0BDC2</color>
+  <color name="cairn_text_muted">#FF8A989E</color>
+  <color name="cairn_text_onAccent">#FF0D1214</color>
+  <color name="cairn_accent_default">#FF6BCFAB</color>
+  <color name="cairn_accent_pressed">#FF54B492</color>
+  <color name="cairn_accent_subtle">#FF12241F</color>
+  <color name="cairn_state_danger">#FFDE868C</color>
+  <color name="cairn_state_success">#FFA5BD72</color>
+  <color name="cairn_state_warning">#FFDFA85F</color>
+  <color name="cairn_overlay">#BD050809</color>
+  <color name="cairn_tag_ambre">#FFDFB369</color>
+  <color name="cairn_tag_braise">#FFDB8452</color>
+  <color name="cairn_tag_airelle">#FFD4737C</color>
+  <color name="cairn_tag_bruyere">#FFA98BC4</color>
+  <color name="cairn_tag_fjord">#FF6E9AC4</color>
+  <color name="cairn_tag_aurore">#FF5DC6A4</color>
+  <color name="cairn_tag_lichen">#FFA5BD72</color>
+  <color name="cairn_tag_fer">#FF96A0A6</color>
+  <color name="cairn_tag_bouleau">#FFD2CCBD</color>
+  <color name="cairn_tag_granit">#FF8393A0</color>
+</resources>
