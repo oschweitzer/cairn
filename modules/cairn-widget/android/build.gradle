@@ -11,4 +11,12 @@ version = '0.1.0'
 
 android {
   namespace 'app.cairn.widget'
+  // `expo-module-gradle-plugin` les exige : sans elles, la configuration du
+  // projet s'arrête sur « 'android.defaultConfig.versionName' is not defined »,
+  // avant même que le Kotlin ne soit compilé. Ce sont les versions du module,
+  // pas celles de l'application.
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
 }
