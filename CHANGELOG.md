@@ -48,6 +48,12 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Changed
 
+- Migrations reach a database through `supabase db push`, not through the
+  dashboard's SQL editor. `supabase/config.toml` makes the repository a project
+  the CLI will link, and the README says what pasting SQL by hand costs: the run
+  leaves no trace, so nothing can afterwards tell an applied migration from a
+  missing one. Two of them had gone missing that way, and the app stopped reading
+  anything at all. ([#20])
 - `npm run verify` runs on every pull request and every push to `main`. It needs
   no secret and no network, so the workflow is granted nothing beyond reading the
   repository. ([#24])

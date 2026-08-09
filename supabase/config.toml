@@ -1,0 +1,20 @@
+# Supabase CLI project file.
+#
+# Its job here is narrow: it is what makes this directory a Supabase project, so
+# that `supabase link` and `supabase db push` will run at all. Cairn does not use
+# the local stack — the schema is tested against PGlite by `npm run db:test`,
+# which needs no Docker — so everything the CLI can default is left defaulted.
+# `supabase init` writes a four-hundred-line version of this file listing every
+# setting; those lines are its defaults spelled out, and repeating them here
+# would suggest they had been chosen.
+#
+# What it describes is a LOCAL stack. It is not a picture of the hosted project,
+# and `supabase config push` — which would make the hosted project resemble this
+# file — is not part of any workflow here. Do not run it by reflex after a link.
+
+project_id = "cairn"
+
+[db]
+# Must match the hosted project, which runs Postgres 17.6. A mismatch makes the
+# CLI refuse to compare the two, and the comparison is the whole point.
+major_version = 17

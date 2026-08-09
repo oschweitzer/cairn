@@ -41,12 +41,22 @@ delete notes and checklists, and hide some behind a passcode.
    cp .env.example .env
    ```
 
-4. Apply the schema. The files in `supabase/migrations/` paste as-is into the
-   dashboard's SQL editor, in filename order. With the Supabase CLI installed,
-   `supabase db push` does the same thing.
+4. Apply the schema, through the CLI.
 
-   On a project already in service, only the migrations not yet applied need
-   running.
+   ```
+   supabase link --project-ref <ref>
+   supabase db push
+   ```
+
+   The project reference is the subdomain of your Supabase URL. `db push` applies
+   the files in `supabase/migrations/` that the database has not seen, in
+   filename order, and records each one.
+
+   The files also paste as-is into the dashboard's SQL editor, and on an empty
+   project the result is the same schema — but see
+   [Keeping the database in step](#keeping-the-database-in-step) before choosing
+   that route. It leaves no record, and a database whose history is unknown
+   cannot be brought up to date except by hand.
 
 5. For Google sign-in, see the next section. Nothing to configure on the app
    side; the credentials stay with Supabase.
@@ -536,6 +546,48 @@ code would have to remember to respect.
 without Docker or a remote project. It also checks isolation between two users
 and that the Google token stays out of reach of an authenticated client.
 
+### Keeping the database in step
+
+`supabase/migrations/` is the schema. A database that has not received all of it
+does not degrade gracefully: `useReorderNotes` calls an RPC that will not exist,
+the note list orders by a column that will not exist, and the app fails to read
+anything at all. There is no partial mode.
+
+Two commands, and it is worth knowing what each is for:
+
+```bash
+supabase migration list
+```
+
+Local files and remote ones, side by side. Any line with a version on one side
+only is a database and a repository that disagree. This is the question "is
+production up to date" reduced to something answerable.
+
+```bash
+supabase db push
+```
+
+Applies what is missing, in filename order, and records it. Run it after every
+merge that adds a migration — the schema is not deployed by Netlify or by EAS,
+and nothing else will notice.
+
+**Applying SQL through the dashboard editor leaves no trace.** The statement runs,
+the schema changes, and `supabase_migrations.schema_migrations` — the table the
+CLI reads to know what has been applied — says nothing about it. The database
+then holds changes whose provenance is unknown, `db push` cannot be trusted to
+resume from there, and the only way left to know what is applied is to
+interrogate the schema column by column.
+
+That happened here, and it cost a working app: two migrations were never applied,
+one of them for a full day before anything read the columns it adds. What made it
+invisible was not the mistake but the absent record.
+
+If the two do come apart, `supabase migration repair --status applied <version>`
+tells the ledger that a version is already in place — for a migration applied by
+hand — and `--status reverted` takes a version back out. Neither touches the
+schema; they only correct what the ledger claims about it. Read
+`supabase migration list` first, and change nothing you have not looked at.
+
 ## Layout
 
 ```
@@ -559,6 +611,7 @@ src/
   vault/secret.ts       on-device passcode storage and derivation
   widget/               the snapshot the widget reads, and what keeps it current
 scripts/                theme and assetlinks generation, tests
+supabase/config.toml    what makes this a project the Supabase CLI will link
 supabase/migrations/    SQL schema and RLS policies
 supabase/functions/     Deno Edge Functions: OAuth exchange and Google calls
 generated/              theme-derived artefacts, committed
