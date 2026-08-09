@@ -37,6 +37,10 @@ and the project follows [semantic versioning](https://semver.org/).
 - `INSTALL.md`, an English guide for people who just want the app on their
   phone: installing the APK, the web app, the vault and the one thing that cannot
   be recovered, the widget, and the optional calendar link. ([#15])
+- `docs/going-public.md`, an audit of what to settle before making the
+  repository public. Two items need a decision first: the `LICENSE` file is
+  Expo's, copyright included, and a corporate email address sits in the git
+  history. No secret was found anywhere in the history. ([#16])
 - Repository conventions: commit messages following
   [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/),
   changelog following Keep a Changelog 1.1.0. They live in `AGENTS.md`, which
@@ -90,3 +94,4 @@ work happened.
 [#6]: https://github.com/oschweitzer/cairn/issues/6
 [#14]: https://github.com/oschweitzer/cairn/issues/14
 [#15]: https://github.com/oschweitzer/cairn/issues/15
+[#16]: https://github.com/oschweitzer/cairn/issues/16
