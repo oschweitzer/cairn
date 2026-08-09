@@ -12,6 +12,7 @@ import {
   useTrashNotes,
   useUpdateNote,
 } from '@/db/queries'
+import { describeDbError } from '@/db/errors'
 import { displayTitle, moveNote } from '@/db/noteLogic'
 import { useNoteList } from '@/db/select'
 import type { NoteKind } from '@/db/types'
@@ -43,6 +44,9 @@ export default function Notes() {
   const createNote = useCreateNote()
   const updateNote = useUpdateNote()
   const reorderNotes = useReorderNotes()
+
+  // Une panne nommée plutôt que citée : voir src/db/errors.ts.
+  const failure = isError ? describeDbError(error) : null
 
   const [creating, setCreating] = useState(false)
   const searchFocus = useFocusRing()
@@ -295,7 +299,7 @@ export default function Notes() {
             doit pas vider l'écran : hors ligne, le contenu déjà chargé reste la
             meilleure chose à montrer. L'erreur se signale alors par un bandeau,
             et ne prend toute la place que s'il n'y a réellement rien à afficher. */}
-        {isError && notes.length > 0 ? (
+        {failure && notes.length > 0 ? (
           <View
             style={{
               flexDirection: 'row',
@@ -308,21 +312,37 @@ export default function Notes() {
               borderColor: theme.state.danger,
             }}
           >
-            <Feather name="wifi-off" size={14} color={theme.state.danger} />
+            {/* L'antenne barrée ne convient qu'à une panne de réseau. Elle
+                promettait le retour du contenu à la prochaine connexion, ce qu'une
+                base en retard ne tiendra jamais. */}
+            <Feather
+              name={failure.kind === 'network' ? 'wifi-off' : 'alert-triangle'}
+              size={14}
+              color={theme.state.danger}
+            />
             <Txt variant="caption" tone="danger" style={{ flex: 1 }}>
-              Contenu affiché depuis le cache, la synchronisation a échoué.
+              {failure.kind === 'network'
+                ? 'Contenu affiché depuis le cache, la synchronisation a échoué.'
+                : `Contenu affiché depuis le cache : ${failure.title.toLocaleLowerCase('fr')}.`}
             </Txt>
           </View>
         ) : null}
 
-        {isError && notes.length === 0 ? (
+        {failure && notes.length === 0 ? (
           <Card style={{ gap: space.sm }}>
             <Txt variant="title" tone="danger">
-              Lecture impossible
+              {failure.title}
             </Txt>
             <Txt variant="body" tone="secondary">
-              {(error as Error | null)?.message ?? 'Erreur inconnue.'}
+              {failure.message}
             </Txt>
+            {/* Le message brut reste à l'écran, en dessous et en plus petit :
+                c'est la ligne que l'on recopie dans un rapport de bug. */}
+            {failure.detail ? (
+              <Txt variant="caption" tone="muted">
+                {failure.detail}
+              </Txt>
+            ) : null}
           </Card>
         ) : isLoading ? (
           <RuneLoader message="On dépile les pierres…" />

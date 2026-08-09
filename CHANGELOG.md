@@ -56,6 +56,14 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Fixed
 
+- A failure to read the notes now says what kind of failure it is. A server that
+  is unreachable, a session that has expired, an access refused and a database
+  left behind by an app update called for the same shrug — `Lecture impossible`,
+  followed by whatever Postgres had said. They now get their own heading, and a
+  sentence saying whether waiting will help. The technical line stays on screen
+  underneath, in smaller type, because that is the one worth copying into a bug
+  report. The banner shown over cached notes no longer draws a crossed-out
+  aerial for something that has nothing to do with the network. ([#21])
 - Changing the tag of a note that already had one works. The old one used to
   come back: tags were replaced wholesale by a delete followed by an insert, and
   two quick gestures interleaved. They are now put on and taken off one at a
@@ -95,3 +103,5 @@ work happened.
 [#14]: https://github.com/oschweitzer/cairn/issues/14
 [#15]: https://github.com/oschweitzer/cairn/issues/15
 [#16]: https://github.com/oschweitzer/cairn/issues/16
+[#20]: https://github.com/oschweitzer/cairn/issues/20
+[#21]: https://github.com/oschweitzer/cairn/issues/21

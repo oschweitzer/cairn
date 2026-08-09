@@ -29,6 +29,7 @@ import {
   nextTagColor,
   type NoteWithRelations,
 } from '../src/db/noteLogic'
+import { describeDbError } from '../src/db/errors'
 import type { Note, PlainChecklistItem, Tag } from '../src/db/types'
 import {
   applyFormat,
@@ -1001,4 +1002,63 @@ test('le décalage laisse passer une date illisible sans planter', () => {
 
 test('le format de date est bien à deux chiffres', () => {
   assert.equal(formaterDate(new Date(2026, 0, 5)), '05/01/2026')
+})
+
+// --- Naming a database failure -----------------------------------------------
+
+test('a missing column reads as a database left behind', () => {
+  const r = describeDbError({ code: '42703', message: 'column notes.position does not exist' })
+  assert.equal(r.kind, 'schema')
+  assert.match(r.title, /retard/)
+})
+
+test('a missing RPC and a missing table land in the same place', () => {
+  for (const code of ['42P01', '42883', 'PGRST200', 'PGRST202', 'PGRST204']) {
+    assert.equal(describeDbError({ code, message: 'nope' }).kind, 'schema')
+  }
+})
+
+test('the raw message survives, underneath', () => {
+  const r = describeDbError({ code: '42703', message: 'column notes.position does not exist' })
+  assert.equal(r.detail, '42703 · column notes.position does not exist')
+})
+
+test('a hint from Postgres is kept', () => {
+  const r = describeDbError({ code: '42883', message: 'function reorder_notes', hint: 'no match' })
+  assert.match(r.detail ?? '', /no match/)
+})
+
+test('RLS refusing is not a missing migration', () => {
+  assert.equal(describeDbError({ code: '42501', message: 'new row violates' }).kind, 'permission')
+})
+
+test('an expired token asks for a sign-in, not for a migration', () => {
+  assert.equal(describeDbError({ code: 'PGRST301', message: 'JWT expired' }).kind, 'session')
+})
+
+test('a failed fetch is a connection, and says waiting will help', () => {
+  const r = describeDbError(new TypeError('Failed to fetch'))
+  assert.equal(r.kind, 'network')
+  assert.match(r.message, /connexion/)
+})
+
+test('a coded error is never read as a network failure, whatever it says', () => {
+  // PostgREST does answer over HTTP: its wording may well mention fetching.
+  const r = describeDbError({ code: '42703', message: 'failed to fetch column' })
+  assert.equal(r.kind, 'schema')
+})
+
+test('an unrecognised error keeps showing itself', () => {
+  const r = describeDbError({ code: 'XX000', message: 'internal error' })
+  assert.equal(r.kind, 'unknown')
+  assert.equal(r.message, 'XX000 · internal error')
+  assert.equal(r.detail, null)
+})
+
+test('nothing at all still produces something readable', () => {
+  for (const nothing of [null, undefined, {}, 42]) {
+    const r = describeDbError(nothing)
+    assert.equal(r.kind, 'unknown')
+    assert.equal(r.message, 'Erreur inconnue.')
+  }
 })
