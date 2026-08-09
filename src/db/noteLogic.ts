@@ -1,18 +1,18 @@
 import type { Note, PlainChecklistItem, Tag } from './types'
-// Type seul, effacé à la compilation : aucune dépendance d'exécution vers l'UI,
-// et src/ui/theme.ts n'importe de toute façon aucun module react-native.
+// Type only, erased at compile time: no runtime dependency on the UI, and
+// src/ui/theme.ts imports no react-native module anyway.
 import type { TagColorKey } from '../ui/theme'
-// Module pur lui aussi, sans React ni react-native : le retirer du balisage est
-// une opération sur du texte, elle a sa place du côté de la logique.
+// A pure module too, without React or react-native: stripping markup is a text
+// operation, and it belongs on the logic side.
 import { plainText } from '../text/markup'
 
 /**
- * Logique pure de composition, de tri, de filtrage et de recherche.
+ * Pure composition, sorting, filtering and search logic.
  *
- * Séparée des hooks volontairement : ces fonctions n'ont besoin ni de React ni du
- * réseau, donc elles se testent directement sous Node. C'est là que vivent les
- * bugs qui comptent, ceux qui font disparaître une note d'une liste ou qui font
- * échouer une recherche accentuée.
+ * Kept away from the hooks on purpose: these functions need neither React nor
+ * the network, so they can be tested directly under Node. This is where the bugs
+ * that matter live — the ones that make a note vanish from a list, or make an
+ * accented search come back empty.
  */
 
 export type NoteWithRelations = Note & {
@@ -42,8 +42,8 @@ export function composeNotes(
   const tagsByNote = new Map<string, Tag[]>()
   for (const link of links) {
     const tag = tagsById.get(link.tag_id)
-    // Un lien peut désigner un tag supprimé si le cache est en retard sur la
-    // base : on l'ignore plutôt que de propager un undefined dans l'interface.
+    // A link can point at a deleted tag when the cache lags behind the
+    // database: we skip it rather than let an undefined reach the interface.
     if (!tag) continue
     const list = tagsByNote.get(link.note_id)
     if (list) list.push(tag)
@@ -59,17 +59,16 @@ export function composeNotes(
 }
 
 /**
- * Tri d'affichage : les épinglées d'abord, puis le rang choisi, puis la date de
- * modification.
+ * Display order: pinned first, then the chosen rank, then the modification date.
  *
- * Postgres renvoie déjà cet ordre, mais une mise à jour optimiste peut le
- * bousculer localement, d'où ce tri de sûreté.
+ * Postgres already returns this order, but an optimistic update can disturb it
+ * locally, hence this safety sort.
  *
- * Le départage par date est ce qui fait tenir le rang par défaut. Toutes les
- * notes valent zéro tant que personne n'a rien déplacé : elles sont donc toutes
- * à égalité, et l'ordre est celui d'avant le glisser-déposer. C'est aussi ce qui
- * place une note fraîchement créée en tête — elle naît à zéro, à égalité avec la
- * première, et gagne le départage puisqu'elle est la plus récente.
+ * The tie-break on date is what makes the default rank work. Every note is worth
+ * zero until someone moves something: they are all tied, and the order is the
+ * one from before drag-and-drop existed. It is also what puts a freshly created
+ * note on top — it is born at zero, tied with the first, and wins the tie-break
+ * by being the most recent.
  */
 export function byPinThenOrder(a: Note, b: Note): number {
   if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
@@ -78,17 +77,17 @@ export function byPinThenOrder(a: Note, b: Note): number {
 }
 
 /**
- * Déplace une note dans la grille, épingles respectées.
+ * Moves a note within the grid, pins respected.
  *
- * ── La règle qui compte ──────────────────────────────────────────────────────
- * Les épinglées restent en tête, quoi qu'il arrive. Plutôt que d'interdire le
- * geste — un dépôt refusé, sans rien dire, se lit comme un bug — on laisse
- * déposer où l'on veut, puis on remet les épinglées devant. Déposer une note
- * ordinaire au milieu des épinglées la pose donc juste après elles, ce qui est
- * la place la plus proche de celle visée.
+ * ── The rule that matters ────────────────────────────────────────────────────
+ * Pinned notes stay on top, whatever happens. Rather than forbid the gesture — a
+ * drop refused without a word reads as a bug — we let you drop wherever you
+ * like, then put the pinned ones back in front. Dropping an ordinary note among
+ * the pinned ones therefore lands it just after them, which is the closest place
+ * to the one aimed at.
  *
- * La répartition est stable : à l'intérieur de chaque groupe, l'ordre est
- * exactement celui qui vient d'être choisi.
+ * The partition is stable: within each group the order is exactly the one just
+ * chosen.
  */
 export function moveNote<T extends Pick<Note, 'is_pinned'>>(
   notes: T[],
@@ -106,9 +105,8 @@ export function moveNote<T extends Pick<Note, 'is_pinned'>>(
 }
 
 /**
- * Normalisation pour la recherche. Le repli d'accents n'est pas un détail en
- * français : chercher « cafe » doit trouver « café », et « ecole » doit trouver
- * « école ».
+ * Normalisation for search. Folding accents is not a detail in French: searching
+ * for "cafe" has to find "café", and "ecole" has to find "école".
  */
 export function fold(input: string): string {
   return input
@@ -118,29 +116,29 @@ export function fold(input: string): string {
 }
 
 /**
- * Recherche côté client, et c'est un choix, pas un repli.
+ * Client-side search, and that is a choice, not a fallback.
  *
- * Le plan prévoyait d'interroger `search_vector` côté Postgres. Mais toutes les
- * notes visibles sont déjà dans le cache, donc une requête serveur ajouterait un
- * aller-retour réseau pour un résultat identique, en moins bon : elle échouerait
- * hors ligne et ajouterait une latence à chaque frappe.
+ * The plan was to query `search_vector` on the Postgres side. But every visible
+ * note is already in the cache, so a server query would add a network round trip
+ * for an identical result, only worse: it would fail offline and add latency to
+ * every keystroke.
  *
- * L'index GIN de la migration n'est pas inutile pour autant. Il devient
- * nécessaire le jour où le corpus dépasse ce qu'on peut garder en cache et où la
- * liste sera paginée. Ce jour-là cette fonction devient le repli hors ligne, et
- * la requête serveur passe devant.
+ * The migration's GIN index is not useless for all that. It becomes necessary
+ * the day the corpus outgrows what can be held in cache and the list is
+ * paginated. On that day this function becomes the offline fallback, and the
+ * server query moves in front.
  *
- * La recherche porte sur le titre, le corps, les éléments de liste et les noms de
- * tags : chercher « courses » doit trouver la liste même si le mot n'est que dans
- * son titre, et chercher « maison » doit trouver les notes portant ce tag.
+ * Search covers the title, the body, checklist items and tag names: searching
+ * "courses" has to find the list even when the word is only in its title, and
+ * searching "maison" has to find the notes carrying that tag.
  */
 export function matchesSearch(note: NoteWithRelations, foldedNeedle: string): boolean {
   if (foldedNeedle.length === 0) return true
   const haystack = [
     note.title ?? '',
-    // Sur le texte sans son balisage : chercher « liste de courses » ne trouvait
-    // plus la note où seul « courses » avait été mis en gras, le haystack
-    // contenant « liste de **courses** ». La mise en forme ne doit rien cacher.
+    // On the text without its markup: searching "liste de courses" no longer
+    // found the note where only "courses" had been made bold, the haystack
+    // holding "liste de **courses**". Formatting must hide nothing.
     plainText(note.body),
     note.code_name ?? '',
     ...note.items.map((i) => plainText(i.content)),
@@ -150,14 +148,14 @@ export function matchesSearch(note: NoteWithRelations, foldedNeedle: string): bo
 }
 
 /**
- * Une note est vide quand elle ne porte aucune trace d'intention : ni titre, ni
- * corps, ni élément de liste, ni tag, ni couleur.
+ * A note is empty when it carries no trace of intent: no title, no body, no
+ * checklist item, no tag, no colour.
  *
- * La couleur, les tags et le nom de code comptent délibérément. Une note sans
- * texte mais teintée en fjord a été touchée volontairement, l'écarter serait une
- * perte de travail. Il en va de même d'une note rangée dans le coffre sous un
- * nom : la ranger est une intention, et l'effacer en sortant de l'éditeur
- * détruirait un geste explicite.
+ * Colour, tags and the code name count deliberately. A note with no text but
+ * tinted fjord has been touched on purpose; discarding it would be losing work.
+ * The same goes for a note filed in the vault under a name: filing it is an
+ * intent, and erasing it on the way out of the editor would destroy an explicit
+ * gesture.
  */
 export function isEmptyNote(note: {
   title: string | null
@@ -178,16 +176,16 @@ export function isEmptyNote(note: {
 }
 
 /**
- * Ce qui s'affiche à la place du titre partout où la note est listée : grille,
- * coffre, notifications, widget.
+ * What shows in place of the title everywhere the note is listed: grid, vault,
+ * notifications, widget.
  *
- * Une note du coffre montre son nom de code, et rien d'autre. Sans nom de code
- * elle ne montre pas son titre pour autant : ce serait exactement la fuite que
- * le coffre est censé empêcher, et elle passerait inaperçue puisque le titre
- * s'afficherait normalement. Le repli est donc muet.
+ * A vault note shows its code name, and nothing else. With no code name it does
+ * not fall back to its title: that would be exactly the leak the vault is meant
+ * to prevent, and it would go unnoticed since the title would display normally.
+ * The fallback is therefore silent.
  *
- * Le titre reste en clair en base et dans l'éditeur, une fois le coffre ouvert.
- * C'est un masquage d'écran, pas du chiffrement.
+ * The title stays in the clear in the database and in the editor, once the vault
+ * is open. This is screen masking, not encryption.
  */
 export function displayTitle(note: {
   title: string | null
@@ -199,23 +197,23 @@ export function displayTitle(note: {
 }
 
 /**
- * Couleur qu'une note prend en recevant un tag, ou `null` s'il ne faut rien
- * changer.
+ * The colour a note takes on receiving a tag, or `null` when nothing should
+ * change.
  *
- * Un tag a une couleur, une note aussi, et jusqu'ici les deux ne se parlaient
- * pas : on posait un tag « courses » en fjord et la carte restait grise, il
- * fallait aller repeindre la note à la main avec la teinte qu'on venait de
- * choisir juste à côté. La couleur du tag est déjà une décision, elle sert.
+ * A tag has a colour, so does a note, and until now the two did not speak: you
+ * put a "courses" tag in fjord on a note and the card stayed grey, so you had to
+ * go and repaint the note by hand with the shade you had just picked right next
+ * to it. The tag's colour is already a decision; it may as well be used.
  *
- * ── Ce que la règle ne fait pas, et c'est le plus important ──────────────────
- * Elle ne repeint jamais une note déjà colorée. Une couleur posée à la main est
- * un choix explicite, et un tag ajouté ensuite n'a pas à l'écraser : ce serait
- * perdre une intention pour en deviner une autre. D'où le nom : c'est un
- * héritage, pas une synchronisation.
+ * ── What the rule does not do, and that is the important part ────────────────
+ * It never repaints a note that already has a colour. A colour set by hand is an
+ * explicit choice, and a tag added afterwards has no business overwriting it:
+ * that would lose one intent in order to guess another. Hence the name — this is
+ * inheritance, not synchronisation.
  *
- * Le retrait d'un tag ne défait rien non plus. La couleur est devenue celle de
- * la note, et la reprendre en enlevant le tag ferait disparaître un état visible
- * de la grille sans que personne ne l'ait demandé.
+ * Removing a tag undoes nothing either. The colour has become the note's, and
+ * taking it back when the tag goes would remove a visible state from the grid
+ * with nobody having asked for it.
  */
 export function inheritedColor(
   note: Pick<Note, 'color_key'>,
@@ -229,30 +227,30 @@ export function inheritedColor(
 type TagRef = Pick<Tag, 'id' | 'color_key'>
 
 /**
- * Ce qu'il faut écrire dans `color_key` après un changement de tags.
+ * What has to be written into `color_key` after a change of tags.
  *
- * Trois réponses possibles, et la distinction compte : `undefined` veut dire
- * « ne rien écrire », `null` veut dire « effacer la couleur ». Les confondre
- * repeindrait ou déteindrait des notes à chaque geste.
+ * Three possible answers, and the distinction matters: `undefined` means "write
+ * nothing", `null` means "clear the colour". Confusing the two would repaint or
+ * drain notes on every gesture.
  *
- * ── Ce que cette fonction ajoute à `inheritedColor` ──────────────────────────
- * L'héritage ne repeint jamais une note déjà colorée, ce qui est juste tant
- * qu'on ne fait qu'ajouter des tags. Mais changer de tag, c'est en retirer un et
- * en poser un autre : la note gardait alors la teinte de l'ancien, indéfiniment.
- * On changeait de catégorie et la carte continuait d'afficher la couleur de la
- * précédente, ce qui se lit comme un changement qui n'a pas pris.
+ * ── What this adds to `inheritedColor` ───────────────────────────────────────
+ * Inheritance never repaints a note that already has a colour, which is right as
+ * long as you are only adding tags. But changing tag means removing one and
+ * putting another: the note then kept the old one's shade, indefinitely. You
+ * changed category and the card carried on showing the previous one's colour,
+ * which reads as a change that did not take.
  *
- * D'où la notion de couleur orpheline : celle que portait un tag qu'on vient de
- * retirer, et que plus aucun tag restant ne porte. Elle est reprise par le tag
- * qui remplace, ou effacée s'il n'y en a pas.
+ * Hence the notion of an orphaned colour: the one a tag you have just removed
+ * was carrying, and that no remaining tag carries. It is taken over by the tag
+ * that replaces it, or cleared when there is none.
  *
- * Le commentaire précédent affirmait qu'un retrait ne devait rien défaire. Cet
- * argument tenait pour une couleur choisie à la main — il ne tient pas pour une
- * couleur que le tag avait posée lui-même, et que personne n'a demandé à garder.
- * La coïncidence reste possible : une teinte choisie à la main qui se trouve
- * être exactement celle du tag retiré sera relâchée. C'est le seul cas ambigu,
- * il est rare, et il se répare d'un appui — là où l'ancien comportement laissait
- * une note bloquée sur la couleur d'une catégorie qu'elle n'a plus.
+ * This reverses what the previous comment claimed — that a removal should undo
+ * nothing. That argument held for a colour picked by hand; it does not hold for
+ * a colour the tag had put there itself, and that nobody asked to keep. The
+ * coincidence remains possible: a hand-picked shade that happens to be exactly
+ * the removed tag's will be released. That is the only ambiguous case, it is
+ * rare, and it is one tap to undo — where the old behaviour left a note stuck on
+ * the colour of a category it no longer has.
  */
 export function colorAfterTagChange(
   note: Pick<Note, 'color_key'>,
@@ -261,8 +259,8 @@ export function colorAfterTagChange(
 ): TagColorKey | null | undefined {
   const added = after.find((tag) => !before.some((b) => b.id === tag.id))
 
-  // Une note sans teinte prend celle du tag qu'on lui pose. Rien d'autre à
-  // décider : il n'y a aucune couleur à préserver ni à relâcher.
+  // A note with no shade takes the one of the tag being put on it. Nothing else
+  // to decide: there is no colour to preserve, and none to release.
   if (note.color_key === null) return inheritedColor(note, added) ?? undefined
 
   const orpheline =
@@ -274,13 +272,13 @@ export function colorAfterTagChange(
 }
 
 /**
- * Tag déjà nommé ainsi, ou `undefined`.
+ * The tag already named this, or `undefined`.
  *
- * La comparaison replie les accents et la casse, alors que la contrainte
- * `unique (user_id, name)` de la base, elle, distingue « École » de « ecole ».
- * L'écart est délibéré : la base empêche deux lignes identiques, cette fonction
- * empêche deux tags qu'on ne saurait pas distinguer à l'œil dans une liste de
- * pastilles. Le second problème est le vrai, et il arrive bien plus tôt.
+ * The comparison folds accents and case, whereas the database's
+ * `unique (user_id, name)` constraint tells "École" from "ecole". The gap is
+ * deliberate: the database prevents two identical rows, this function prevents
+ * two tags nobody could tell apart at a glance in a row of coloured dots. The
+ * second problem is the real one, and it arrives far sooner.
  */
 export function findTagNamed<T extends Pick<Tag, 'name'>>(
   tags: T[],
@@ -291,17 +289,17 @@ export function findTagNamed<T extends Pick<Tag, 'name'>>(
 }
 
 /**
- * Teinte à proposer pour un tag de plus : la moins servie de la palette, la
- * première déclarée en cas d'égalité.
+ * The shade to offer for one more tag: the least-used one in the palette, the
+ * first declared on a tie.
  *
- * Créer des tags à la volée depuis une note, sans passer par l'onglet Tags où
- * la couleur se choisit, donnerait sinon dix pastilles de la même teinte — et
- * une pastille de couleur qui ne distingue rien ne sert à rien.
+ * Creating tags on the fly from a note, without going through the Tags screen
+ * where the colour is chosen, would otherwise give ten dots in the same shade —
+ * and a coloured dot that distinguishes nothing is of no use.
  *
- * Les clés de la palette sont passées en argument plutôt qu'importées : ce
- * module ne dépend de l'interface qu'au niveau des types, effacés à la
- * compilation, et une importation de valeur créerait un lien d'exécution de la
- * base vers l'UI dans le mauvais sens.
+ * The palette keys are passed in rather than imported: this module depends on
+ * the interface only at the type level, erased at compile time, and a value
+ * import would create a runtime link from the database side to the UI, in the
+ * wrong direction.
  */
 export function nextTagColor(
   tags: Pick<Tag, 'color_key'>[],
@@ -319,7 +317,7 @@ export function nextTagColor(
   return best
 }
 
-/** Filtre conjonctif : la note doit porter tous les tags sélectionnés. */
+/** Conjunctive filter: the note must carry every selected tag. */
 export function hasAllTags(note: NoteWithRelations, tagIds: string[]): boolean {
   if (tagIds.length === 0) return true
   const own = new Set(note.tags.map((t) => t.id))
@@ -343,10 +341,10 @@ export function filterNotes(
 }
 
 /**
- * Répartition des cartes en colonnes de hauteurs libres, façon Google Keep.
+ * Distributes cards into free-height columns, Google Keep style.
  *
- * Chaque carte va dans la colonne la plus courte à cet instant. En cas d'égalité
- * la plus à gauche gagne, pour que l'ordre de lecture reste prévisible.
+ * Each card goes into whichever column is shortest at that moment. On a tie the
+ * leftmost wins, so that reading order stays predictable.
  */
 export function distributeIntoColumns<T>(
   items: T[],
