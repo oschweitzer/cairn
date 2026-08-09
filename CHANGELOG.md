@@ -34,6 +34,9 @@ and the project follows [semantic versioning](https://semver.org/).
 - Create a tag straight from the note editor, under the tag button: it is put on
   the note right away, in the least-used colour of the palette. A name already
   taken puts the existing tag on the note instead of refusing. ([#1])
+- `INSTALL.md`, an English guide for people who just want the app on their
+  phone: installing the APK, the web app, the vault and the one thing that cannot
+  be recovered, the widget, and the optional calendar link. ([#15])
 - Repository conventions: commit messages following
   [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/),
   changelog following Keep a Changelog 1.1.0. They live in `AGENTS.md`, which
@@ -86,3 +89,4 @@ work happened.
 [#5]: https://github.com/oschweitzer/cairn/issues/5
 [#6]: https://github.com/oschweitzer/cairn/issues/6
 [#14]: https://github.com/oschweitzer/cairn/issues/14
+[#15]: https://github.com/oschweitzer/cairn/issues/15
