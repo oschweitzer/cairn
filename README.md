@@ -413,6 +413,12 @@ which it declared closed a function that was open in production.
 | `npm run typecheck` | TypeScript with no emit |
 | `npm run verify` | chains the four checks above |
 
+`verify` also runs in CI, on every pull request and on every push to `main`
+(`.github/workflows/verify.yml`). It needs no secret and reaches no network — the
+schema is replayed against Postgres compiled to WebAssembly — so the workflow is
+granted nothing beyond reading the repository. Running it locally before opening
+a pull request is still the faster way to find out.
+
 ## Two mechanisms to know before touching the code
 
 ### Colours have a single source

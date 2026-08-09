@@ -48,6 +48,9 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Changed
 
+- `npm run verify` runs on every pull request and every push to `main`. It needs
+  no secret and no network, so the workflow is granted nothing beyond reading the
+  repository. ([#24])
 - Comments, documentation, commit messages and pull request bodies are written
   in English. The app itself stays in French. ([#14])
 - The Android app now carries native code of its own, for the widget. It no
@@ -105,3 +108,4 @@ work happened.
 [#16]: https://github.com/oschweitzer/cairn/issues/16
 [#20]: https://github.com/oschweitzer/cairn/issues/20
 [#21]: https://github.com/oschweitzer/cairn/issues/21
+[#24]: https://github.com/oschweitzer/cairn/issues/24

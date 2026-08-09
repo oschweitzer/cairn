@@ -1,0 +1,40 @@
+# Runs the checks that already exist, on every pull request.
+#
+# `npm run verify` needs no secret, no Supabase project and no Docker: the schema
+# is replayed against Postgres compiled to WebAssembly. So this workflow can stay
+# what it is — one job, no services, no credentials — and there is no reason to
+# grant it anything.
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Three commits pushed to a branch in a minute should leave one run standing, not
+# three. `main` is excluded from the cancelling: a push there is the record of
+# what was merged, and a run cancelled halfway records nothing.
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          # Keyed on package-lock.json, so the install stops being the slowest
+          # step of a two-minute job.
+          cache: npm
+
+      - run: npm ci
+
+      # Types, theme contrast, pure logic, and the SQL schema on PGlite.
+      - run: npm run verify
