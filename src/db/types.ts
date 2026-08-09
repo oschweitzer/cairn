@@ -27,6 +27,8 @@ export type Note = {
   is_pinned: boolean
   is_archived: boolean
   is_private: boolean
+  /** Rang choisi dans la grille. Zéro par défaut, départagé par `updated_at`. */
+  position: number
   /** Substitué au titre partout où la note est listée. */
   code_name: string | null
   is_encrypted: boolean
@@ -198,6 +200,11 @@ export type Database = {
       /** Fixe la position des éléments selon l'ordre du tableau fourni. */
       reorder_checklist_items: {
         Args: { p_note_id: string; p_ids: string[] }
+        Returns: undefined
+      }
+      /** Fixe le rang des notes selon l'ordre du tableau fourni. */
+      reorder_notes: {
+        Args: { p_ids: string[] }
         Returns: undefined
       }
       /**

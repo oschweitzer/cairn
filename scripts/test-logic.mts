@@ -12,7 +12,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  byPinThenRecent,
+  byPinThenOrder,
   colorAfterTagChange,
   columnsForWidth,
   composeNotes,
@@ -25,6 +25,7 @@ import {
   inheritedColor,
   isEmptyNote,
   matchesSearch,
+  moveNote,
   nextTagColor,
   type NoteWithRelations,
 } from '../src/db/noteLogic'
@@ -68,6 +69,7 @@ function note(over: Partial<Note> = {}): Note {
     color_key: null,
     is_pinned: false,
     is_archived: false,
+    position: 0,
     is_private: false,
     code_name: null,
     is_encrypted: false,
@@ -158,17 +160,83 @@ test('composeNotes laisse une note sans relations avec des tableaux vides', () =
 
 // -------------------------------------------------------------------- tri
 
-test('byPinThenRecent place les épinglées devant, puis les plus récentes', () => {
+test('byPinThenOrder place les épinglées devant, puis les plus récentes', () => {
   const list = [
     note({ id: 'vieille', updated_at: '2026-01-01T00:00:00Z' }),
     note({ id: 'epinglee', is_pinned: true, updated_at: '2025-01-01T00:00:00Z' }),
     note({ id: 'recente', updated_at: '2026-06-01T00:00:00Z' }),
   ]
-  assert.deepEqual([...list].sort(byPinThenRecent).map((n) => n.id), [
+  assert.deepEqual([...list].sort(byPinThenOrder).map((n) => n.id), [
     'epinglee',
     'recente',
     'vieille',
   ])
+})
+
+test('le rang choisi passe devant la date', () => {
+  const list = [
+    note({ id: 'a', position: 2, updated_at: '2026-06-01T00:00:00Z' }),
+    note({ id: 'b', position: 0, updated_at: '2026-01-01T00:00:00Z' }),
+    note({ id: 'c', position: 1, updated_at: '2026-05-01T00:00:00Z' }),
+  ]
+  assert.deepEqual([...list].sort(byPinThenOrder).map((n) => n.id), ['b', 'c', 'a'])
+})
+
+test('une note fraîchement créée arrive en tête', () => {
+  // Elle naît au rang zéro, donc à égalité avec la première, et gagne le
+  // départage puisqu'elle est la plus récente. C'est ce qui évite d'avoir à
+  // réécrire les rangs de toute la grille à chaque création.
+  const list = [
+    note({ id: 'ancienne', position: 0, updated_at: '2026-01-01T00:00:00Z' }),
+    note({ id: 'suivante', position: 1, updated_at: '2026-02-01T00:00:00Z' }),
+    note({ id: 'neuve', position: 0, updated_at: '2026-08-09T00:00:00Z' }),
+  ]
+  assert.equal([...list].sort(byPinThenOrder)[0].id, 'neuve')
+})
+
+// ---------------------------------------------------------- glisser-déposer
+
+test('déposer une note sur une autre lui prend sa place', () => {
+  const list = ['a', 'b', 'c', 'd'].map((id) => note({ id }))
+  assert.deepEqual(moveNote(list, 0, 2).map((n) => n.id), ['b', 'c', 'a', 'd'])
+  assert.deepEqual(moveNote(list, 3, 0).map((n) => n.id), ['d', 'a', 'b', 'c'])
+})
+
+test('les épinglées restent en tête, où qu’on dépose', () => {
+  // Déposer une note ordinaire au milieu des épinglées la pose juste après
+  // elles : c'est la place la plus proche de celle visée, et refuser le geste
+  // sans rien dire se lirait comme un bug.
+  const list = [
+    note({ id: 'p1', is_pinned: true }),
+    note({ id: 'p2', is_pinned: true }),
+    note({ id: 'x' }),
+    note({ id: 'y' }),
+  ]
+  assert.deepEqual(moveNote(list, 3, 0).map((n) => n.id), ['p1', 'p2', 'y', 'x'])
+})
+
+test('une épinglée ne peut pas descendre sous les ordinaires', () => {
+  const list = [
+    note({ id: 'p1', is_pinned: true }),
+    note({ id: 'x' }),
+    note({ id: 'y' }),
+  ]
+  assert.deepEqual(moveNote(list, 0, 2).map((n) => n.id), ['p1', 'x', 'y'])
+})
+
+test('les épinglées se réordonnent entre elles', () => {
+  const list = [
+    note({ id: 'p1', is_pinned: true }),
+    note({ id: 'p2', is_pinned: true }),
+    note({ id: 'x' }),
+  ]
+  assert.deepEqual(moveNote(list, 1, 0).map((n) => n.id), ['p2', 'p1', 'x'])
+})
+
+test('un déplacement sans effet rend la liste telle quelle', () => {
+  const list = [note({ id: 'a' }), note({ id: 'b' })]
+  assert.equal(moveNote(list, 1, 1), list)
+  assert.equal(moveNote(list, 5, 0), list)
 })
 
 // -------------------------------------------------------------- recherche

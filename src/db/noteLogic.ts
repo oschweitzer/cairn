@@ -59,13 +59,50 @@ export function composeNotes(
 }
 
 /**
- * Tri d'affichage. Les épinglées d'abord, puis par date de modification.
+ * Tri d'affichage : les épinglées d'abord, puis le rang choisi, puis la date de
+ * modification.
+ *
  * Postgres renvoie déjà cet ordre, mais une mise à jour optimiste peut le
  * bousculer localement, d'où ce tri de sûreté.
+ *
+ * Le départage par date est ce qui fait tenir le rang par défaut. Toutes les
+ * notes valent zéro tant que personne n'a rien déplacé : elles sont donc toutes
+ * à égalité, et l'ordre est celui d'avant le glisser-déposer. C'est aussi ce qui
+ * place une note fraîchement créée en tête — elle naît à zéro, à égalité avec la
+ * première, et gagne le départage puisqu'elle est la plus récente.
  */
-export function byPinThenRecent(a: Note, b: Note): number {
+export function byPinThenOrder(a: Note, b: Note): number {
   if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
+  if (a.position !== b.position) return a.position - b.position
   return b.updated_at.localeCompare(a.updated_at)
+}
+
+/**
+ * Déplace une note dans la grille, épingles respectées.
+ *
+ * ── La règle qui compte ──────────────────────────────────────────────────────
+ * Les épinglées restent en tête, quoi qu'il arrive. Plutôt que d'interdire le
+ * geste — un dépôt refusé, sans rien dire, se lit comme un bug — on laisse
+ * déposer où l'on veut, puis on remet les épinglées devant. Déposer une note
+ * ordinaire au milieu des épinglées la pose donc juste après elles, ce qui est
+ * la place la plus proche de celle visée.
+ *
+ * La répartition est stable : à l'intérieur de chaque groupe, l'ordre est
+ * exactement celui qui vient d'être choisi.
+ */
+export function moveNote<T extends Pick<Note, 'is_pinned'>>(
+  notes: T[],
+  from: number,
+  to: number,
+): T[] {
+  if (from === to || from < 0 || from >= notes.length) return notes
+  const bounded = Math.max(0, Math.min(notes.length - 1, to))
+
+  const moved = [...notes]
+  const [note] = moved.splice(from, 1)
+  moved.splice(bounded, 0, note)
+
+  return [...moved.filter((n) => n.is_pinned), ...moved.filter((n) => !n.is_pinned)]
 }
 
 /**
@@ -302,7 +339,7 @@ export function filterNotes(
         hasAllTags(note, options.tagIds) &&
         matchesSearch(note, needle),
     )
-    .sort(byPinThenRecent)
+    .sort(byPinThenOrder)
 }
 
 /**

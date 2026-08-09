@@ -14,7 +14,7 @@ import {
 } from './queries'
 import { useVault } from '../vault/VaultProvider'
 import {
-  byPinThenRecent,
+  byPinThenOrder,
   composeNotes,
   filterNotes,
   fold,
@@ -175,7 +175,7 @@ export function usePrivateNoteList(options?: { search?: string }) {
 
   const visible = useMemo(() => {
     const needle = fold(search.trim())
-    return all.filter((note) => matchesSearch(note, needle)).sort(byPinThenRecent)
+    return all.filter((note) => matchesSearch(note, needle)).sort(byPinThenOrder)
   }, [all, search])
 
   // Appelé sans condition : `unlocked &&` en amont court-circuiterait l'appel du

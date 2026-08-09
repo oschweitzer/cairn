@@ -5,12 +5,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Feather from '@expo/vector-icons/Feather'
 import {
   useCreateNote,
+  useReorderNotes,
   useSetNotesArchived,
   useSetNotesPinned,
   useTags,
   useTrashNotes,
   useUpdateNote,
 } from '@/db/queries'
+import { displayTitle, moveNote } from '@/db/noteLogic'
 import { useNoteList } from '@/db/select'
 import type { NoteKind } from '@/db/types'
 import { useTheme } from '@/ui/ThemeProvider'
@@ -40,6 +42,7 @@ export default function Notes() {
   const tagsQuery = useTags()
   const createNote = useCreateNote()
   const updateNote = useUpdateNote()
+  const reorderNotes = useReorderNotes()
 
   const [creating, setCreating] = useState(false)
   const searchFocus = useFocusRing()
@@ -102,6 +105,25 @@ export default function Notes() {
   const selectedNotes = notes.filter((n) => selectedIds.includes(n.id))
   // Un lot déjà entièrement épinglé propose le dépinglage, pas l'inverse.
   const allPinned = selectionMode && selectedNotes.every((n) => n.is_pinned)
+
+  /**
+   * Dépôt d'une carte sur une autre : la note prend la place de sa cible.
+   *
+   * La décision est dans `moveNote`, où elle est testée — c'est là que vit la
+   * règle des épinglées en tête, et une règle d'ordre se vérifie bien mieux sur
+   * un tableau que sur un écran.
+   *
+   * L'ordre complet est renvoyé au serveur, pas seulement les deux notes qui ont
+   * bougé : déplacer une carte décale toutes celles qui la suivent, et n'écrire
+   * que les extrémités laisserait des rangs en double.
+   */
+  const reorder = useCallback(
+    (from: number, to: number) => {
+      const next = moveNote(notes, from, to)
+      reorderNotes.mutate({ orderedIds: next.map((n) => n.id) })
+    },
+    [notes, reorderNotes],
+  )
 
   const create = useCallback(
     async (kind: NoteKind) => {
@@ -349,9 +371,22 @@ export default function Notes() {
             items={notes}
             keyExtractor={(n) => n.id}
             estimateHeight={estimateCardHeight}
+            /**
+             * Pas de poignée pendant la sélection multiple ni sous un filtre.
+             *
+             * En sélection, les cartes sont des cases à cocher : une poignée y
+             * serait une troisième façon de toucher la même carte. Sous un
+             * filtre, la grille ne montre qu'une partie des notes, et réordonner
+             * une partie ne dit rien de l'ordre du tout — on écrirait des rangs
+             * sur une vue incomplète, en déplaçant sans le voir des notes
+             * absentes de l'écran.
+             */
+            onReorder={selectionMode || filtering ? undefined : reorder}
+            reorderLabel={(note) => `Déplacer ${displayTitle(note) ?? 'la note'}`}
             renderItem={(note) => (
               <NoteCard
                 note={note}
+                reserveHandle={!selectionMode && !filtering}
                 selectionMode={selectionMode}
                 selected={selectedIds.includes(note.id)}
                 // En mode sélection, toucher une carte la retient au lieu de

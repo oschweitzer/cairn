@@ -32,6 +32,7 @@ export function NoteCard({
   onLongPress,
   selectionMode = false,
   selected = false,
+  reserveHandle = false,
 }: {
   note: NoteWithRelations
   /** Ouvre la note, ou bascule sa sélection si le mode sélection est actif. */
@@ -41,6 +42,15 @@ export function NoteCard({
   onLongPress?: () => void
   selectionMode?: boolean
   selected?: boolean
+  /**
+   * Laisse la place d'une poignée de déplacement en haut à gauche.
+   *
+   * La poignée est posée par la grille, qui ne connaît pas le contenu des
+   * cartes : sans cette réserve, elle se poserait sur le titre. C'est donc la
+   * carte qui creuse la marge, comme elle le fait déjà à droite pour le bouton
+   * d'épinglage.
+   */
+  reserveHandle?: boolean
 }) {
   const { theme, tagColor } = useTheme()
   const vein = note.color_key ? tagColor(note.color_key) : null
@@ -101,8 +111,9 @@ export function NoteCard({
               ? theme.surface.raised
               : theme.surface.card,
           padding: space.md,
-          paddingLeft: vein ? space.md + 4 : space.md,
-          // Réserve la place du bouton d'épinglage, qui flotte par-dessus.
+          // Réserve la place des deux commandes qui flottent par-dessus la
+          // carte : la poignée de déplacement à gauche, l'épingle à droite.
+          paddingLeft: (vein ? space.md + 4 : space.md) + (reserveHandle ? 26 : 0),
           paddingRight: space.md + 28,
           gap: space.sm,
         })}

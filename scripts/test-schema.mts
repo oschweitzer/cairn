@@ -461,6 +461,73 @@ await db.exec(`
   else fail('B ne peut pas réordonner la liste de A', `ordre devenu ${order}`)
 }
 
+// ------------------------------------------------ ordre choisi de la grille
+
+console.log('')
+console.log('Ordre de la grille')
+
+await asUser(USER_A)
+await db.exec(`
+  insert into notes (id, title) values
+    ('eeeeeeee-0000-0000-0000-000000000001', 'Une'),
+    ('eeeeeeee-0000-0000-0000-000000000002', 'Deux'),
+    ('eeeeeeee-0000-0000-0000-000000000003', 'Trois');
+`)
+{
+  const r = await db.query<{ n: number }>(
+    `select count(*)::int as n from notes where position <> 0`,
+  )
+  if (r.rows[0].n === 0) ok('toute note naît au rang zéro, l’ordre existant est intact')
+  else fail('toute note naît au rang zéro', `${r.rows[0].n} notes déjà rangées`)
+}
+{
+  // On inverse : Trois, Une, Deux.
+  await db.exec(`
+    select reorder_notes(
+      array['eeeeeeee-0000-0000-0000-000000000003',
+            'eeeeeeee-0000-0000-0000-000000000001',
+            'eeeeeeee-0000-0000-0000-000000000002']::uuid[]
+    );
+  `)
+  const r = await db.query<{ title: string; position: number }>(
+    `select title, position from notes
+     where id in ('eeeeeeee-0000-0000-0000-000000000001',
+                  'eeeeeeee-0000-0000-0000-000000000002',
+                  'eeeeeeee-0000-0000-0000-000000000003')
+     order by position`,
+  )
+  const order = r.rows.map((x) => x.title).join(',')
+  const positions = r.rows.map((x) => x.position).join(',')
+  if (order === 'Trois,Une,Deux' && positions === '0,1,2') {
+    ok('reorder_notes applique l’ordre demandé, rangs contigus depuis zéro')
+  } else {
+    fail('reorder_notes applique l’ordre demandé', `obtenu ${order} aux rangs ${positions}`)
+  }
+}
+{
+  // Même garantie que pour les listes : la fonction s'exécute avec les droits de
+  // l'appelant, donc RLS filtre l'update à zéro ligne.
+  await asUser(USER_B)
+  await db.exec(`
+    select reorder_notes(
+      array['eeeeeeee-0000-0000-0000-000000000002',
+            'eeeeeeee-0000-0000-0000-000000000001',
+            'eeeeeeee-0000-0000-0000-000000000003']::uuid[]
+    );
+  `)
+  await asUser(USER_A)
+  const r = await db.query<{ title: string }>(
+    `select title from notes
+     where id in ('eeeeeeee-0000-0000-0000-000000000001',
+                  'eeeeeeee-0000-0000-0000-000000000002',
+                  'eeeeeeee-0000-0000-0000-000000000003')
+     order by position`,
+  )
+  const order = r.rows.map((x) => x.title).join(',')
+  if (order === 'Trois,Une,Deux') ok('B ne peut pas réordonner la grille de A')
+  else fail('B ne peut pas réordonner la grille de A', `ordre devenu ${order}`)
+}
+
 // -------------------------------------------------- recherche et updated_at
 
 console.log('')

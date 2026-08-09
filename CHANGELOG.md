@@ -9,6 +9,12 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### Ajouté
 
+- Réordonner les notes de l'écran d'accueil par glisser-déposer, à la poignée en
+  haut à gauche de chaque carte. Les épinglées restent en tête : une note
+  ordinaire déposée parmi elles se pose juste après. L'ordre est enregistré et
+  suit les appareils, une note modifiée ne remonte plus, une note créée arrive en
+  tête. La poignée disparaît en mode sélection et sous un filtre, où l'ordre
+  d'une vue partielle ne voudrait rien dire. ([#5])
 - Mise en forme du texte des notes et des listes : gras, italique, souligné,
   barré, grand titre, sous-titre et liste à puces, par une barre de commandes
   sous le bouton **B** de l'éditeur. Le balisage voyage dans le texte
@@ -63,3 +69,4 @@ au fil de l'eau.
 [#2]: https://github.com/oschweitzer/cairn/issues/2
 [#3]: https://github.com/oschweitzer/cairn/issues/3
 [#4]: https://github.com/oschweitzer/cairn/issues/4
+[#5]: https://github.com/oschweitzer/cairn/issues/5

@@ -64,6 +64,9 @@ async function fetchNotes(): Promise<Note[]> {
     .is('deleted_at', null)
     .eq('is_private', false)
     .order('is_pinned', { ascending: false })
+    // Le rang avant la date : c'est l'ordre choisi qui prime, et la date ne fait
+    // que départager les notes restées à égalité. Voir `byPinThenOrder`.
+    .order('position', { ascending: true })
     .order('updated_at', { ascending: false })
   if (error) throw error
   return data ?? []
@@ -81,6 +84,7 @@ async function fetchPrivateNotes(): Promise<Note[]> {
     .is('deleted_at', null)
     .eq('is_private', true)
     .order('is_pinned', { ascending: false })
+    .order('position', { ascending: true })
     .order('updated_at', { ascending: false })
   if (error) throw error
   return data ?? []
@@ -573,6 +577,44 @@ export function useSetNotesPinned() {
     onMutate: async ({ ids, pinned }) => {
       await qc.cancelQueries({ queryKey: keys.notes })
       return { previous: optimisticallyPatch(qc, ids, { is_pinned: pinned }) }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(keys.notes, context.previous)
+    },
+    onSettled: () => invalidateNotes(qc),
+  })
+}
+
+/**
+ * Fixe l'ordre de la grille, en un seul appel atomique.
+ *
+ * Voir supabase/migrations/20260809100000_ordre_des_notes.sql pour la raison de
+ * passer par une fonction SQL plutôt que par un upsert.
+ *
+ * La mise à jour optimiste n'est pas décorative : le glissement doit suivre le
+ * doigt, et attendre la réponse du serveur ferait revenir la carte à sa place
+ * d'origine le temps d'un aller-retour. On écrit donc le rang localement tout de
+ * suite, la requête ne fait que confirmer.
+ */
+export function useReorderNotes() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ orderedIds }: { orderedIds: string[] }) => {
+      if (orderedIds.length === 0) return
+      const { error } = await getSupabase().rpc('reorder_notes', { p_ids: orderedIds })
+      if (error) throw error
+    },
+    onMutate: async ({ orderedIds }) => {
+      await qc.cancelQueries({ queryKey: keys.notes })
+      const previous = qc.getQueryData<Note[]>(keys.notes)
+      if (previous) {
+        const rank = new Map(orderedIds.map((id, index) => [id, index]))
+        qc.setQueryData<Note[]>(
+          keys.notes,
+          previous.map((n) => (rank.has(n.id) ? { ...n, position: rank.get(n.id)! } : n)),
+        )
+      }
+      return { previous }
     },
     onError: (_err, _vars, context) => {
       if (context?.previous) qc.setQueryData(keys.notes, context.previous)
