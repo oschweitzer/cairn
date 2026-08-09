@@ -30,6 +30,10 @@ class CairnWidgetModule : Module() {
        * il porte le nom du filtre, qui dépend des tags de l'instantané. Sans la
        * mise à jour du fournisseur, un tag renommé gardait son ancien nom
        * au-dessus d'une liste pourtant à jour.
+       *
+       * L'avertissement de dépréciation qui accompagne cet appel va de pair avec
+       * `setRemoteAdapter(Int, Intent)` : voir la raison de le garder dans
+       * `CairnWidgetProvider.render`.
        */
       val manager = AppWidgetManager.getInstance(context)
       val ids = manager.getAppWidgetIds(ComponentName(context, CairnWidgetProvider::class.java))

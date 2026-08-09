@@ -108,9 +108,19 @@ class CairnWidgetProvider : AppWidgetProvider() {
       )
       views.setOnClickPendingIntent(R.id.cairn_widget_filter_button, cycleIntent(context, widgetId))
 
-      // La liste est peuplée par le service, qui relit l'instantané à chaque
-      // notification. L'identifiant du widget voyage dans l'intention : c'est ce
-      // qui permet à deux widgets posés côte à côte d'avoir deux filtres.
+      /**
+       * La liste est peuplée par le service, qui relit l'instantané à chaque
+       * notification. L'identifiant du widget voyage dans l'intention : c'est ce
+       * qui permet à deux widgets posés côte à côte d'avoir deux filtres.
+       *
+       * `setRemoteAdapter(Int, Intent)` est déprimé depuis l'API 31 au profit de
+       * `RemoteCollectionItems`, qui pousse les lignes déjà construites au lieu
+       * de brancher un service. On garde le service pour deux raisons : le
+       * plancher du projet est l'API 24, où l'autre n'existe pas ; et une
+       * collection poussée doit tenir dans le quota mémoire d'une `RemoteViews`,
+       * ce qu'une liste de soixante notes n'est pas garantie de faire. Le
+       * compilateur émet donc un avertissement, et il est assumé.
+       */
       val service = Intent(context, CairnWidgetService::class.java).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
         // Sans une donnée unique, Android considère que deux intentions ne
