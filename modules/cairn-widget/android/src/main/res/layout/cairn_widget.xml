@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  En-tête fixe, liste dessous.
+
+  L'en-tête est une vue sœur de la ListView, pas sa première ligne : glissé dans
+  la liste, il partirait vers le haut au premier défilement et les boutons de
+  création deviendraient introuvables sur une longue liste.
+-->
+<LinearLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:orientation="vertical"
+  android:background="@drawable/cairn_widget_background">
+
+  <LinearLayout
+    android:id="@+id/cairn_widget_header"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="12dp"
+    android:paddingEnd="6dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
+
+    <!-- Le filtre en cours, à gauche : c'est ce qu'on lit d'abord, et il dit ce
+         que la liste montre. Le bouton qui le fait tourner l'entoure. -->
+    <LinearLayout
+      android:id="@+id/cairn_widget_filter_button"
+      android:layout_width="0dp"
+      android:layout_height="40dp"
+      android:layout_weight="1"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:paddingStart="10dp"
+      android:paddingEnd="10dp"
+      android:background="@drawable/cairn_widget_pill"
+      android:contentDescription="@string/cairn_widget_filter_hint">
+
+      <TextView
+        android:id="@+id/cairn_widget_filter"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="13sp"
+        android:textColor="@color/cairn_text_secondary" />
+    </LinearLayout>
+
+    <!-- 48 points de côté : le plancher tactile d'Android, et un widget se
+         touche au pouce sur un écran d'accueil encombré. -->
+    <TextView
+      android:id="@+id/cairn_widget_new_note"
+      android:layout_width="48dp"
+      android:layout_height="40dp"
+      android:layout_marginStart="6dp"
+      android:gravity="center"
+      android:text="@string/cairn_widget_new_note_glyph"
+      android:textSize="20sp"
+      android:textColor="@color/cairn_text_onAccent"
+      android:background="@drawable/cairn_widget_accent_pill"
+      android:contentDescription="@string/cairn_widget_new_note" />
+
+    <TextView
+      android:id="@+id/cairn_widget_new_list"
+      android:layout_width="48dp"
+      android:layout_height="40dp"
+      android:layout_marginStart="6dp"
+      android:gravity="center"
+      android:text="@string/cairn_widget_new_list_glyph"
+      android:textSize="16sp"
+      android:textColor="@color/cairn_text_primary"
+      android:background="@drawable/cairn_widget_pill"
+      android:contentDescription="@string/cairn_widget_new_list" />
+  </LinearLayout>
+
+  <View
+    android:layout_width="match_parent"
+    android:layout_height="1dp"
+    android:background="@color/cairn_line_hairline" />
+
+  <ListView
+    android:id="@+id/cairn_widget_list"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:divider="@null"
+    android:dividerHeight="0dp"
+    android:scrollbars="none" />
+
+  <TextView
+    android:id="@+id/cairn_widget_empty"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:gravity="center"
+    android:padding="16dp"
+    android:textSize="13sp"
+    android:textColor="@color/cairn_text_muted"
+    android:text="@string/cairn_widget_empty" />
+</LinearLayout>

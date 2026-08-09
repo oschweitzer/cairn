@@ -9,6 +9,13 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### Ajouté
 
+- Widget Android : la liste des notes et des listes sur l'écran d'accueil, avec
+  les boutons de création en haut, en barre fixe, et un filtre par tag. Toucher
+  une note l'ouvre. Le widget lit une copie locale écrite par l'application, donc
+  il s'affiche hors ligne et sans interroger le serveur. Les notes du coffre en
+  sont exclues, sauf réglage explicite — et même alors, seul le nom de code sort.
+  ([#6])
+- Réglages ▸ Widget, pour ce dernier réglage. ([#6])
 - Réordonner les notes de l'écran d'accueil par glisser-déposer, à la poignée en
   haut à gauche de chaque carte. Les épinglées restent en tête : une note
   ordinaire déposée parmi elles se pose juste après. L'ordre est enregistré et
@@ -32,6 +39,13 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
   [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/),
   journal des modifications selon Keep a Changelog 1.1.0. Elles vivent dans
   `AGENTS.md`, que `CLAUDE.md` inclut.
+
+### Modifié
+
+- L'application Android embarque désormais du code natif à elle, pour le widget.
+  Elle ne se lance donc plus dans Expo Go : `npm run android` construit une
+  version de développement (`expo run:android`). Le web et la PWA ne changent
+  pas. ([#6])
 
 ### Corrigé
 
@@ -70,3 +84,4 @@ au fil de l'eau.
 [#3]: https://github.com/oschweitzer/cairn/issues/3
 [#4]: https://github.com/oschweitzer/cairn/issues/4
 [#5]: https://github.com/oschweitzer/cairn/issues/5
+[#6]: https://github.com/oschweitzer/cairn/issues/6

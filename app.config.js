@@ -146,6 +146,13 @@ const config = {
     // texte présenté par le système au moment de la demande. Ce libellé est vu
     // par l'utilisateur : il doit dire ce qui s'ouvre, pas « authentification ».
     ['expo-local-authentication', { faceIDPermission: 'Ouvrir le coffre de Cairn.' }],
+    /**
+     * Widget Android. Le code natif vit dans modules/cairn-widget et se lie tout
+     * seul ; ce plugin ne fait qu'une chose, poser les couleurs du thème dans
+     * les ressources de l'application, où les mises en page du widget peuvent
+     * les lire. Voir l'en-tête du fichier.
+     */
+    './modules/cairn-widget/app.plugin.js',
     [
       'expo-splash-screen',
       {

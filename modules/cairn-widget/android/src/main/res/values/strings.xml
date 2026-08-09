@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Les glyphes sont des caractères et non des images.
+
+  Une `RemoteViews` ne sait pas rendre un SVG, et embarquer des PNG pour trois
+  pictogrammes ajouterait quatre fichiers par densité au paquet. Les caractères
+  choisis existent dans toutes les polices système d'Android depuis longtemps.
+-->
+<resources>
+  <string name="cairn_widget_label">Cairn — notes</string>
+  <string name="cairn_widget_description">Les notes et les listes, avec de quoi en créer.</string>
+
+  <string name="cairn_widget_all_tags">Tous les tags</string>
+  <string name="cairn_widget_filter_hint">Filtrer par tag</string>
+
+  <string name="cairn_widget_new_note">Nouvelle note</string>
+  <string name="cairn_widget_new_note_glyph">+</string>
+  <string name="cairn_widget_new_list">Nouvelle liste</string>
+  <string name="cairn_widget_new_list_glyph">☑</string>
+
+  <string name="cairn_widget_pinned">Épinglée</string>
+  <string name="cairn_widget_pinned_glyph">◆</string>
+
+  <string name="cairn_widget_untitled_note">Note sans titre</string>
+  <string name="cairn_widget_untitled_list">Liste sans titre</string>
+
+  <string name="cairn_widget_empty">Rien d\'empilé ici. Le plus ouvre une note neuve.</string>
+</resources>

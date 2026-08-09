@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- L'action principale, en aurore pleine. Une seule par barre : deux aplats
+     d'accent ne mettent plus rien en avant. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+  <solid android:color="@color/cairn_accent_default" />
+  <corners android:radius="999dp" />
+</shape>

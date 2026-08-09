@@ -16,6 +16,8 @@ import {
   useConnecterAgenda,
   useDeconnecterAgenda,
 } from '@/google/agenda'
+import { useProfile, useUpdateProfile } from '@/db/queries'
+import { widgetAvailable } from '../../modules/cairn-widget'
 
 const OPTIONS: { value: ThemePreference; label: string; icon: 'moon' | 'sun' | 'smartphone' }[] = [
   { value: 'dark', label: 'Sombre', icon: 'moon' },
@@ -367,6 +369,73 @@ function DeleteAccount() {
  * proposer une connexion qui échouera au premier clic n'apprend rien à
  * personne.
  */
+/**
+ * Réglages du widget Android.
+ *
+ * Absente ailleurs qu'Android : sur le web et sur un appareil sans widget posé,
+ * une carte de réglages pour quelque chose qui n'existe pas est du bruit. Le
+ * réglage lui-même reste en base et suit le compte — c'est le widget d'un
+ * téléphone, mais le choix est celui d'une personne.
+ */
+function WidgetSettings() {
+  const { theme } = useTheme()
+  const profileQuery = useProfile()
+  const updateProfile = useUpdateProfile()
+
+  if (!widgetAvailable) return null
+
+  const profile = profileQuery.data
+  const showPrivate = profile?.widget_show_private ?? false
+
+  return (
+    <Card style={{ gap: space.md }}>
+      <View style={{ gap: space.xxs }}>
+        <Txt variant="title">Widget</Txt>
+        <Txt variant="caption" tone="muted">
+          Le widget lit une copie locale des notes, écrite par l’application. Il
+          s’affiche donc hors ligne, et sans jamais interroger le serveur.
+        </Txt>
+      </View>
+      <Seam />
+
+      <Pressable
+        accessibilityRole="switch"
+        accessibilityState={{ checked: showPrivate, disabled: !profile }}
+        accessibilityLabel="Montrer les notes du coffre dans le widget"
+        disabled={!profile}
+        onPress={() =>
+          profile &&
+          updateProfile.mutate({
+            id: profile.id,
+            patch: { widget_show_private: !showPrivate },
+          })
+        }
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space.md,
+          minHeight: 48,
+          opacity: profile ? 1 : 0.5,
+        }}
+      >
+        <Feather
+          name={showPrivate ? 'check-square' : 'square'}
+          size={18}
+          color={showPrivate ? theme.accent.default : theme.text.secondary}
+        />
+        <View style={{ flex: 1 }}>
+          <Txt variant="label">Montrer les notes du coffre</Txt>
+          <Txt variant="caption" tone="muted">
+            {showPrivate
+              ? 'Seul le nom de code s’affiche. Le contenu ne sort jamais du coffre.'
+              : 'Le widget ignore le coffre, y compris les noms de code.'}
+          </Txt>
+        </View>
+      </Pressable>
+    </Card>
+  )
+}
+
 function AgendaSettings() {
   const toast = useToast()
   const compte = useCompteGoogle()
@@ -518,6 +587,8 @@ export default function Settings() {
       </Card>
 
       {vault.configured ? <VaultSettings /> : null}
+
+      <WidgetSettings />
 
       <AgendaSettings />
 

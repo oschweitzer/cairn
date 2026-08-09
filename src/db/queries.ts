@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import { hasDataKey, openNote, sealItem, sealNote } from '../vault/keyring'
-import type { ChecklistItem, Note, NoteKind, NoteTag, Tag } from './types'
+import type { ChecklistItem, Note, NoteKind, NoteTag, Profile, Tag } from './types'
 import type { TagColorKey } from '../ui/theme'
 
 /**
@@ -53,6 +53,11 @@ export const keys = {
    * épargner une requête au démarrage serait un mauvais échange.
    */
   googleAccount: [ROOT, 'volatile', 'google-account'] as const,
+  /**
+   * Préférences du compte. Volatile : ce sont des réglages, pas du contenu, et
+   * il n'y a rien à en montrer hors ligne qui vaille de descendre sur le disque.
+   */
+  profile: [ROOT, 'volatile', 'profile'] as const,
 }
 
 // -------------------------------------------------------------- lectures
@@ -785,6 +790,57 @@ export function useReorderChecklistItems() {
       for (const [key, items] of context?.entries ?? []) qc.setQueryData(key, items)
     },
     onSettled: () => invalidateChecklistItems(qc),
+  })
+}
+
+// ------------------------------------------------------------------ profil
+
+/**
+ * Réglages qui vivent en base plutôt que sur l'appareil.
+ *
+ * Le thème, lui, est lu depuis le stockage local avant le premier rendu — un
+ * aller-retour réseau y donnerait un éclair de thème inversé. Les réglages du
+ * widget n'ont pas cette contrainte : ils sont lus par le widget dans
+ * l'instantané, jamais pendant un rendu.
+ *
+ * La clé est volatile : le profil porte des préférences, pas du contenu, et il
+ * n'y a rien à afficher hors ligne qui vaille de le poser sur le disque.
+ */
+async function fetchProfile(): Promise<Profile | null> {
+  const { data, error } = await getSupabase().from('profiles').select('*').maybeSingle()
+  if (error) throw error
+  return data ?? null
+}
+
+export function useProfile() {
+  return useQuery({
+    queryKey: keys.profile,
+    queryFn: fetchProfile,
+    enabled: isSupabaseConfigured,
+  })
+}
+
+export function useUpdateProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: Partial<Profile> }) => {
+      const { error } = await getSupabase().from('profiles').update(patch).eq('id', id)
+      if (error) throw error
+    },
+    // Une case à cocher doit basculer sous le doigt : attendre le réseau pour
+    // la voir changer d'état donne l'impression qu'elle ne marche pas.
+    onMutate: async ({ patch }) => {
+      await qc.cancelQueries({ queryKey: keys.profile })
+      const previous = qc.getQueryData<Profile | null>(keys.profile)
+      if (previous) qc.setQueryData<Profile>(keys.profile, { ...previous, ...patch })
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous !== undefined) qc.setQueryData(keys.profile, context.previous)
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: keys.profile })
+    },
   })
 }
 

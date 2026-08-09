@@ -37,6 +37,7 @@ import {
   parseMarkup,
   plainText,
 } from '../src/text/markup'
+import { buildSnapshot } from '../src/widget/snapshot'
 import { delayForFailures, judgePin, FREE_ATTEMPTS } from '../src/vault/policy'
 import { countInRange, splitHash } from '../src/auth/pwnedLogic'
 import {
@@ -237,6 +238,83 @@ test('un déplacement sans effet rend la liste telle quelle', () => {
   const list = [note({ id: 'a' }), note({ id: 'b' })]
   assert.equal(moveNote(list, 1, 1), list)
   assert.equal(moveNote(list, 5, 0), list)
+})
+
+// ------------------------------------------------------- instantané du widget
+
+test('le widget ne reçoit ni corbeille ni archive', () => {
+  const snap = buildSnapshot(
+    [
+      composed({ id: 'vivante', title: 'Vivante' }),
+      composed({ id: 'archivee', title: 'Archivée', is_archived: true }),
+      composed({ id: 'jetee', title: 'Jetée', deleted_at: '2026-08-01T00:00:00Z' }),
+    ],
+    [],
+    { showPrivate: false },
+  )
+  assert.deepEqual(snap.notes.map((n) => n.id), ['vivante'])
+})
+
+test('le coffre reste dehors par défaut', () => {
+  const notes = [
+    composed({ id: 'claire', title: 'Claire' }),
+    composed({ id: 'cachee', is_private: true, code_name: 'Basalte', title: 'Vrai titre' }),
+  ]
+  assert.deepEqual(
+    buildSnapshot(notes, [], { showPrivate: false }).notes.map((n) => n.id),
+    ['claire'],
+  )
+})
+
+test('une note du coffre montrée ne livre que son nom de code', () => {
+  // Le réglage dit « je veux savoir qu'elle est là », pas « je veux que son
+  // contenu s'affiche sur l'écran d'accueil du téléphone ».
+  const snap = buildSnapshot(
+    [composed({ id: 'x', is_private: true, code_name: 'Basalte', title: 'Vrai titre', body: 'secret' })],
+    [],
+    { showPrivate: true },
+  )
+  assert.equal(snap.notes[0].title, 'Basalte')
+  assert.equal(snap.notes[0].preview, '')
+})
+
+test('l’aperçu du widget est débarrassé du balisage', () => {
+  // Une RemoteViews ne sait pas ce qu'est une astérisque : `**gras**`
+  // s'afficherait tel quel sur l'écran d'accueil.
+  const snap = buildSnapshot(
+    [composed({ id: 'x', body: 'Voir le **relevé** et [la carte](https://exemple.fr)' })],
+    [],
+    { showPrivate: false },
+  )
+  assert.equal(snap.notes[0].preview, 'Voir le relevé et la carte')
+})
+
+test('l’aperçu d’une liste montre ses éléments', () => {
+  const snap = buildSnapshot(
+    [
+      composed({
+        id: 'x',
+        kind: 'checklist',
+        items: [item({ id: 'i1', content: 'Pain' }), item({ id: 'i2', content: 'Café' })],
+      }),
+    ],
+    [],
+    { showPrivate: false },
+  )
+  assert.equal(snap.notes[0].preview, '• Pain\n• Café')
+  assert.equal(snap.notes[0].checklist, true)
+})
+
+test('l’ordre du widget est celui de la grille', () => {
+  const snap = buildSnapshot(
+    [
+      composed({ id: 'ordinaire', position: 0 }),
+      composed({ id: 'epinglee', is_pinned: true, position: 5 }),
+    ],
+    [],
+    { showPrivate: false },
+  )
+  assert.deepEqual(snap.notes.map((n) => n.id), ['epinglee', 'ordinaire'])
 })
 
 // -------------------------------------------------------------- recherche

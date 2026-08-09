@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Déclaration du widget pour le sélecteur du lanceur.
+
+  `resizeMode` sur les deux axes : une liste de notes n'a pas de taille juste,
+  elle a la taille que son propriétaire lui donne. La taille par défaut couvre
+  trois cases sur quatre, de quoi lire quatre ou cinq notes sans défiler.
+
+  `updatePeriodMillis` à zéro, volontairement : le contenu ne change que quand
+  l'application l'écrit, et un réveil périodique consommerait de la batterie pour
+  relire un fichier inchangé.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+  android:minWidth="180dp"
+  android:minHeight="180dp"
+  android:targetCellWidth="3"
+  android:targetCellHeight="3"
+  android:minResizeWidth="110dp"
+  android:minResizeHeight="110dp"
+  android:resizeMode="horizontal|vertical"
+  android:widgetCategory="home_screen"
+  android:initialLayout="@layout/cairn_widget"
+  android:description="@string/cairn_widget_description"
+  android:updatePeriodMillis="0" />

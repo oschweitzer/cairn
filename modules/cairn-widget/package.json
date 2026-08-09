@@ -1,0 +1,8 @@
+{
+  "name": "cairn-widget",
+  "version": "0.1.0",
+  "description": "Widget Android de Cairn : liste des notes, création rapide, filtre par tag.",
+  "main": "index.ts",
+  "private": true,
+  "platforms": ["android"]
+}

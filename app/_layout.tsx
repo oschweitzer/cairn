@@ -13,6 +13,7 @@ import { QueryProvider } from '@/db/QueryProvider'
 import { isSupabaseConfigured } from '@/db/supabase'
 import { ThemeProvider, useTheme } from '@/ui/ThemeProvider'
 import { VaultProvider } from '@/vault/VaultProvider'
+import { WidgetSync } from '@/widget/WidgetSync'
 import { Button, Card, Logotype, Txt } from '@/ui/components'
 import { ToastProvider } from '@/ui/Toast'
 import { TooltipProvider } from '@/ui/Tooltip'
@@ -163,6 +164,12 @@ function Boot({ fontsReady }: { fontsReady: boolean }) {
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface.page }}>
       <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
+
+      {/* Rien à l'écran : tient à jour l'instantané que lit le widget Android.
+          Ici plutôt que dans un onglet, pour que la copie suive les notes quel
+          que soit l'écran ouvert — cocher une case depuis l'éditeur doit se voir
+          sur l'écran d'accueil du téléphone. */}
+      <WidgetSync />
 
       {needsSetup && setupDismissed ? (
         <SetupBanner onPress={() => setSetupDismissed(false)} />
