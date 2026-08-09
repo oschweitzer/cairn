@@ -2,6 +2,9 @@ import type { Note, PlainChecklistItem, Tag } from './types'
 // Type seul, effacé à la compilation : aucune dépendance d'exécution vers l'UI,
 // et src/ui/theme.ts n'importe de toute façon aucun module react-native.
 import type { TagColorKey } from '../ui/theme'
+// Module pur lui aussi, sans React ni react-native : le retirer du balisage est
+// une opération sur du texte, elle a sa place du côté de la logique.
+import { plainText } from '../text/markup'
 
 /**
  * Logique pure de composition, de tri, de filtrage et de recherche.
@@ -98,9 +101,12 @@ export function matchesSearch(note: NoteWithRelations, foldedNeedle: string): bo
   if (foldedNeedle.length === 0) return true
   const haystack = [
     note.title ?? '',
-    note.body ?? '',
+    // Sur le texte sans son balisage : chercher « liste de courses » ne trouvait
+    // plus la note où seul « courses » avait été mis en gras, le haystack
+    // contenant « liste de **courses** ». La mise en forme ne doit rien cacher.
+    plainText(note.body),
     note.code_name ?? '',
-    ...note.items.map((i) => i.content),
+    ...note.items.map((i) => plainText(i.content)),
     ...note.tags.map((t) => t.name),
   ].join(' ')
   return fold(haystack).includes(foldedNeedle)

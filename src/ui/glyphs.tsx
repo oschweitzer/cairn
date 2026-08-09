@@ -39,6 +39,25 @@ const GLYPHS = {
     // Moraillon, sous le bandeau.
     'M12 9 v4',
   ],
+
+  /**
+   * Barré. Construit exactement comme le `underline` de Feather — une arche
+   * surmontée d'un trait — mais le trait passe au milieu au lieu de courir
+   * dessous. C'est la seule différence, et c'est ce qui fait que les deux
+   * boutons se lisent comme une paire dans la barre de mise en forme.
+   */
+  strikethrough: ['M6 4 v5 a6 6 0 0 0 12 0 V4', 'M4 11 h16'],
+
+  /**
+   * Grand titre et sous-titre : la même lettre à deux tailles.
+   *
+   * Un « H1 » et un « H2 » seraient plus précis et illisibles à seize points, la
+   * hauteur du chiffre tombant sous le trait. Deux A de tailles différentes se
+   * comprennent sans être déchiffrés, ce qui est le seul critère qui vaille pour
+   * un pictogramme.
+   */
+  letterLarge: ['M4 20 L12 5 L20 20', 'M7.4 14 H16.6'],
+  letterSmall: ['M7 19 L12 9 L17 19', 'M9.2 15.4 H14.8'],
 } as const
 
 export type GlyphName = keyof typeof GLYPHS

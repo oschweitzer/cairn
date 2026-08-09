@@ -29,6 +29,13 @@ import {
   type NoteWithRelations,
 } from '../src/db/noteLogic'
 import type { Note, PlainChecklistItem, Tag } from '../src/db/types'
+import {
+  applyFormat,
+  insertLink,
+  normalizeHref,
+  parseMarkup,
+  plainText,
+} from '../src/text/markup'
 import { delayForFailures, judgePin, FREE_ATTEMPTS } from '../src/vault/policy'
 import { countInRange, splitHash } from '../src/auth/pwnedLogic'
 import {
@@ -224,6 +231,139 @@ test('le second tag n’écrase pas la couleur héritée du premier', () => {
   // tag ajouté, sans que rien ne l'explique.
   const afterFirst = note({ color_key: inheritedColor(note(), tag({ color_key: 'fjord' })) })
   assert.equal(inheritedColor(afterFirst, tag({ id: 't2', color_key: 'airelle' })), null)
+})
+
+// ------------------------------------------------------- mise en forme
+
+/** Raccourci de lecture : « texte(marques) » pour chaque fragment. */
+function rendu(source: string): string {
+  return parseMarkup(source)
+    .map((block) => {
+      const spans = block.spans
+        .map((s) => {
+          const marks = [
+            s.bold ? 'gras' : null,
+            s.italic ? 'ital' : null,
+            s.underline ? 'soul' : null,
+            s.strike ? 'barr' : null,
+            s.href ? `→${s.href}` : null,
+          ].filter(Boolean)
+          return marks.length ? `${s.text}(${marks.join(',')})` : s.text
+        })
+        .join('')
+      const prefix = block.kind === 'bullet' ? '• ' : block.level ? `h${block.level} ` : ''
+      return prefix + spans
+    })
+    .join('\n')
+}
+
+test('les quatre marques d’emphase se rendent', () => {
+  assert.equal(rendu('**gras**'), 'gras(gras)')
+  assert.equal(rendu('*ital*'), 'ital(ital)')
+  assert.equal(rendu('__soul__'), 'soul(soul)')
+  assert.equal(rendu('~~barr~~'), 'barr(barr)')
+})
+
+test('le gras gagne sur l’italique à position égale', () => {
+  // Les deux règles trouvent une correspondance à l'indice zéro sur `**x**` :
+  // sans priorité, l'italique capturerait `*x` et le texte perdrait une étoile.
+  assert.equal(rendu('**mot**'), 'mot(gras)')
+})
+
+test('les marques s’emboîtent', () => {
+  assert.equal(rendu('**gras et *aussi ital***'), 'gras et (gras)aussi ital(gras,ital)')
+})
+
+test('une marque non refermée reste du texte', () => {
+  assert.equal(rendu('deux * trois'), 'deux * trois')
+  assert.equal(rendu('**ouvert sans fin'), '**ouvert sans fin')
+})
+
+test('les titres et les puces sont des blocs', () => {
+  assert.equal(rendu('# Grand\n## Petit\n- item'), 'h1 Grand\nh2 Petit\n• item')
+})
+
+test('une ligne vide reste une ligne', () => {
+  // Elle porte l'aération voulue : l'avaler resserrerait le texte à l'affichage.
+  assert.equal(parseMarkup('a\n\nb').length, 3)
+})
+
+test('une URL écrite au fil du texte devient un lien', () => {
+  assert.equal(
+    rendu('voir https://exemple.fr ici'),
+    'voir https://exemple.fr(→https://exemple.fr) ici',
+  )
+})
+
+test('la ponctuation finale ne part pas dans l’adresse', () => {
+  // Erreur classique, et invisible jusqu'au jour où le lien ne s'ouvre pas.
+  assert.equal(rendu('voir https://exemple.fr.'), 'voir https://exemple.fr(→https://exemple.fr).')
+})
+
+test('une adresse sans protocole est complétée', () => {
+  assert.equal(normalizeHref('www.exemple.fr'), 'https://www.exemple.fr')
+  assert.equal(normalizeHref('https://exemple.fr'), 'https://exemple.fr')
+  assert.equal(rendu('www.exemple.fr'), 'www.exemple.fr(→https://www.exemple.fr)')
+})
+
+test('un lien nommé garde son libellé, mise en forme comprise', () => {
+  assert.equal(
+    rendu('[le **relevé**](https://exemple.fr/x)'),
+    'le (→https://exemple.fr/x)relevé(gras,→https://exemple.fr/x)',
+  )
+})
+
+test('le texte nu retire le balisage', () => {
+  assert.equal(plainText('**gras** et [libellé](https://x.fr)'), 'gras et libellé')
+  assert.equal(plainText('- courses\n- pain'), '• courses\n• pain')
+  assert.equal(plainText(null), '')
+})
+
+test('la recherche traverse la mise en forme', () => {
+  // Le cas qui compte : « liste de courses » ne se trouvait plus dès que seul
+  // « courses » était en gras, le haystack contenant « liste de **courses** ».
+  const n = composed({ body: 'liste de **courses** du samedi' })
+  assert.equal(matchesSearch(n, fold('liste de courses')), true)
+})
+
+// ------------------------------------------------------- commandes d’édition
+
+test('la commande enveloppe la sélection', () => {
+  const r = applyFormat('un mot ici', { start: 3, end: 6 }, 'bold')
+  assert.equal(r.text, 'un **mot** ici')
+  assert.equal(r.selection.start, 5)
+  assert.equal(r.selection.end, 8)
+})
+
+test('sans sélection, la commande prend le mot sous le curseur', () => {
+  // Écrire un mot puis appuyer sur « gras » est le geste le plus naturel ; sans
+  // cette extension, il posait deux paires d'astérisques autour du vide.
+  assert.equal(applyFormat('un mot ici', { start: 4, end: 4 }, 'italic').text, 'un *mot* ici')
+})
+
+test('réappuyer sur la même marque la retire', () => {
+  assert.equal(applyFormat('un **mot** ici', { start: 5, end: 8 }, 'bold').text, 'un mot ici')
+})
+
+test('les commandes de bloc basculent au lieu de s’empiler', () => {
+  assert.equal(applyFormat('titre', { start: 0, end: 0 }, 'title').text, '# titre')
+  assert.equal(applyFormat('# titre', { start: 2, end: 2 }, 'title').text, 'titre')
+})
+
+test('une ligne ne porte qu’une marque de bloc', () => {
+  // Passer de titre à puce retire le dièse au lieu de préfixer deux fois.
+  assert.equal(applyFormat('# titre', { start: 2, end: 2 }, 'bullet').text, '- titre')
+})
+
+test('la commande de bloc ne touche que sa ligne', () => {
+  const r = applyFormat('un\ndeux\ntrois', { start: 4, end: 4 }, 'bullet')
+  assert.equal(r.text, 'un\n- deux\ntrois')
+})
+
+test('le lien réutilise la sélection comme libellé et pose le curseur dans l’adresse', () => {
+  const r = insertLink('voir le relevé', { start: 8, end: 14 })
+  assert.equal(r.text, 'voir le [relevé]()')
+  assert.equal(r.text[r.selection.start], ')')
 })
 
 // ------------------------------------------- couleur après changement de tags

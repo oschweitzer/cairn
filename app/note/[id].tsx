@@ -20,10 +20,13 @@ import {
 import { colorAfterTagChange, findTagNamed, isEmptyNote, nextTagColor } from '@/db/noteLogic'
 import type { Tag } from '@/db/types'
 import { useNote } from '@/db/select'
+import { applyFormat, insertLink, type Format, type Selection } from '@/text/markup'
 import { useVault } from '@/vault/VaultProvider'
 import { useTheme } from '@/ui/ThemeProvider'
 import { Button, Card, Seam, Txt, noWebOutline } from '@/ui/components'
+import { FormatBar } from '@/ui/FormatBar'
 import { IconButton } from '@/ui/IconButton'
+import { RichText } from '@/ui/RichText'
 import { ColorPicker, TagPicker } from '@/ui/pickers'
 import { AgendaBouton, AgendaPanel } from '@/ui/AgendaPanel'
 import { RuneLoader } from '@/ui/RuneLoader'
@@ -34,7 +37,22 @@ import { radius, space, tagColorKeys, type, type TagColorKey } from '@/ui/theme'
 /** Délai avant enregistrement, pour ne pas écrire à chaque frappe. */
 const AUTOSAVE_MS = 600
 
-type Panel = 'none' | 'color' | 'tags' | 'agenda'
+type Panel = 'none' | 'color' | 'tags' | 'agenda' | 'format'
+
+/**
+ * Champ auquel s'applique la mise en forme.
+ *
+ * La barre ne connaît aucun champ : elle nomme un geste, l'écran sait où le
+ * porter. Sans cette cible, le même bouton devrait exister deux fois — une pour
+ * le corps, une pour l'élément de liste en cours — et se désactiver tout seul
+ * selon le focus, ce qui ferait clignoter la barre à chaque changement de champ.
+ */
+type Cible = { kind: 'body' } | { kind: 'item'; id: string }
+
+function memeChamp(a: Cible | null, b: Cible): boolean {
+  if (!a || a.kind !== b.kind) return false
+  return a.kind === 'body' || a.id === (b as { id: string }).id
+}
 
 export default function NoteEditor() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -69,6 +87,49 @@ export default function NoteEditor() {
   const [draftItem, setDraftItem] = useState('')
   const [tagError, setTagError] = useState<string | null>(null)
   const rising = useRise()
+
+  /**
+   * Lecture ou écriture.
+   *
+   * Un champ de saisie ne sait pas afficher du texte mis en forme : sur le web
+   * il devient un `textarea`, qui n'accepte que du texte nu. Il faut donc deux
+   * vues du même contenu, et un bouton pour passer de l'une à l'autre — c'est le
+   * marché habituel des éditeurs à balisage, et il est franc : on voit le
+   * balisage quand on écrit, le résultat quand on lit.
+   *
+   * La lecture est aussi la seule vue où un lien peut être cliqué : dans un
+   * champ de saisie, un appui pose un curseur.
+   */
+  const [reading, setReading] = useState(false)
+
+  /**
+   * Champ visé par la barre de mise en forme, et l'étendue qui y est
+   * sélectionnée. Les deux vivent ici et non dans les champs : la barre est
+   * ailleurs dans l'arbre, et c'est l'écran qui fait le lien.
+   */
+  const [cible, setCible] = useState<Cible | null>(null)
+  const [selection, setSelection] = useState<Selection>({ start: 0, end: 0 })
+
+  /**
+   * Sélection à imposer au prochain rendu, puis plus jamais.
+   *
+   * Après une mise en forme, le curseur doit se retrouver entre les marques que
+   * l'on vient de poser, sinon il repart en fin de champ et il faut recliquer
+   * pour continuer à écrire. La seule façon de le déplacer est la propriété
+   * `selection`, mais la laisser en place figerait le curseur à chaque frappe :
+   * on la retire donc dès que le champ a signalé où il en est.
+   */
+  const [selectionImposee, setSelectionImposee] = useState<Selection | null>(null)
+
+  /**
+   * Texte des éléments de liste en cours de modification.
+   *
+   * Les champs étaient non contrôlés — `defaultValue` et écriture à la sortie —
+   * ce qui suffisait tant que rien d'autre que la frappe ne les modifiait. La
+   * barre de mise en forme, elle, réécrit le contenu depuis l'extérieur : sans
+   * valeur contrôlée, le champ garderait à l'écran le texte d'avant.
+   */
+  const [itemDrafts, setItemDrafts] = useState<Record<string, string>>({})
 
   // État local du texte, pour que la frappe reste fluide sans attendre le
   // réseau. Il n'est réamorcé que si l'on change de note : sans cette garde, une
@@ -216,6 +277,110 @@ export default function NoteEditor() {
       },
     )
   }, [note, draftItem, addItem, toast, encrypted])
+
+  /** Texte affiché d'un élément : le brouillon s'il existe, sinon la base. */
+  const itemText = useCallback(
+    (id: string, fallback: string) => itemDrafts[id] ?? fallback,
+    [itemDrafts],
+  )
+
+  /**
+   * Champs de saisie, par cible, pour pouvoir leur rendre le focus.
+   *
+   * Appuyer sur un bouton de la barre de mise en forme sort du champ — c'est ce
+   * que fait un clic sur un bouton, sur le web comme ailleurs. Le navigateur
+   * replie alors la sélection, et la position de curseur calculée par la
+   * commande n'a plus rien à quoi s'appliquer : on se retrouvait au début du
+   * texte, à devoir recliquer entre chaque marque.
+   */
+  const champs = useRef(new Map<string, TextInput | null>()).current
+  const cleChamp = (pour: Cible) => (pour.kind === 'body' ? 'body' : `item:${pour.id}`)
+
+  /**
+   * Écrit un texte mis en forme dans le champ visé, et y replace le curseur.
+   *
+   * Un seul chemin pour les deux sortes de champ, parce que la différence entre
+   * un corps de note et un élément de liste tient à où l'on écrit, pas à ce que
+   * l'on écrit. L'élément part en base tout de suite : contrairement au corps, il
+   * n'a pas d'enregistrement différé, et attendre la sortie du champ perdrait la
+   * mise en forme si l'on quitte l'écran entre-temps.
+   */
+  const ecrire = useCallback(
+    (edit: { text: string; selection: Selection }) => {
+      if (!cible || !note) return
+      if (cible.kind === 'body') {
+        setBody(edit.text)
+        scheduleSave({ body: edit.text })
+      } else {
+        setItemDrafts((current) => ({ ...current, [cible.id]: edit.text }))
+        updateItem.mutate({ id: cible.id, patch: { content: edit.text }, encrypted })
+      }
+      setSelection(edit.selection)
+
+      /**
+       * Le focus d'abord, la sélection ensuite, et dans cet ordre.
+       *
+       * La propriété `selection` ne se pose que sur un champ qui a le focus, et
+       * le champ vient de le perdre au profit du bouton sur lequel on a appuyé.
+       * L'imposer avant serait sans effet, et le curseur repartirait au début du
+       * texte — il fallait recliquer dans le champ entre chaque marque.
+       *
+       * L'objet est recréé volontairement : la sélection imposée n'est reprise
+       * que si la propriété change, or elle vaut peut-être déjà cette valeur-là.
+       */
+      const cle = cleChamp(cible)
+      setTimeout(() => {
+        champs.get(cle)?.focus()
+        setSelectionImposee({ ...edit.selection })
+      }, 0)
+    },
+    [cible, note, scheduleSave, updateItem, encrypted, champs],
+  )
+
+  const texteCible = useCallback((): string | null => {
+    if (!cible) return null
+    if (cible.kind === 'body') return body
+    const item = note?.items.find((i) => i.id === cible.id)
+    return item ? itemText(item.id, item.content) : null
+  }, [cible, body, note, itemText])
+
+  const runFormat = useCallback(
+    (format: Format) => {
+      const texte = texteCible()
+      if (texte === null) return
+      ecrire(applyFormat(texte, selection, format))
+    },
+    [texteCible, selection, ecrire],
+  )
+
+  const runLink = useCallback(() => {
+    const texte = texteCible()
+    if (texte === null) return
+    ecrire(insertLink(texte, selection))
+  }, [texteCible, selection, ecrire])
+
+  /**
+   * Gestionnaires communs à tout champ que la barre peut mettre en forme.
+   *
+   * `onSelectionChange` sert deux fins : suivre ce qui est sélectionné, et
+   * relâcher la sélection imposée une fois qu'elle a pris. Sans le second, le
+   * curseur resterait bloqué là où la dernière commande l'avait posé.
+   */
+  const champFormatable = useCallback(
+    (pour: Cible) => ({
+      ref: (champ: TextInput | null) => {
+        champs.set(cleChamp(pour), champ)
+      },
+      onFocus: () => setCible(pour),
+      selection: selectionImposee && memeChamp(cible, pour) ? selectionImposee : undefined,
+      onSelectionChange: (e: { nativeEvent: { selection: Selection } }) => {
+        setCible(pour)
+        setSelection(e.nativeEvent.selection)
+        setSelectionImposee(null)
+      },
+    }),
+    [cible, selectionImposee, champs],
+  )
 
   const flushAndLeave = useCallback(() => {
     if (pending.current) clearTimeout(pending.current)
@@ -484,6 +649,28 @@ export default function NoteEditor() {
           onPress={flushAndLeave}
         />
         <View style={{ flex: 1 }} />
+        {/**
+         * Lecture ou écriture.
+         *
+         * Il faut bien un bouton : un champ de saisie devient un `textarea` sur
+         * le web et n'accepte que du texte nu, donc le balisage ne peut pas se
+         * rendre à l'endroit où on le tape. C'est aussi la seule vue où un lien
+         * s'ouvre — dans un champ, un appui pose un curseur.
+         *
+         * Le passage en lecture pose ce qui attendait : le rendu doit montrer la
+         * dernière frappe, pas l'état d'il y a six cents millisecondes.
+         */}
+        <IconButton
+          icon={reading ? 'edit-3' : 'book-open'}
+          label={reading ? 'Modifier' : 'Lire la note mise en forme'}
+          tooltip={reading ? 'Revenir à l’écriture' : 'Lire, liens cliquables'}
+          active={reading}
+          onPress={() => {
+            if (!reading) void flushEdits()
+            setReading((current) => !current)
+            setPanel('none')
+          }}
+        />
         <IconButton
           icon="save"
           label="Enregistrer"
@@ -636,8 +823,33 @@ export default function NoteEditor() {
               ornement, pas comme une lettre qu'il faudrait déchiffrer. */}
           <Seam mark="dagaz" />
 
-          {note.kind === 'note' ? (
+          {note.kind === 'note' && reading ? (
+            /**
+             * Vue de lecture du corps.
+             *
+             * Elle prend la même place que le champ, `flex: 1` compris, pour que
+             * passer de l'une à l'autre ne fasse pas sauter la mise en page. La
+             * `Pressable` qui l'enveloppe ramène à l'écriture au toucher : les
+             * liens sont des `Text` avec leur propre gestionnaire, ils prennent
+             * donc l'appui avant elle et s'ouvrent au lieu de rendre la main.
+             */
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Revenir à l’écriture"
+              onPress={() => setReading(false)}
+              style={{ flex: 1, minHeight: 220 }}
+            >
+              {body.trim() ? (
+                <RichText source={body} />
+              ) : (
+                <Txt variant="body" tone="muted">
+                  Note vide. Toucher pour écrire.
+                </Txt>
+              )}
+            </Pressable>
+          ) : note.kind === 'note' ? (
             <TextInput
+              {...champFormatable({ kind: 'body' })}
               value={body}
               onChangeText={(next) => {
                 setBody(next)
@@ -726,26 +938,53 @@ export default function NoteEditor() {
                     </View>
                   </Pressable>
 
-                  <TextInput
-                    defaultValue={item.content}
-                    onEndEditing={(e) => {
-                      const next = e.nativeEvent.text.trim()
-                      if (next && next !== item.content) {
-                        updateItem.mutate({ id: item.id, patch: { content: next } })
+                  {reading ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Revenir à l’écriture"
+                      onPress={() => setReading(false)}
+                      style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}
+                    >
+                      <RichText
+                        source={itemText(item.id, item.content)}
+                        numberOfLines={2}
+                        tone={item.is_done ? 'muted' : 'primary'}
+                        style={item.is_done ? { textDecorationLine: 'line-through' } : null}
+                      />
+                    </Pressable>
+                  ) : (
+                    <TextInput
+                      {...champFormatable({ kind: 'item', id: item.id })}
+                      // Contrôlé, contrairement à avant : la barre de mise en
+                      // forme réécrit le contenu depuis l'extérieur du champ, et
+                      // un `defaultValue` garderait à l'écran le texte d'avant.
+                      value={itemText(item.id, item.content)}
+                      onChangeText={(next) =>
+                        setItemDrafts((current) => ({ ...current, [item.id]: next }))
                       }
-                    }}
-                    style={[
-                      {
-                        flex: 1,
-                        minHeight: 44,
-                        color: item.is_done ? theme.text.muted : theme.text.primary,
-                        textDecorationLine: item.is_done ? 'line-through' : 'none',
-                        fontFamily: type.body.fontFamily,
-                        fontSize: type.body.fontSize,
-                      },
-                      noWebOutline,
-                    ]}
-                  />
+                      onEndEditing={(e) => {
+                        const next = e.nativeEvent.text.trim()
+                        if (next && next !== item.content) {
+                          updateItem.mutate({
+                            id: item.id,
+                            patch: { content: next },
+                            encrypted,
+                          })
+                        }
+                      }}
+                      style={[
+                        {
+                          flex: 1,
+                          minHeight: 44,
+                          color: item.is_done ? theme.text.muted : theme.text.primary,
+                          textDecorationLine: item.is_done ? 'line-through' : 'none',
+                          fontFamily: type.body.fontFamily,
+                          fontSize: type.body.fontSize,
+                        },
+                        noWebOutline,
+                      ]}
+                    />
+                  )}
 
                   <IconButton
                     icon="chevron-up"
@@ -859,6 +1098,27 @@ export default function NoteEditor() {
           </Animated.View>
         ) : null}
 
+        {panel === 'format' ? (
+          <Animated.View
+            entering={appear}
+            exiting={vanish}
+            style={{ paddingHorizontal: space.sm, paddingTop: space.sm }}
+          >
+            <FormatBar
+              onFormat={runFormat}
+              onLink={runLink}
+              disabled={cible === null}
+              hint={
+                cible === null
+                  ? 'Toucher d’abord le texte à mettre en forme.'
+                  : cible.kind === 'body'
+                    ? 'S’applique au texte sélectionné, ou au mot sous le curseur.'
+                    : 'S’applique à l’élément de liste en cours.'
+              }
+            />
+          </Animated.View>
+        ) : null}
+
         {panel === 'agenda' ? (
           <Animated.View
             entering={appear}
@@ -876,6 +1136,18 @@ export default function NoteEditor() {
         <View style={{ flexDirection: 'row', paddingHorizontal: space.sm, paddingVertical: space.xs }}>
           {/* Barre basse : les bulles s'ouvrent vers le haut, sinon elles
               tomberaient hors de l'écran et basculeraient d'elles-mêmes. */}
+          {/* La mise en forme n'a pas de sens en lecture : le bouton disparaît
+              plutôt que de rester là, éteint et sans explication. */}
+          {reading ? null : (
+            <IconButton
+              icon="bold"
+              label="Mise en forme"
+              tooltip="Gras, italique, titres, listes, liens"
+              placement="top"
+              active={panel === 'format'}
+              onPress={() => setPanel(panel === 'format' ? 'none' : 'format')}
+            />
+          )}
           <IconButton
             icon="droplet"
             label="Couleur"

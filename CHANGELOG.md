@@ -9,6 +9,16 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### Ajouté
 
+- Mise en forme du texte des notes et des listes : gras, italique, souligné,
+  barré, grand titre, sous-titre et liste à puces, par une barre de commandes
+  sous le bouton **B** de l'éditeur. Le balisage voyage dans le texte
+  (`**gras**`, `# titre`, `- puce`), donc rien ne change ni pour le coffre, ni
+  pour la recherche, ni pour l'export vers l'agenda. ([#3])
+- Les liens sont cliquables. Une URL écrite au fil du texte est reconnue sans
+  balisage — les notes déjà écrites deviennent donc cliquables sans rien y
+  toucher — et `[libellé](adresse)` pose un lien nommé. Un bouton bascule
+  l'éditeur entre écriture et lecture ; c'est en lecture que les liens s'ouvrent
+  et que la mise en forme se voit. ([#3])
 - Créer un tag depuis l'éditeur de note, sous le bouton tag : il est posé sur la
   note dans la foulée, et prend la teinte la moins servie de la palette. Un nom
   déjà pris pose le tag existant au lieu de refuser. ([#1])
@@ -51,4 +61,5 @@ au fil de l'eau.
 [Non publié]: https://github.com/oschweitzer/cairn/compare/f630263...HEAD
 [#1]: https://github.com/oschweitzer/cairn/issues/1
 [#2]: https://github.com/oschweitzer/cairn/issues/2
+[#3]: https://github.com/oschweitzer/cairn/issues/3
 [#4]: https://github.com/oschweitzer/cairn/issues/4

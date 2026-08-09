@@ -2,7 +2,9 @@ import { Pressable, View } from 'react-native'
 import Feather from '@expo/vector-icons/Feather'
 import { displayTitle, isEmptyNote } from '@/db/noteLogic'
 import type { NoteWithRelations } from '@/db/select'
+import { plainText } from '@/text/markup'
 import { useTheme } from './ThemeProvider'
+import { RichText } from './RichText'
 import { Txt } from './components'
 import { Tooltip } from './Tooltip'
 import { radius, space } from './theme'
@@ -129,10 +131,17 @@ export function NoteCard({
           ) : null}
         </View>
 
+        {/**
+         * L'aperçu est rendu mis en forme, mais ses liens ne s'ouvrent pas.
+         *
+         * Ce n'est pas un oubli : la carte est elle-même un `Pressable`, que
+         * react-native-web rend en `<button>`. Un lien cliquable dedans serait
+         * une ancre dans un bouton, du HTML invalide qui casse l'hydratation de
+         * la PWA — exactement l'écueil documenté plus haut sur le bouton
+         * d'épinglage. Toucher la carte ouvre la note, où le lien s'ouvre.
+         */}
         {note.kind === 'note' && note.body ? (
-          <Txt variant="body" tone="secondary" numberOfLines={8}>
-            {note.body}
-          </Txt>
+          <RichText source={note.body} numberOfLines={8} tone="secondary" />
         ) : null}
 
         {note.kind === 'checklist' ? (
@@ -157,14 +166,12 @@ export function NoteCard({
                     <Feather name="check" size={9} color={theme.text.onAccent} />
                   ) : null}
                 </View>
-                <Txt
-                  variant="body"
-                  tone={item.is_done ? 'muted' : 'secondary'}
+                <RichText
+                  source={item.content}
                   numberOfLines={1}
+                  tone={item.is_done ? 'muted' : 'secondary'}
                   style={[{ flex: 1 }, item.is_done ? { textDecorationLine: 'line-through' } : null]}
-                >
-                  {item.content}
-                </Txt>
+                />
               </View>
             ))}
             {remaining > 0 ? (
@@ -274,7 +281,10 @@ export function estimateCardHeight(note: NoteWithRelations): number {
   if (!heading && isEmptyNote(note)) height += 24
   if (heading) height += Math.min(2, Math.ceil(heading.length / 24)) * 24
   if (note.kind === 'note' && note.body) {
-    height += Math.min(8, Math.ceil(note.body.length / 32)) * 24
+    // Sur le texte sans son balisage : `**gras**` compte quatre caractères de
+    // trop, et une note très marquée se croyait deux fois plus haute qu'elle
+    // n'est, ce qui déséquilibrait les colonnes de la grille.
+    height += Math.min(8, Math.ceil(plainText(note.body).length / 32)) * 24
   }
   if (note.kind === 'checklist') {
     height += Math.min(PREVIEW_ITEMS, note.items.length) * 24
