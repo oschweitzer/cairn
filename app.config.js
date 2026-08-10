@@ -139,11 +139,6 @@ const config = {
   },
 
   plugins: [
-    // Fixe le JDK du démon Gradle à 21 dans le projet Android régénéré. Sans
-    // lui, la compilation locale s'arrête sur `configureCMakeDebug` avec un
-    // message qui ne nomme aucun fichier du projet ; le pourquoi est écrit en
-    // entier dans le plugin.
-    './plugins/withGradleDaemonJvm',
     'expo-router',
     'expo-secure-store',
     'expo-web-browser',
