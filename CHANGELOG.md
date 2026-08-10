@@ -70,6 +70,12 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Fixed
 
+- Text is no longer clipped on Android the first time the app opens. The logo
+  showed as "CAI" with the rune line too short beneath it, and the tab bar read
+  "Not…", "Ta…", "Réglag…". The screen was being laid out before the fonts had
+  loaded, so every text kept a box measured for the system font and was then
+  drawn in a wider one; the app now waits for the fonts before painting, behind
+  the splash screen it was already holding.
 - Changing the tag of a note that already had one works. The old one used to
   come back: tags were replaced wholesale by a delete followed by an insert, and
   two quick gestures interleaved. They are now put on and taken off one at a

@@ -22,6 +22,9 @@ import { radius, space } from '@/ui/theme'
 // L'écran de démarrage reste affiché jusqu'à ce que les polices ET le réglage de
 // thème soient connus. Le masquer plus tôt donnerait un rendu en police système
 // puis un saut typographique, ou un éclair de thème inversé.
+//
+// Le voile ne fait que cacher : c'est `Boot` qui retient le rendu lui-même, et
+// les deux sont nécessaires — voir la condition `canPaint` plus bas.
 void SplashScreen.preventAutoHideAsync()
 
 
@@ -148,6 +151,23 @@ function Boot({ fontsReady }: { fontsReady: boolean }) {
 
   const needsSetup = !isSupabaseConfigured
   const [setupDismissed, setSetupDismissed] = useState(false)
+
+  /**
+   * Rien n'est rendu tant que les polices manquent — pas même sous le voile.
+   *
+   * Retenir l'écran de démarrage ne suffisait pas : il cache le premier rendu,
+   * il ne l'empêche pas. L'arbre était donc mesuré en police système, et Android
+   * garde cette mesure quand la vraie police arrive ensuite. Chaque texte se
+   * retrouvait peint dans une boîte taillée pour un autre dessin : le logotype,
+   * mesuré à 71 points puis tracé en Viking qui en demande 107, se coupait après
+   * « CAI » — le reste passait à une seconde ligne, hors de la hauteur réservée,
+   * donc invisible — et les libellés d'onglets s'abrégeaient en « Not… ».
+   *
+   * Sur le web la condition est déjà vraie au premier rendu — les règles
+   * @font-face sortent de l'export statique et le réglage de thème s'y lit de
+   * façon synchrone — donc l'hydratation voit le même arbre des deux côtés.
+   */
+  if (!canPaint) return <View style={{ flex: 1, backgroundColor: theme.surface.page }} />
 
   /**
    * L'ordre des deux éléments de configuration n'est pas interchangeable, et
