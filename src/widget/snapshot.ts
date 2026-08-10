@@ -55,8 +55,24 @@ export type WidgetSnapshot = {
 /** Beyond this, the widget's list becomes a heavy file for no gain. */
 const MAX_NOTES = 60
 
-/** Preview length: two lines on a wide widget, hardly more. */
-const PREVIEW = 120
+/**
+ * Body preview length, in characters.
+ *
+ * Generous rather than tuned: how many lines the widget can actually give a row
+ * depends on its height and on how many notes survive the filter, and only the
+ * widget knows that. This cap is here so a long note does not carry its whole
+ * body into the preferences file — it is not what decides what you see.
+ */
+const PREVIEW = 600
+
+/**
+ * Checklist items carried, at most.
+ *
+ * Counted in items and not in characters, so the widget always receives whole
+ * lines: cutting at 120 characters used to hand it half an item, which it then
+ * had no way to tidy up. Matches the ceiling the row layout allows.
+ */
+const PREVIEW_ITEMS = 12
 
 export function buildSnapshot(
   notes: NoteWithRelations[],
@@ -99,11 +115,16 @@ export function buildSnapshot(
  * what an asterisk is.
  */
 function previewOf(note: NoteWithRelations): string {
-  const source =
-    note.kind === 'checklist'
-      ? note.items.map((item) => `• ${item.content}`).join('\n')
-      : (note.body ?? '')
+  if (note.kind === 'checklist') {
+    // Item by item rather than on the joined block: the bullets are ours, and
+    // running them through the markup stripper alongside the text invited it to
+    // read them as list syntax of its own.
+    return note.items
+      .slice(0, PREVIEW_ITEMS)
+      .map((item) => `• ${plainText(item.content).trim()}`)
+      .join('\n')
+  }
 
-  const text = plainText(source).trim()
+  const text = plainText(note.body ?? '').trim()
   return text.length > PREVIEW ? `${text.slice(0, PREVIEW).trimEnd()}…` : text
 }

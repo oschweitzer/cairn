@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!--
+    From Android 12 the launcher clips the widget to a corner radius of its own,
+    and that radius is not ours to choose. Keeping the 6dp of the theme meant
+    painting a nearly square corner inside a much rounder mask: the mask cut the
+    hairline border away at each corner and let the wallpaper through where it
+    should have been, which read as a corner in the wrong colour.
+
+    So above 12 the background borrows the system's figure and the two curves
+    coincide again. The chisel-cut corner survives where nothing overrides it —
+    below 12, and on every surface inside the widget.
+  -->
+  <dimen name="cairn_widget_radius">@android:dimen/system_app_widget_background_radius</dimen>
+</resources>

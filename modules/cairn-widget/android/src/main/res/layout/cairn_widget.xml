@@ -87,13 +87,19 @@
     android:contentDescription="@null"
     android:background="@color/cairn_line_hairline" />
 
+  <!--
+    The divider carries both the seam and the spacing between notes: a drawable
+    whose 9dp is one hairline with 4dp of air on each side. A `ListView` draws it
+    between rows and not after the last one, which is exactly the rhythm wanted —
+    notes separated, nothing dangling at the end of the list.
+  -->
   <ListView
     android:id="@+id/cairn_widget_list"
     android:layout_width="match_parent"
     android:layout_height="0dp"
     android:layout_weight="1"
-    android:divider="@null"
-    android:dividerHeight="0dp"
+    android:divider="@drawable/cairn_widget_divider"
+    android:dividerHeight="9dp"
     android:scrollbars="none" />
 
   <TextView

@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.widget.RemoteViews
 
 /**
@@ -28,6 +29,25 @@ class CairnWidgetProvider : AppWidgetProvider() {
 
   override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
     renderAll(context, manager, ids)
+  }
+
+  /**
+   * A resized widget has to share its height out again.
+   *
+   * The number of preview lines a row may take is computed from the widget's
+   * size, and the factory only recomputes it when it is told the data changed.
+   * Without this, a widget stretched down the screen would keep the cramped rows
+   * of the size it was placed at until something else happened to the notes.
+   */
+  override fun onAppWidgetOptionsChanged(
+    context: Context,
+    manager: AppWidgetManager,
+    widgetId: Int,
+    newOptions: Bundle,
+  ) {
+    super.onAppWidgetOptionsChanged(context, manager, widgetId, newOptions)
+    manager.notifyAppWidgetViewDataChanged(widgetId, R.id.cairn_widget_list)
+    renderAll(context, manager, intArrayOf(widgetId))
   }
 
   override fun onDeleted(context: Context, ids: IntArray) {

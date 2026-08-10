@@ -70,6 +70,17 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Fixed
 
+- Widget: a note's preview now uses the room the widget actually has. It was
+  held to two lines whatever happened, so filtering down to a single list showed
+  two of its items with the rest of the widget empty below. The height left under
+  the header is now shared between the notes on show, and a resized widget shares
+  it out again.
+- Widget: notes are separated by a seam with air around it, instead of sitting
+  flush against one another.
+- Widget: the rounded corners no longer clash with the border. From Android 12
+  the launcher masks the widget with a corner radius of its own, which cut the
+  border away at each corner and let the wallpaper through; the background now
+  follows that radius, and keeps the chisel-cut 6 points below Android 12.
 - Text is no longer clipped on Android the first time the app opens. The logo
   showed as "CAI" with the rune line too short beneath it, and the tab bar read
   "Not…", "Ta…", "Réglag…". The screen was being laid out before the fonts had

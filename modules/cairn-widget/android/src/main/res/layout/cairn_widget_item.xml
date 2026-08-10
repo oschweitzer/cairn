@@ -43,12 +43,25 @@
       android:textSize="15sp"
       android:textColor="@color/cairn_text_primary" />
 
+    <!--
+      `maxLines` is a ceiling here, not the setting: how many lines a row may
+      actually take is worked out by the factory, from the widget's height and
+      the number of notes the filter leaves, and it cuts the text to match.
+
+      It is not done the other way round — computing the number and pushing it
+      with `setInt(…, "setMaxLines", n)` — because a `RemoteViews` refuses any
+      method that is not annotated `@RemotableViewMethod`, and refuses it when
+      the launcher applies the view: the widget reads "couldn't load", far from
+      the line that caused it. Cutting the text needs no such permission.
+
+      Keep this in step with `MAX_PREVIEW_LINES` in CairnWidgetService.kt.
+    -->
     <TextView
       android:id="@+id/cairn_item_preview"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
       android:layout_marginTop="2dp"
-      android:maxLines="2"
+      android:maxLines="12"
       android:ellipsize="end"
       android:textSize="13sp"
       android:textColor="@color/cairn_text_secondary" />

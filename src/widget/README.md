@@ -40,6 +40,31 @@ same bar costs one line's height.
 It does not scroll: it is a sibling of the `ListView`, not its first row.
 Slipped into the list, it would disappear upwards on the first scroll.
 
+## How tall a row is
+
+A `RemoteViews` cannot measure anything: the rows are built in the app's process
+and drawn in the launcher's, and nothing comes back. A row therefore used to show
+two preview lines whatever the circumstances, so filtering down to a single list
+showed two of its items with the rest of the widget empty underneath.
+
+Two figures are enough to do better, and both are known: the widget's size, which
+the launcher keeps in its options, and how many notes survive the filter. The
+height left under the header — dividers deducted — is shared between the rows,
+and each is told how many preview lines it may spend, floored at two and capped
+at what the row layout allows.
+
+The factory then cuts the text itself. It is not done by pushing the computed
+number with `setInt(…, "setMaxLines", n)`: a `RemoteViews` refuses any method not
+annotated `@RemotableViewMethod`, and refuses it when the launcher applies the
+view — the widget reads "couldn't load", a long way from the line responsible.
+
+A checklist is cut on its line breaks, exactly. A free-text note has no line
+breaks to count, and where a paragraph wraps is the launcher's business, so its
+length is estimated from the widget's width. Too low and the note says a little
+less than it could; too high and its row runs past its share and the list
+scrolls. The geometry behind these figures is written down beside them in
+`CairnWidgetService.kt`, keyed to the layouts it is read from.
+
 ## The tag filter
 
 One tap cycles: all tags → first tag → … → all tags. The current filter's name

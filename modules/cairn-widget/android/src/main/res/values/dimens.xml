@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!--
+    The widget's corner, below Android 12.
+
+    Six points, the theme's `radius.lg`: the stone is chisel-cut, not rolled
+    smooth by a river. Here nothing masks the widget, so this radius is the one
+    seen — see values-v31 for what happens when the system has its own opinion.
+  -->
+  <dimen name="cairn_widget_radius">6dp</dimen>
+</resources>

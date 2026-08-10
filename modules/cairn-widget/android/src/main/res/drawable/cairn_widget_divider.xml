@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The seam between two notes, and the air around it.
+
+  The line is 1dp; the rest of the divider's height is the inset above and below
+  it, which is where the spacing between rows comes from. Doing it here rather
+  than with row padding keeps the gap *between* notes only: padding would also
+  push the first note away from the header and leave a hole under the last one.
+
+  Keep the total in step with `DIVIDER_DP` in CairnWidgetService.kt, which takes
+  it out of the height before sharing what is left between the rows.
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+  android:insetTop="4dp"
+  android:insetBottom="4dp">
+  <shape android:shape="rectangle">
+    <size android:height="1dp" />
+    <solid android:color="@color/cairn_line_hairline" />
+  </shape>
+</inset>
