@@ -34,6 +34,7 @@ import type { Note, PlainChecklistItem, Tag } from '../src/db/types'
 import {
   applyFormat,
   insertLink,
+  linkAt,
   normalizeHref,
   parseMarkup,
   plainText,
@@ -1132,4 +1133,61 @@ test('the cache survives the round trip to storage', async () => {
     { id: 'n1', title: 'kept' },
   ])
   assert.equal(restored.getQueryData([QUERY_ROOT, 'volatile', 'private-notes']), undefined)
+})
+
+// ------------------------------------------- the link under the caret
+
+test('the caret inside a bare address finds it', () => {
+  const texte = 'Voir https://example.com/page pour la suite.'
+  const debut = texte.indexOf('https://')
+  for (const caret of [debut, debut + 8, debut + 'https://example.com/page'.length]) {
+    assert.equal(linkAt(texte, caret)?.href, 'https://example.com/page')
+  }
+})
+
+test('the caret outside every address finds nothing', () => {
+  const texte = 'Voir https://example.com/page pour la suite.'
+  assert.equal(linkAt(texte, 0), null)
+  assert.equal(linkAt(texte, 4), null)
+  assert.equal(linkAt(texte, texte.length), null)
+  assert.equal(linkAt('rien du tout', 5), null)
+  assert.equal(linkAt('', 0), null)
+})
+
+test('an address without a protocol is completed', () => {
+  assert.equal(linkAt('www.lemonde.fr', 3)?.href, 'https://www.lemonde.fr')
+})
+
+test('the caret in the label of a named link finds the address', () => {
+  const texte = 'Un lien [le site](https://example.com) ici.'
+  const surLibelle = texte.indexOf('le site') + 2
+  const surAdresse = texte.indexOf('https://') + 4
+  assert.equal(linkAt(texte, surLibelle)?.href, 'https://example.com')
+  assert.equal(linkAt(texte, surAdresse)?.href, 'https://example.com')
+})
+
+test('the range covers the whole named link, marks included', () => {
+  const texte = 'Un lien [le site](https://example.com) ici.'
+  const trouve = linkAt(texte, texte.indexOf('le site'))!
+  assert.equal(texte.slice(trouve.start, trouve.end), '[le site](https://example.com)')
+})
+
+test('the second of two addresses is found too', () => {
+  const texte = 'https://un.example.com et https://deux.example.com'
+  assert.equal(linkAt(texte, 5)?.href, 'https://un.example.com')
+  assert.equal(linkAt(texte, texte.indexOf('deux') + 2)?.href, 'https://deux.example.com')
+  // Between the two, on the word "et", there is no link.
+  assert.equal(linkAt(texte, texte.indexOf(' et ') + 2), null)
+})
+
+test('trailing punctuation stays out of the address', () => {
+  const texte = 'Voir https://example.com, puis autre chose'
+  assert.equal(linkAt(texte, 10)?.href, 'https://example.com')
+  assert.equal(linkAt(texte, texte.indexOf('puis') + 1), null)
+})
+
+test('an address on a later line is found at its own offset', () => {
+  const texte = 'Première ligne\n- puce\nhttps://example.com'
+  assert.equal(linkAt(texte, texte.indexOf('https://') + 3)?.href, 'https://example.com')
+  assert.equal(linkAt(texte, 3), null)
 })

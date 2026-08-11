@@ -9,6 +9,12 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Added
 
+- Open a link without leaving the writing view. When the caret is inside an
+  address — in the body or in a checklist item — a bar appears above the
+  toolbar: **Ouvrir**, followed by the address. One tap opens it in a new tab.
+  On a computer, Cmd or Ctrl and a click on the address does the same. The
+  address itself still cannot be underlined while you write: a text field holds
+  plain text, and nothing else. ([#32])
 - Android widget: your notes and lists on the home screen, with the create
   buttons pinned along the top and a tag filter. Touching a note opens it. The
   widget reads a local copy written by the app, so it shows up offline and
@@ -155,3 +161,4 @@ work happened.
 [#21]: https://github.com/oschweitzer/cairn/issues/21
 [#24]: https://github.com/oschweitzer/cairn/issues/24
 [#27]: https://github.com/oschweitzer/cairn/issues/27
+[#32]: https://github.com/oschweitzer/cairn/issues/32

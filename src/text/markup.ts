@@ -383,3 +383,59 @@ export function insertLink(text: string, selection: Selection): Edit {
     },
   }
 }
+
+/** A link found in the raw text, and the range it occupies there. */
+export type FoundLink = {
+  href: string
+  /** Offsets into the raw text, marks included. */
+  start: number
+  end: number
+}
+
+/**
+ * The link the caret sits in, or `null`.
+ *
+ * This is what lets an address be opened from the editing field, where a real
+ * hyperlink cannot exist: `react-native-web` renders a multiline `TextInput` as
+ * a `<textarea>`, which holds plain text and nothing else. So instead of making
+ * the text clickable, we ask where the caret is and offer the address it stands
+ * in.
+ *
+ * The scan walks the raw text rather than the parsed blocks, because the caret
+ * is an offset into the raw text — marks and all. A named link is taken whole,
+ * `[label](address)` from bracket to parenthesis: the caret inside the label is
+ * inside the link, which is what someone clicking on the words expects.
+ *
+ * The end is inclusive. A caret just past the last character of an address is
+ * still in it — that is where it lands when you click at the end of a word, and
+ * refusing it there would read as the feature flickering.
+ */
+export function linkAt(text: string, caret: number): FoundLink | null {
+  let at = 0
+
+  while (at <= text.length) {
+    const rest = text.slice(at)
+    const named = NAMED_LINK.exec(rest)
+    const bare = BARE_LINK.exec(rest)
+
+    let found: { index: number; length: number; href: string } | null = null
+    if (named) {
+      found = { index: named.index, length: named[0].length, href: normalizeHref(named[2]) }
+    }
+    // A bare address also matches inside `[label](address)`, but always later
+    // than the bracket, so the named link wins and the whole of it is skipped.
+    if (bare && (!found || bare.index < found.index)) {
+      found = { index: bare.index, length: bare[0].length, href: normalizeHref(bare[0]) }
+    }
+    if (!found) return null
+
+    const start = at + found.index
+    const end = start + found.length
+    // Nothing between here and the next link, so the caret is in none of them.
+    if (caret < start) return null
+    if (caret <= end) return { href: found.href, start, end }
+    at = end
+  }
+
+  return null
+}

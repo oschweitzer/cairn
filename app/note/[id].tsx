@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Pressable, ScrollView, TextInput, View } from 'react-native'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Linking, Platform, Pressable, ScrollView, TextInput, View } from 'react-native'
 import Animated from 'react-native-reanimated'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -20,7 +20,7 @@ import {
 import { colorAfterTagChange, findTagNamed, isEmptyNote, nextTagColor } from '@/db/noteLogic'
 import type { Tag } from '@/db/types'
 import { useNote } from '@/db/select'
-import { applyFormat, insertLink, type Format, type Selection } from '@/text/markup'
+import { applyFormat, insertLink, linkAt, type Format, type Selection } from '@/text/markup'
 import { useVault } from '@/vault/VaultProvider'
 import { useTheme } from '@/ui/ThemeProvider'
 import { Button, Card, Seam, Txt, noWebOutline } from '@/ui/components'
@@ -52,6 +52,64 @@ type Cible = { kind: 'body' } | { kind: 'item'; id: string }
 function memeChamp(a: Cible | null, b: Cible): boolean {
   if (!a || a.kind !== b.kind) return false
   return a.kind === 'body' || a.id === (b as { id: string }).id
+}
+
+/** Un champ de saisie vu depuis le web, où la référence est le nœud DOM. */
+type ChampWeb = HTMLTextAreaElement | HTMLInputElement
+
+const ECOUTEURS = new WeakMap<ChampWeb, EventListener>()
+
+/** Le nœud DOM derrière un champ, sur le web uniquement. */
+function champWeb(champ: TextInput | null): ChampWeb | null {
+  if (Platform.OS !== 'web' || !champ) return null
+  const noeud = champ as unknown as ChampWeb
+  return typeof noeud.addEventListener === 'function' ? noeud : null
+}
+
+/**
+ * Fait qu'un Cmd ou Ctrl + clic sur une adresse, dans le champ, l'ouvre.
+ *
+ * Le web seulement, et par un écouteur DOM plutôt que par une propriété de
+ * `TextInput`, qui n'expose pas le clic. Il n'y a pas de voie plus propre : un
+ * champ multiligne devient un `textarea`, et un `textarea` ne contient que du
+ * texte nu — ni ancre, ni fragment stylé. On lit donc où le navigateur vient de
+ * poser le curseur, et on cherche l'adresse à cet endroit.
+ *
+ * Aucun équivalent par appui long sur Android : ce geste appartient au menu de
+ * sélection du système dans un champ de texte, et le lui reprendre coûterait le
+ * copier-coller. La barre « Ouvrir » sert là, et sert partout.
+ */
+function poseOuvreLien(champ: TextInput | null) {
+  const el = champWeb(champ)
+  if (!el || ECOUTEURS.has(el)) return
+  // `EventListener` et non `(e: MouseEvent) => void` : sur une union de
+  // types d'éléments, TypeScript ne choisit plus la surcharge typée de
+  // `addEventListener`. Le rétrécissement se fait donc ici, une fois.
+  const surClic: EventListener = (evenement) => {
+    const e = evenement as MouseEvent
+    // Cmd sur macOS, Ctrl ailleurs. Les deux sont acceptés parce qu'ils ne se
+    // marchent pas dessus : sur macOS, Ctrl + clic *est* un clic droit, qui émet
+    // `mousedown` puis `contextmenu` sans jamais émettre `click`. La branche
+    // `ctrlKey` n'y est donc jamais atteinte, et n'y vole aucun menu. Constaté
+    // dans un navigateur, pas supposé.
+    if (!e.metaKey && !e.ctrlKey) return
+    const lien = linkAt(el.value ?? '', el.selectionStart ?? 0)
+    if (!lien) return
+    // Le clic a déjà posé le curseur, ce qui est bien ce qu'on veut ; on lui
+    // retire seulement la suite, pour que rien d'autre ne réagisse.
+    e.preventDefault()
+    void Linking.openURL(lien.href)
+  }
+  el.addEventListener('click', surClic)
+  ECOUTEURS.set(el, surClic)
+}
+
+function retireOuvreLien(champ: TextInput | null) {
+  const el = champWeb(champ)
+  const surClic = el ? ECOUTEURS.get(el) : undefined
+  if (!el || !surClic) return
+  el.removeEventListener('click', surClic)
+  ECOUTEURS.delete(el)
 }
 
 export default function NoteEditor() {
@@ -360,6 +418,22 @@ export default function NoteEditor() {
   }, [texteCible, selection, ecrire])
 
   /**
+   * L'adresse dans laquelle se trouve le curseur, s'il y en a une.
+   *
+   * C'est ce qui remplace le lien cliquable pendant l'écriture, faute de pouvoir
+   * en poser un dans un champ de saisie. La barre n'apparaît donc que lorsqu'elle
+   * a quelque chose à ouvrir, et se retire dès que le curseur en sort — elle ne
+   * demande pas à être cherchée, elle se présente au bon moment.
+   *
+   * Rien en lecture : les liens y sont déjà cliquables, et une barre de plus n'y
+   * dirait que ce qui est sous les yeux.
+   */
+  const lienSousCurseur = useMemo(
+    () => (reading ? null : linkAt(texteCible() ?? '', selection.start)),
+    [reading, texteCible, selection.start],
+  )
+
+  /**
    * Gestionnaires communs à tout champ que la barre peut mettre en forme.
    *
    * `onSelectionChange` sert deux fins : suivre ce qui est sélectionné, et
@@ -369,7 +443,10 @@ export default function NoteEditor() {
   const champFormatable = useCallback(
     (pour: Cible) => ({
       ref: (champ: TextInput | null) => {
-        champs.set(cleChamp(pour), champ)
+        const cle = cleChamp(pour)
+        retireOuvreLien(champs.get(cle) ?? null)
+        champs.set(cle, champ)
+        poseOuvreLien(champ)
       },
       onFocus: () => setCible(pour),
       selection: selectionImposee && memeChamp(cible, pour) ? selectionImposee : undefined,
@@ -1130,6 +1207,46 @@ export default function NoteEditor() {
               noteProtegee={note.is_private || note.is_encrypted}
               onFerme={() => setPanel('none')}
             />
+          </Animated.View>
+        ) : null}
+
+        {/* L'adresse sous le curseur, offerte à l'ouverture. Elle se pose juste
+            au-dessus de la barre basse, donc près du pouce sur un téléphone, et
+            au-dessus des panneaux pour ne pas sauter quand l'un d'eux s'ouvre. */}
+        {lienSousCurseur ? (
+          <Animated.View
+            entering={appear}
+            exiting={vanish}
+            style={{ paddingHorizontal: space.sm, paddingTop: space.xs }}
+          >
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`Ouvrir ${lienSousCurseur.href}`}
+              accessibilityHint="Ouvre l’adresse dans un nouvel onglet"
+              onPress={() => {
+                void Linking.openURL(lienSousCurseur.href)
+              }}
+              style={({ pressed }) => [
+                {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: space.sm,
+                  paddingHorizontal: space.sm,
+                  paddingVertical: space.xs,
+                  borderRadius: radius.md,
+                  backgroundColor: theme.surface.raised,
+                  opacity: pressed ? 0.7 : 1,
+                },
+                noWebOutline,
+              ]}
+            >
+              <Feather name="external-link" size={14} color={theme.accent.default} />
+              {/* Une seule ligne, tronquée : une adresse longue ne doit pas
+                  repousser l'éditeur vers le haut à chaque fois qu'on la frôle. */}
+              <Txt variant="caption" tone="secondary" numberOfLines={1} style={{ flex: 1 }}>
+                Ouvrir {lienSousCurseur.href}
+              </Txt>
+            </Pressable>
           </Animated.View>
         ) : null}
 
