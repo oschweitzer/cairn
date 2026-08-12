@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Pressable, ScrollView, View } from 'react-native'
-import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Feather from '@expo/vector-icons/Feather'
 import { usePurgeNote, usePurgeNotes, useRestoreNote } from '@/db/queries'
 import { useTrashedNoteList } from '@/db/select'
+import { useGoBack } from '@/nav/back'
 import { useTheme } from '@/ui/ThemeProvider'
 import { Card, Inscription, Seam, Txt } from '@/ui/components'
 import { IconButton } from '@/ui/IconButton'
@@ -21,7 +21,7 @@ import { radius, space } from '@/ui/theme'
 export default function Trash() {
   const { theme } = useTheme()
   const insets = useSafeAreaInsets()
-  const router = useRouter()
+  const goBack = useGoBack()
 
   const { notes, isLoading } = useTrashedNoteList()
   const restore = useRestoreNote()
@@ -34,7 +34,7 @@ export default function Trash() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface.page, paddingTop: insets.top }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.sm }}>
-        <IconButton icon="arrow-left" label="Retour" onPress={() => router.back()} />
+        <IconButton icon="arrow-left" label="Retour" onPress={() => goBack()} />
       </View>
 
       <ScrollView

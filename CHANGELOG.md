@@ -83,6 +83,11 @@ and the project follows [semantic versioning](https://semver.org/).
   released, on leaving the vault screen and when a press runs into it. And when
   the sensor really is busy, the screen says so instead of looking broken.
   ([#35])
+- The back arrow leads somewhere when a note was opened from the home-screen
+  widget. It led nowhere at all: a widget opens the note directly, so there was
+  no screen behind it to return to. It now goes to the grid. The same held for
+  the widget's two create buttons, and for a note opened from a Google Calendar
+  event — both are fixed by the same change, on the web as on Android. ([#34])
 - The app opens on the notes it had already loaded, instead of starting from an
   empty grid every time. The saved cache was being thrown away at every startup:
   a request still in flight could be written down along with it, and what was
@@ -169,4 +174,5 @@ work happened.
 [#24]: https://github.com/oschweitzer/cairn/issues/24
 [#27]: https://github.com/oschweitzer/cairn/issues/27
 [#32]: https://github.com/oschweitzer/cairn/issues/32
+[#34]: https://github.com/oschweitzer/cairn/issues/34
 [#35]: https://github.com/oschweitzer/cairn/issues/35

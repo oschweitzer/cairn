@@ -21,6 +21,7 @@ import { colorAfterTagChange, findTagNamed, isEmptyNote, nextTagColor } from '@/
 import type { Tag } from '@/db/types'
 import { useNote } from '@/db/select'
 import { applyFormat, insertLink, linkAt, type Format, type Selection } from '@/text/markup'
+import { useGoBack } from '@/nav/back'
 import { useVault } from '@/vault/VaultProvider'
 import { useTheme } from '@/ui/ThemeProvider'
 import { Button, Card, Seam, Txt, noWebOutline } from '@/ui/components'
@@ -115,6 +116,7 @@ function retireOuvreLien(champ: TextInput | null) {
 export default function NoteEditor() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
+  const goBack = useGoBack()
   const { theme } = useTheme()
   const insets = useSafeAreaInsets()
 
@@ -483,7 +485,7 @@ export default function NoteEditor() {
        */
       if (isEmptyNote({ ...note, title: nextTitle, body: nextBody, code_name: nextCodeName })) {
         purgeNote.mutate(note.id)
-        router.back()
+        goBack()
         return
       }
 
@@ -496,14 +498,14 @@ export default function NoteEditor() {
         })
       }
     }
-    router.back()
+    goBack()
   }, [note, title, body, codeName, updateNote, purgeNote, router, encrypted])
 
   if (!note) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.surface.page, paddingTop: insets.top }}>
         <View style={{ padding: space.lg, gap: space.md }}>
-          <IconButton icon="arrow-left" label="Retour" onPress={() => router.back()} />
+          <IconButton icon="arrow-left" label="Retour" onPress={() => goBack()} />
           {/**
            * Trois raisons très différentes de ne pas trouver la note, et il faut
            * les distinguer.
@@ -783,7 +785,7 @@ export default function NoteEditor() {
           active={note.is_archived}
           onPress={() => {
             updateNote.mutate({ id: note.id, patch: { is_archived: !note.is_archived } })
-            router.back()
+            goBack()
           }}
         />
         <IconButton
@@ -792,7 +794,7 @@ export default function NoteEditor() {
           tone="danger"
           onPress={() => {
             trashNote.mutate(note.id)
-            router.back()
+            goBack()
           }}
         />
       </View>

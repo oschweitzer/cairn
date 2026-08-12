@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Feather from '@expo/vector-icons/Feather'
 import { useUpdateNote } from '@/db/queries'
 import { useNoteList } from '@/db/select'
+import { useGoBack } from '@/nav/back'
 import { useTheme } from '@/ui/ThemeProvider'
 import { Card, Inscription, Txt } from '@/ui/components'
 import { IconButton } from '@/ui/IconButton'
@@ -16,6 +17,7 @@ export default function Archive() {
   const { theme } = useTheme()
   const insets = useSafeAreaInsets()
   const router = useRouter()
+  const goBack = useGoBack()
 
   const { notes, isLoading } = useNoteList({ view: 'archived' })
   const updateNote = useUpdateNote()
@@ -23,7 +25,7 @@ export default function Archive() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface.page, paddingTop: insets.top }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.sm }}>
-        <IconButton icon="arrow-left" label="Retour" onPress={() => router.back()} />
+        <IconButton icon="arrow-left" label="Retour" onPress={() => goBack()} />
       </View>
 
       <ScrollView
