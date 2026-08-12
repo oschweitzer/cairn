@@ -76,6 +76,13 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Fixed
 
+- The fingerprint button works again once the vault has closed. It had gone
+  silent — no prompt, no message, nothing — and only a restart brought it back;
+  an interrupted request kept hold of the sensor for the whole app, and every
+  press after that returned instantly without showing anything. The hold is now
+  released, on leaving the vault screen and when a press runs into it. And when
+  the sensor really is busy, the screen says so instead of looking broken.
+  ([#35])
 - The app opens on the notes it had already loaded, instead of starting from an
   empty grid every time. The saved cache was being thrown away at every startup:
   a request still in flight could be written down along with it, and what was
@@ -162,3 +169,4 @@ work happened.
 [#24]: https://github.com/oschweitzer/cairn/issues/24
 [#27]: https://github.com/oschweitzer/cairn/issues/27
 [#32]: https://github.com/oschweitzer/cairn/issues/32
+[#35]: https://github.com/oschweitzer/cairn/issues/35

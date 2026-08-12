@@ -7,7 +7,7 @@ import Feather from '@expo/vector-icons/Feather'
 import { useCreateNote, useSetNotePrivate, useUpdateNote } from '@/db/queries'
 import { usePrivateNoteList } from '@/db/select'
 import type { NoteKind } from '@/db/types'
-import { useVault } from '@/vault/VaultProvider'
+import { useVault, type BiometricUnlock } from '@/vault/VaultProvider'
 import { PIN_MIN_LENGTH } from '@/vault/secret'
 import { useTheme } from '@/ui/ThemeProvider'
 import { Button, Card, Inscription, Txt } from '@/ui/components'
@@ -256,9 +256,32 @@ function Setup({ pendingNote }: { pendingNote: boolean }) {
 
 // ------------------------------------------------------------------- fermé
 
+/**
+ * Ce qu'il y a à dire d'une demande d'empreinte, ou rien.
+ *
+ * Un refus ne dit rien : l'utilisateur vient d'annuler, ou le système lui a
+ * déjà signalé que le doigt n'était pas reconnu. Répéter par-dessus n'ajoute
+ * qu'un reproche.
+ *
+ * Un capteur occupé, si : là, aucune invite n'est apparue, et sans un mot
+ * l'écran est un bouton qui ne fait rien. La demande vient d'être rendue, donc
+ * la suivante a des chances d'aboutir — d'où l'invitation à réessayer plutôt
+ * qu'un renvoi au pavé.
+ */
+function messagePourEmpreinte(issue: BiometricUnlock): string | null {
+  return issue === 'busy' ? 'Le capteur était occupé. Réessayer, ou saisir le code.' : null
+}
+
 function Locked({ pendingNote }: { pendingNote: boolean }) {
-  const { unlockWithPin, unlockWithBiometrics, biometricsEnabled, biometrics, coolingMs, failures } =
-    useVault()
+  const {
+    unlockWithPin,
+    unlockWithBiometrics,
+    cancelBiometrics,
+    biometricsEnabled,
+    biometrics,
+    coolingMs,
+    failures,
+  } = useVault()
   const { theme } = useTheme()
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -272,12 +295,20 @@ function Locked({ pendingNote }: { pendingNote: boolean }) {
   // Une seule tentative automatique par montage, d'où le drapeau : sans lui,
   // annuler la demande système la ferait réapparaître aussitôt, et il
   // deviendrait impossible d'atteindre le pavé.
+  const demanderEmpreinte = useCallback(async () => {
+    setError(messagePourEmpreinte(await unlockWithBiometrics()))
+  }, [unlockWithBiometrics])
+
   const promptedRef = useRef(false)
   useEffect(() => {
     if (promptedRef.current || !biometricsEnabled || biometrics !== 'ready' || cooling) return
     promptedRef.current = true
-    void unlockWithBiometrics()
-  }, [biometricsEnabled, biometrics, cooling, unlockWithBiometrics])
+    void demanderEmpreinte()
+  }, [biometricsEnabled, biometrics, cooling, demanderEmpreinte])
+
+  // Une invite quittée sans réponse garde le capteur pour toute l'application.
+  // La rendre en sortant est ce qui évite que la prochaine parte dans le vide.
+  useEffect(() => () => void cancelBiometrics(), [cancelBiometrics])
 
   const submit = useCallback(async () => {
     const result = await unlockWithPin(pin)
@@ -324,7 +355,7 @@ function Locked({ pendingNote }: { pendingNote: boolean }) {
         <Button
           label="Utiliser l’empreinte"
           variant="ghost"
-          onPress={() => void unlockWithBiometrics()}
+          onPress={() => void demanderEmpreinte()}
         />
       ) : null}
     </ScrollView>

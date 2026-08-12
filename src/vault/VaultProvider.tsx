@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { AppState, Platform } from 'react-native'
 import * as LocalAuthentication from 'expo-local-authentication'
 import { bytesToHex, hexToBytes } from '@noble/ciphers/utils.js'
@@ -52,6 +52,17 @@ import {
 
 const AUTO_LOCK_MS = 5 * 60_000
 
+/** What a request for a fingerprint came to. */
+export type BiometricUnlock =
+  /** The vault is open. */
+  | 'unlocked'
+  /** Cancelled or not recognised. The pad is the way through. */
+  | 'refused'
+  /** The sensor is held by a request that never finished. */
+  | 'busy'
+  /** No sensor, nothing enrolled, or biometrics not turned on for this vault. */
+  | 'unavailable'
+
 export type BiometricSupport =
   /** Matériel présent et au moins une empreinte ou un visage enregistré. */
   | 'ready'
@@ -93,7 +104,12 @@ type VaultContextValue = {
   failures: number
   configure: (pin: string, useBiometrics: boolean) => Promise<void>
   unlockWithPin: (pin: string) => Promise<{ ok: boolean; waitMs: number }>
-  unlockWithBiometrics: () => Promise<boolean>
+  unlockWithBiometrics: () => Promise<BiometricUnlock>
+  /**
+   * Abandonne une invite laissée en plan, pour qu'elle ne bloque pas la
+   * suivante. À appeler en quittant l'écran qui l'a demandée.
+   */
+  cancelBiometrics: () => Promise<void>
   /**
    * Confirme que c'est bien le propriétaire de l'appareil, sans ouvrir le
    * coffre. Sert à garder les gestes qui désarment le coffre lui-même.
@@ -155,6 +171,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [unlocked, setUnlocked] = useState(false)
   const [biometrics, setBiometrics] = useState<BiometricSupport>('unavailable')
   const [coolingMs, setCoolingMs] = useState(0)
+
+  /**
+   * Une demande d'empreinte est en cours.
+   *
+   * Une référence et non un état : la valeur sert à décider dans l'instant, et
+   * un rendu de plus ne changerait rien à ce qui est affiché.
+   */
+  const demandeEnCours = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -311,20 +335,61 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
    * à sa place : le code reste le moyen de secours quand le capteur refuse, et
    * c'est lui qui a servi à créer le secret.
    */
-  const unlockWithBiometrics = useCallback(async () => {
-    if (Platform.OS === 'web' || !secret?.biometrics || biometrics !== 'ready') return false
-    const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Ouvrir le coffre',
-      cancelLabel: 'Utiliser le code',
-      // Le repli système proposerait le code de déverrouillage de l'appareil,
-      // qui n'est pas celui du coffre. Deux codes différents dans le même geste
-      // est une confusion garantie.
-      disableDeviceFallback: true,
-    })
-    if (!result.success) return false
-    setUnlocked(true)
-    return true
+  const unlockWithBiometrics = useCallback(async (): Promise<BiometricUnlock> => {
+    if (Platform.OS === 'web' || !secret?.biometrics || biometrics !== 'ready') return 'unavailable'
+    // Deux demandes à la fois ne donnent pas deux invites : la seconde repart
+    // aussitôt, et laisse le module dans un état dont il ne revient pas. La
+    // barrière est ici parce que l'écran fermé en lance une au montage, pendant
+    // que le bouton reste sous le doigt.
+    if (demandeEnCours.current) return 'busy'
+    demandeEnCours.current = true
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Ouvrir le coffre',
+        cancelLabel: 'Utiliser le code',
+        // Le repli système proposerait le code de déverrouillage de l'appareil,
+        // qui n'est pas celui du coffre. Deux codes différents dans le même geste
+        // est une confusion garantie.
+        disableDeviceFallback: true,
+      })
+      if (result.success) {
+        setUnlocked(true)
+        return 'unlocked'
+      }
+      /**
+       * `app_cancel` sans qu'aucune invite ne soit apparue veut dire que le
+       * module se croit encore occupé par une demande précédente : il garde un
+       * seul drapeau, et répond sans rien afficher tant qu'il le croit levé
+       * (`LocalAuthenticationModule.kt`, `if (isAuthenticating)`). Rien ne le
+       * rabaisse tout seul — d'où un bouton qui ne fait plus rien, en silence et
+       * jusqu'au redémarrage.
+       *
+       * L'annulation explicite est ce qui le rabaisse. On ne réessaie pas dans
+       * la foulée : la demande suivante doit venir de l'utilisateur, sinon une
+       * invite surgirait sans qu'il l'ait demandée.
+       */
+      if (result.error === 'app_cancel') {
+        await LocalAuthentication.cancelAuthenticate()
+        return 'busy'
+      }
+      return 'refused'
+    } finally {
+      demandeEnCours.current = false
+    }
   }, [secret, biometrics])
+
+  /**
+   * Abandonne une invite laissée en plan.
+   *
+   * Le module ne garde qu'un drapeau pour toute l'application : une invite
+   * quittée sans réponse le laisse levé, et toute demande suivante repart
+   * aussitôt sans rien afficher. Annuler en sortant est ce qui évite de laisser
+   * ce drapeau derrière soi.
+   */
+  const cancelBiometrics = useCallback(async () => {
+    if (Platform.OS === 'web' || !demandeEnCours.current) return
+    await LocalAuthentication.cancelAuthenticate()
+  }, [])
 
   /**
    * Garde d'identité pour les gestes qui désarment le coffre.
@@ -467,6 +532,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       configure,
       unlockWithPin,
       unlockWithBiometrics,
+      cancelBiometrics,
       confirmWithBiometrics,
       lock,
       disable,
@@ -488,6 +554,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       configure,
       unlockWithPin,
       unlockWithBiometrics,
+      cancelBiometrics,
       confirmWithBiometrics,
       lock,
       disable,
