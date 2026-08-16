@@ -47,6 +47,25 @@ export type { NoteView, NoteWithRelations }
  * un titre et un corps nuls plutôt que de disparaître. Elle reste listée, ce
  * qui est la seule conduite honnête : la faire disparaître laisserait croire
  * qu'elle a été perdue.
+ *
+ * ── The key is an input, and it is an invisible one ──────────────────────────
+ * This reads more than its argument: `openNote` also reads the data key, which
+ * lives in the keyring — a module, not a value React can watch. Every memo
+ * calling this therefore carries `keyStatus` in its dependencies, and without it
+ * the memo was a trap on the second unlock.
+ *
+ * The order is what springs it. Unlocking flips `unlocked`, which enables the
+ * private-notes query and *then* sends an effect off to fetch the key. On the
+ * first unlock the rows come from the network and lose that race, so the key is
+ * there before them. On the next one they are already in React Query's memory
+ * cache and arrive in the same render, ahead of the key: the memo composed the
+ * notes with a null title and a null body — the very fallback described above —
+ * and its dependencies never changed again. The key landed a moment later and
+ * nothing recomputed, so the cards stayed blank until some later refetch moved a
+ * row. Which reads, on screen, as a vault that has lost what it holds.
+ *
+ * `keyStatus` turns `ready` in the same breath as the key being loaded, and
+ * leaves `ready` when `lock()` unloads it: here it stands for the key itself.
  */
 function decryptNotes(notes: Note[]): Note[] {
   return notes.map((note) => {
@@ -95,6 +114,7 @@ export function useNoteList(options?: { view?: NoteView; tagIds?: string[]; sear
   const tagIds = options?.tagIds ?? []
   const search = options?.search ?? ''
 
+  const { keyStatus } = useVault()
   const notesQuery = useNotes()
   const notes = notesQuery.data ?? []
 
@@ -103,6 +123,8 @@ export function useNoteList(options?: { view?: NoteView; tagIds?: string[]; sear
   const linksQuery = useNoteTags()
   const tagsQuery = useTags()
 
+  // `keyStatus`: see `decryptNotes`. The key is this memo's other input, the one
+  // that never appears in its arguments.
   const all = useMemo(
     () =>
       composeNotes(
@@ -111,7 +133,7 @@ export function useNoteList(options?: { view?: NoteView; tagIds?: string[]; sear
         linksQuery.data ?? [],
         tagsQuery.data ?? [],
       ),
-    [notes, itemsQuery.data, linksQuery.data, tagsQuery.data],
+    [notes, itemsQuery.data, linksQuery.data, tagsQuery.data, keyStatus],
   )
 
   // tagIds arrive souvent comme un littéral recréé à chaque rendu : on le
@@ -151,7 +173,7 @@ export function useNoteList(options?: { view?: NoteView; tagIds?: string[]; sear
  * état posé ailleurs rendrait la question sans réponse fiable.
  */
 export function usePrivateNoteList(options?: { search?: string }) {
-  const { unlocked } = useVault()
+  const { unlocked, keyStatus } = useVault()
   const search = options?.search ?? ''
 
   const notesQuery = usePrivateNotes(unlocked)
@@ -162,6 +184,8 @@ export function usePrivateNoteList(options?: { search?: string }) {
   const linksQuery = useNoteTags()
   const tagsQuery = useTags()
 
+  // `keyStatus`: see `decryptNotes`. This is the memo the missing dependency
+  // actually broke — the vault is where the key arrives after the rows.
   const all = useMemo(
     () =>
       composeNotes(
@@ -170,7 +194,7 @@ export function usePrivateNoteList(options?: { search?: string }) {
         linksQuery.data ?? [],
         tagsQuery.data ?? [],
       ),
-    [notes, itemsQuery.data, linksQuery.data, tagsQuery.data],
+    [notes, itemsQuery.data, linksQuery.data, tagsQuery.data, keyStatus],
   )
 
   const visible = useMemo(() => {

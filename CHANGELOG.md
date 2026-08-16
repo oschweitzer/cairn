@@ -76,6 +76,12 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Fixed
 
+- Vault notes show their content again when the vault is opened a second time.
+  The cards came back empty — no preview, no items — as if the vault had lost
+  what it was holding; the first opening after a start worked, the ones after it
+  did not. Nothing was ever lost: the notes were read from the cache a moment
+  before the key that opens them arrived, and the screen never went back over
+  them once it had. ([#40])
 - The fingerprint button works again once the vault has closed. It had gone
   silent — no prompt, no message, nothing — and only a restart brought it back;
   an interrupted request kept hold of the sensor for the whole app, and every
@@ -176,3 +182,4 @@ work happened.
 [#32]: https://github.com/oschweitzer/cairn/issues/32
 [#34]: https://github.com/oschweitzer/cairn/issues/34
 [#35]: https://github.com/oschweitzer/cairn/issues/35
+[#40]: https://github.com/oschweitzer/cairn/issues/40
