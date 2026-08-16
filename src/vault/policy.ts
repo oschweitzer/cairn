@@ -54,6 +54,32 @@ export function delayForFailures(failures: number): number {
   return Math.min(BASE_DELAY_MS * 2 ** step, MAX_DELAY_MS)
 }
 
+/**
+ * Fermeture automatique : cinq minutes sans un geste.
+ *
+ * Le seuil vit ici, avec le reste de ce qui décide quand le coffre se ferme, et
+ * la règle qui va avec tient dans la fonction ci-dessous.
+ */
+export const AUTO_LOCK_MS = 5 * 60_000
+
+/**
+ * Temps restant avant la fermeture automatique, en millisecondes. Zéro veut dire
+ * « fermer maintenant ».
+ *
+ * Une soustraction, et c'est tout l'intérêt : le compte se fait sur l'horloge et
+ * non sur une minuterie. Une minuterie qui dort — onglet caché que le navigateur
+ * ralentit, application suspendue par le système — se réveille en retard, et son
+ * retard ferait passer une longue absence pour une courte. En repartant de
+ * l'heure du dernier geste, une absence d'une heure rend zéro dès le réveil,
+ * quel que soit le sommeil de la minuterie entre-temps.
+ *
+ * Le plancher à zéro n'est pas cosmétique : la valeur sert à reposer la
+ * minuterie, et un délai négatif la ferait boucler sans fin.
+ */
+export function msBeforeAutoLock(lastActivity: number, now: number): number {
+  return Math.max(0, lastActivity + AUTO_LOCK_MS - now)
+}
+
 export type PinVerdict =
   | { ok: true; secret: VaultSecret }
   | { ok: false; reason: 'wrong'; secret: VaultSecret; waitMs: number }

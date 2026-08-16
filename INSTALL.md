@@ -135,8 +135,9 @@ Two things worth knowing about the passcode:
   passcode hides notes, it does not encrypt them. The recovery key above is a
   different thing, and that one does matter.
 
-The vault closes on its own: five minutes after opening, when you leave the
-screen, and when the app goes to the background.
+The vault closes on its own after five minutes without a gesture. Time spent in
+another app, or in another browser tab, counts towards those five minutes: come
+back quickly and the vault is still open, come back much later and it is closed.
 
 On Android the passcode is kept in the system keystore. **On the web it is kept
 in ordinary browser storage**, which is less protected — the app says so on the

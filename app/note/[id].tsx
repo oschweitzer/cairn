@@ -123,6 +123,7 @@ export default function NoteEditor() {
   const { note, isLoading } = useNote(id)
   const tagsQuery = useTags()
   const vault = useVault()
+  const { markActivity } = vault
   const toast = useToast()
 
   const updateNote = useUpdateNote()
@@ -212,6 +213,10 @@ export default function NoteEditor() {
   const scheduleSave = useCallback(
     (patch: { title?: string; body?: string; codeName?: string }) => {
       if (!note) return
+      // Écrire est un geste, même quand aucun doigt ne touche l'écran : sur un
+      // téléphone les touches appartiennent au clavier du système, que le coffre
+      // ne voit pas passer. Voir `markActivity`.
+      markActivity()
       if (pending.current) clearTimeout(pending.current)
       pending.current = setTimeout(() => {
         updateNote.mutate({
@@ -228,7 +233,7 @@ export default function NoteEditor() {
         })
       }, AUTOSAVE_MS)
     },
-    [note, updateNote, encrypted],
+    [note, updateNote, encrypted, markActivity],
   )
 
   // Un départ d'écran ne doit pas emporter la dernière frappe avec lui.
@@ -515,8 +520,8 @@ export default function NoteEditor() {
            * que la requête ne réponde. Annoncer une disparition à ce moment-là
            * est un contresens, et c'est ce que faisait cet écran.
            *
-           * Le coffre se referme tout seul au bout de cinq minutes et au passage
-           * en arrière-plan. Si une note du coffre était ouverte, elle disparaît
+           * Le coffre se referme tout seul au bout de cinq minutes sans un
+           * geste. Si une note du coffre était ouverte, elle disparaît
            * sous les yeux de son lecteur : c'est le comportement voulu, le
            * contenu ne doit pas rester à l'écran après la fermeture. Mais
            * annoncer une suppression depuis un autre appareil serait un mensonge
@@ -1085,9 +1090,12 @@ export default function NoteEditor() {
                       // forme réécrit le contenu depuis l'extérieur du champ, et
                       // un `defaultValue` garderait à l'écran le texte d'avant.
                       value={itemText(item.id, item.content)}
-                      onChangeText={(next) =>
+                      onChangeText={(next) => {
+                        // Les éléments ne passent pas par `scheduleSave` : la
+                        // frappe s'y annonce donc elle-même. Voir `markActivity`.
+                        markActivity()
                         setItemDrafts((current) => ({ ...current, [item.id]: next }))
-                      }
+                      }}
                       onEndEditing={(e) => {
                         const next = e.nativeEvent.text.trim()
                         if (next && next !== item.content) {
@@ -1155,7 +1163,10 @@ export default function NoteEditor() {
                 />
                 <TextInput
                   value={draftItem}
-                  onChangeText={setDraftItem}
+                  onChangeText={(next) => {
+                    markActivity()
+                    setDraftItem(next)
+                  }}
                   placeholder="Ajouter un élément"
                   placeholderTextColor={theme.text.muted}
                   returnKeyType="done"

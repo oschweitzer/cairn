@@ -44,7 +44,13 @@ import { PERSISTABLE_PREFIX, QUERY_ROOT, shouldPersistQuery } from '../src/db/pe
 // The cache round trip is replayed for real below. React Query brings its own
 // client and its dehydrate/hydrate pair, and neither needs React to run.
 import { QueryClient, dehydrate, hydrate } from '@tanstack/react-query'
-import { delayForFailures, judgePin, FREE_ATTEMPTS } from '../src/vault/policy'
+import {
+  AUTO_LOCK_MS,
+  delayForFailures,
+  judgePin,
+  msBeforeAutoLock,
+  FREE_ATTEMPTS,
+} from '../src/vault/policy'
 import { countInRange, splitHash } from '../src/auth/pwnedLogic'
 import {
   decalerJours,
@@ -799,6 +805,25 @@ test('la temporisation expirée laisse repasser', () => {
     50_001,
   )
   assert.equal(verdict.ok, true)
+})
+
+test('a fresh gesture buys the whole delay back', () => {
+  const now = 1_000_000
+  assert.equal(msBeforeAutoLock(now, now), AUTO_LOCK_MS)
+})
+
+test('what is left is counted from the last gesture, not from the unlock', () => {
+  const now = 1_000_000
+  assert.equal(msBeforeAutoLock(now - 60_000, now), AUTO_LOCK_MS - 60_000)
+})
+
+test('an absence longer than the delay closes the vault, and never overshoots', () => {
+  // Zero and not a negative number: the value goes straight back into a timer,
+  // and a negative delay would make it fire in a loop. An hour away and a
+  // fraction over five minutes must answer the same thing — close now.
+  const now = 1_000_000
+  assert.equal(msBeforeAutoLock(now - AUTO_LOCK_MS, now), 0)
+  assert.equal(msBeforeAutoLock(now - 3_600_000, now), 0)
 })
 
 // ------------------------------------------------------ coffre : chiffrement

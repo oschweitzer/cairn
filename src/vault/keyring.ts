@@ -13,8 +13,8 @@ import { openText, sealText, type RandomBytes } from './crypto'
  * rend cet oubli impossible : `sealNote` échoue s'il n'y a pas de clé.
  *
  * La clé ne vit ici que le temps de l'ouverture. `VaultProvider` la pose au
- * déverrouillage et la retire à la fermeture — au bout de cinq minutes, au
- * passage en arrière-plan, en quittant l'écran du coffre.
+ * déverrouillage et la retire à la fermeture — cinq minutes sans un geste, ou
+ * le bouton « Refermer ».
  */
 
 /** L'aléa de la plateforme. expo-crypto fonctionne sous Hermes comme sur le web. */

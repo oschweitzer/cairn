@@ -479,9 +479,15 @@ times, then doubles on each failure and caps at five minutes. It is tested under
 Node, including the case where the right code is refused because the wait is
 still running.
 
-The vault closes on going to the background, five minutes after opening, and on
-leaving the screen. If a vault note was open at closing time, the editor says so
-instead of pretending the note was deleted elsewhere.
+The vault closes after five minutes without a gesture — a touch, a scroll, a
+click, a keystroke. Time spent in another app or another tab counts as idle time
+rather than suspending the count, so coming back after ten seconds finds it open
+and coming back after six minutes finds it closed. What that gives up is stated
+where it is implemented: a phone picked up while Cairn sits in the background has
+whatever is left of the five minutes. What it buys is a vault worth locking, one
+that does not ask for the code ten times an hour until the owner picks a shorter
+one. If a vault note was open at closing time, the editor says so instead of
+pretending the note was deleted elsewhere.
 
 The secret lives in the Android Keystore through `expo-secure-store`. On the web
 that module does not exist and the secret falls back to `localStorage`, and so is

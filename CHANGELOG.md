@@ -59,6 +59,15 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Changed
 
+- The vault stays open while you are working, and closes after five minutes
+  without a gesture — a touch, a scroll, a click, a keystroke. It used to close
+  the instant Cairn lost focus, so a glance at another tab or another app meant
+  the code again, however brief the glance. Time spent away counts towards those
+  five minutes rather than pausing them: come back after ten seconds and the
+  vault is open, come back after six minutes and it is closed, on the web as on
+  Android. What this gives up is stated plainly — a phone picked up while Cairn
+  sits in the background now has whatever is left of the five minutes, where it
+  had nothing. ([#39])
 - Migrations reach a database through `supabase db push`, not through the
   dashboard's SQL editor. `supabase/config.toml` makes the repository a project
   the CLI will link, and the README says what pasting SQL by hand costs: the run
@@ -187,4 +196,5 @@ work happened.
 [#32]: https://github.com/oschweitzer/cairn/issues/32
 [#34]: https://github.com/oschweitzer/cairn/issues/34
 [#35]: https://github.com/oschweitzer/cairn/issues/35
+[#39]: https://github.com/oschweitzer/cairn/issues/39
 [#40]: https://github.com/oschweitzer/cairn/issues/40

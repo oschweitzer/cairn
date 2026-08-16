@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { AppState, Platform } from 'react-native'
+import { AppState, Platform, View } from 'react-native'
 import * as LocalAuthentication from 'expo-local-authentication'
 import { bytesToHex, hexToBytes } from '@noble/ciphers/utils.js'
 import { getSupabase, isSupabaseConfigured } from '../db/supabase'
@@ -12,6 +12,7 @@ import {
   wrapDataKey,
 } from './crypto'
 import { loadDataKey, platformRandom, unloadDataKey } from './keyring'
+import { AUTO_LOCK_MS, msBeforeAutoLock } from './policy'
 import { encryptExistingVaultNotes } from './migrate'
 import {
   clearDataKey,
@@ -30,27 +31,42 @@ import {
  * en sort.
  *
  * ── Le verrouillage automatique est le cœur du sujet ─────────────────────────
- * Un coffre qui ne se referme jamais ne protège rien. Deux déclencheurs, qui
- * couvrent des situations différentes.
+ * Un coffre qui ne se referme jamais ne protège rien. Une seule règle désormais,
+ * et elle tient en une phrase : cinq minutes sans rien faire referment le
+ * coffre.
  *
- * Le passage en arrière-plan ferme immédiatement. C'est la situation réelle :
- * on pose le téléphone, quelqu'un le reprend. Attendre ne serait qu'une
- * fenêtre offerte.
+ * Sans rien faire, et non « sans être au premier plan ». La version précédente
+ * refermait au passage en arrière-plan, immédiatement — un onglet consulté à
+ * côté, une adresse copiée dans une autre application, l'écran qui s'éteint une
+ * seconde, et il fallait ressaisir le code. Le coffre s'ouvrait dix fois par
+ * séance de travail, ce qui use la seule protection qu'on ait et pousse à
+ * choisir un code court.
  *
- * Un délai absolu de cinq minutes depuis l'ouverture ferme aussi, même si
- * l'application est restée au premier plan. Absolu et non « depuis la dernière
- * interaction », parce qu'un délai d'inactivité se prolonge indéfiniment tant
- * qu'on fait défiler la liste, ce qui est exactement le moment où le coffre est
- * visible à l'écran.
+ * Ce qu'on y perd est réel et se dit franchement : un téléphone repris sur la
+ * table pendant que Cairn est en arrière-plan dispose maintenant de ce qui reste
+ * des cinq minutes, là où il n'avait rien. Sur iOS le sélecteur d'applications
+ * montre en plus une vignette de l'écran quitté. Le marché est fait en
+ * connaissance de cause : c'est la porte laissée entrouverte cinq minutes contre
+ * une porte qu'on finissait par ne plus refermer.
+ *
+ * Le temps passé ailleurs compte comme du temps d'inactivité — il ne suspend pas
+ * le compteur. Revenir au bout de dix secondes retrouve le coffre ouvert, revenir
+ * au bout de six minutes le retrouve fermé.
+ *
+ * ── Ce que « faire quelque chose » veut dire ─────────────────────────────────
+ * Un geste dans l'application : toucher, faire défiler, cliquer, taper. Pas un
+ * rendu, pas une requête, pas un retour au premier plan — sans quoi le compteur
+ * serait remis à zéro par l'application elle-même et ne mesurerait plus rien.
  *
  * ── Ce que le déverrouillage donne accès ─────────────────────────────────────
  * Uniquement à la lecture de la liste masquée. Les notes du coffre ne sont pas
  * chargées tant que le coffre est fermé, et leur clé de cache ne descend jamais
  * sur le disque : refermer ne se contente pas de masquer une vue, cela retire
  * les données de la mémoire du cache.
+ *
+ * Le seuil et le calcul du temps restant vivent dans policy.ts, avec le reste
+ * des règles du coffre qui se testent sous Node.
  */
-
-const AUTO_LOCK_MS = 5 * 60_000
 
 /** What a request for a fingerprint came to. */
 export type BiometricUnlock =
@@ -102,6 +118,22 @@ type VaultContextValue = {
   /** Millisecondes restantes avant qu'une saisie soit à nouveau acceptée. */
   coolingMs: number
   failures: number
+  /**
+   * Repousse la fermeture automatique de cinq minutes de plus.
+   *
+   * À appeler pour un geste que le fournisseur ne peut pas voir lui-même, et il
+   * n'y en a qu'un : la frappe au clavier logiciel. Toucher, faire défiler,
+   * cliquer, taper sur un clavier physique sont déjà comptés — mais sur un
+   * téléphone les touches appartiennent au clavier du système, hors de l'arbre
+   * de l'application. Sans cet appel, écrire une note du coffre six minutes
+   * durant la ferait disparaître sous les doigts de qui l'écrit, ce qu'un délai
+   * d'inactivité est censé précisément empêcher.
+   *
+   * Ne jamais l'appeler pour un rendu, une requête ou un retour au premier plan :
+   * le compteur mesurerait alors l'activité de l'application, et plus celle de
+   * son utilisateur.
+   */
+  markActivity: () => void
   configure: (pin: string, useBiometrics: boolean) => Promise<void>
   unlockWithPin: (pin: string) => Promise<{ ok: boolean; waitMs: number }>
   unlockWithBiometrics: () => Promise<BiometricUnlock>
@@ -222,8 +254,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
    *
    * C'est la moitié qui compte : tant que la clé est chargée, tout ce que le
    * cache contient est déchiffrable. La rendre au stockage sécurisé à chaque
-   * fermeture — cinq minutes, passage en arrière-plan, sortie de l'écran —
-   * donne au verrouillage automatique un effet réel et pas seulement visuel.
+   * fermeture — cinq minutes sans un geste, ou le bouton « Refermer » — donne au
+   * verrouillage automatique un effet réel et pas seulement visuel.
    */
   const lock = useCallback(() => {
     unloadDataKey()
@@ -269,22 +301,78 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   }, [unlocked, resolveKey])
 
-  // Refermeture au passage en arrière-plan. `inactive` compte aussi : sur iOS
-  // c'est l'état du sélecteur d'applications, où le contenu est visible en
-  // vignette.
+  /**
+   * Instant du dernier geste. Une référence et non un état : un toucher ne doit
+   * rien redessiner, et il en arrive un par mouvement de doigt.
+   */
+  const lastActivity = useRef(Date.now())
+  const markActivity = useCallback(() => {
+    lastActivity.current = Date.now()
+  }, [])
+
+  /**
+   * Sur le web, les gestes se lisent depuis le document.
+   *
+   * La capture de responder posée plus bas suffit aux plateformes natives, mais
+   * elle ne voit ni la molette ni le clavier physique : lire une longue note à la
+   * molette, ou l'écrire au clavier sans toucher la souris, passerait pour de
+   * l'inactivité.
+   */
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+    const mark = () => markActivity()
+    // En capture, pour que rien ne puisse arrêter l'événement avant nous ;
+    // passif, parce qu'on ne fait que noter l'heure.
+    const options = { capture: true, passive: true } as const
+    document.addEventListener('pointerdown', mark, options)
+    document.addEventListener('keydown', mark, options)
+    document.addEventListener('wheel', mark, options)
+    return () => {
+      document.removeEventListener('pointerdown', mark, options)
+      document.removeEventListener('keydown', mark, options)
+      document.removeEventListener('wheel', mark, options)
+    }
+  }, [markActivity])
+
+  /**
+   * Fermeture au bout de cinq minutes sans geste.
+   *
+   * La minuterie ne décide de rien : à chaque réveil elle demande à
+   * `msBeforeAutoLock` ce qu'il reste, et se repose pour ce reste tant qu'il
+   * n'est pas nul. C'est ce qui la rend insensible à son propre retard, et ce qui
+   * rend le geste gratuit — marquer une activité n'a rien à replanifier, la
+   * minuterie s'en aperçoit d'elle-même en arrivant.
+   */
+  useEffect(() => {
+    if (!unlocked) return
+    let timer: ReturnType<typeof setTimeout>
+    const check = () => {
+      const left = msBeforeAutoLock(lastActivity.current, Date.now())
+      if (left === 0) {
+        lock()
+        return
+      }
+      timer = setTimeout(check, left)
+    }
+    timer = setTimeout(check, AUTO_LOCK_MS)
+    return () => clearTimeout(timer)
+  }, [unlocked, lock])
+
+  /**
+   * Retour au premier plan : on regarde l'heure, on ne remet rien à zéro.
+   *
+   * Une application suspendue ne fait pas tourner ses minuteries, et sur le web
+   * un onglet caché les ralentit. Sans cette vérification, revenir après une
+   * heure laisserait le coffre ouvert le temps que la minuterie endormie se
+   * rende compte de son retard — c'est-à-dire le temps de tout lire.
+   */
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
-      if (next !== 'active') lock()
+      if (next !== 'active') return
+      if (msBeforeAutoLock(lastActivity.current, Date.now()) === 0) lock()
     })
     return () => sub.remove()
   }, [lock])
-
-  // Délai absolu depuis l'ouverture.
-  useEffect(() => {
-    if (!unlocked) return
-    const timer = setTimeout(lock, AUTO_LOCK_MS)
-    return () => clearTimeout(timer)
-  }, [unlocked, lock])
 
   // Décompte de la temporisation après échecs, pour que l'écran de saisie
   // affiche un délai qui descend au lieu d'un refus opaque.
@@ -529,6 +617,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       biometricsEnabled: secret?.biometrics === true,
       coolingMs,
       failures: secret?.failures ?? 0,
+      markActivity,
       configure,
       unlockWithPin,
       unlockWithBiometrics,
@@ -551,6 +640,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       unlocked,
       biometrics,
       coolingMs,
+      markActivity,
       configure,
       unlockWithPin,
       unlockWithBiometrics,
@@ -569,7 +659,40 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     ],
   )
 
-  return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>
+  /**
+   * Les gestes se lisent au sommet de l'arbre, sans rien intercepter.
+   *
+   * `onStartShouldSetResponderCapture` est appelé sur le chemin descendant, donc
+   * avant que la carte, le bouton ou la liste visés ne se saisissent du geste.
+   * Rendre `false` laisse ce geste continuer sa route intact : cette vue note
+   * l'heure et ne devient jamais responder. Un `onTouchStart` aurait le défaut
+   * inverse — il n'arrive qu'aux touchers que personne n'a pris.
+   *
+   * Le mouvement compte autant que l'appui : faire défiler une longue note est
+   * un geste continu où le doigt ne se repose pas, et le compter uniquement au
+   * premier contact refermerait le coffre au milieu d'une lecture.
+   *
+   * `flex: 1` parce que cette vue s'insère entre le fournisseur de requêtes et
+   * toute l'application : sans cela elle se réduirait à la hauteur de son
+   * contenu et l'écran s'arrêterait avec elle.
+   */
+  return (
+    <VaultContext.Provider value={value}>
+      <View
+        style={{ flex: 1 }}
+        onStartShouldSetResponderCapture={() => {
+          markActivity()
+          return false
+        }}
+        onMoveShouldSetResponderCapture={() => {
+          markActivity()
+          return false
+        }}
+      >
+        {children}
+      </View>
+    </VaultContext.Provider>
+  )
 }
 
 export function useVault(): VaultContextValue {

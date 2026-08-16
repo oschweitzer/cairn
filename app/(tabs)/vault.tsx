@@ -56,9 +56,10 @@ export default function Vault() {
    * coffre fait précisément perdre le focus à cet écran. Refermer là-dessus
    * claquerait la porte à l'instant où l'on entre.
    *
-   * Restent les deux déclencheurs qui portent réellement la protection : le
-   * passage en arrière-plan, immédiat, et le délai absolu de cinq minutes. Le
-   * bouton « Refermer » couvre le geste volontaire.
+   * Reste le déclencheur qui porte réellement la protection : cinq minutes sans
+   * un geste, où qu'on soit dans l'application et même une fois passé ailleurs,
+   * le temps d'absence comptant comme du temps d'inactivité. Le bouton
+   * « Refermer » couvre le geste volontaire.
    */
 
   /**
