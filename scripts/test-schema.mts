@@ -227,6 +227,18 @@ await mustReject(
   /code_name_requires_private/,
 )
 
+await mustAccept(
+  'a vault note may keep its content off its card',
+  `insert into notes (is_encrypted, ciphertext, is_private, code_name, hide_content)
+     values (true, 'nonce+chiffré', true, 'Gneiss', true)`,
+)
+
+await mustReject(
+  'a visible note cannot hide its content',
+  `insert into notes (title, hide_content) values ('t', true)`,
+  /hide_content_requires_private/,
+)
+
 await mustReject(
   'un titre vide est refusé',
   `insert into notes (title) values ('   ')`,

@@ -275,6 +275,7 @@ type NotePatch = Partial<
     | 'is_archived'
     | 'deleted_at'
     | 'code_name'
+    | 'hide_content'
   >
 >
 
@@ -358,10 +359,11 @@ export function useUpdateNote() {
  * Entrée et sortie du coffre.
  *
  * Mutation dédiée plutôt qu'un champ de plus dans `NotePatch`, parce que
- * `is_private` et `code_name` ne sont pas indépendants : la contrainte
- * `code_name_requires_private` refuse un nom de code sur une note visible. Les
- * deux colonnes partent donc dans le même ordre SQL, et sortir du coffre efface
- * le nom de code par construction plutôt que par discipline de l'appelant.
+ * `is_private` ne va pas seul : les contraintes `code_name_requires_private` et
+ * `hide_content_requires_private` refusent l'un comme l'autre sur une note
+ * visible. Les trois colonnes partent donc dans le même ordre SQL, et sortir du
+ * coffre efface le nom de code et le masquage du contenu par construction plutôt
+ * que par discipline de l'appelant.
  *
  * Aucune mise à jour optimiste ici, volontairement. La note change de liste, ce
  * qui la fait disparaître d'un écran pour apparaître dans un autre : la jouer
@@ -416,6 +418,7 @@ export function useSetNotePrivate() {
         patch = {
           is_private: false,
           code_name: null,
+          hide_content: false,
           ...(opened
             ? { is_encrypted: false, ciphertext: null, title: opened.title, body: opened.body }
             : {}),

@@ -31,6 +31,8 @@ export type Note = {
   position: number
   /** Substitué au titre partout où la note est listée. */
   code_name: string | null
+  /** The vault card shows the code name alone. Masking, not encryption. */
+  hide_content: boolean
   is_encrypted: boolean
   /** Nonce en tête, chiffré ensuite. Voir src/vault/crypto.ts. */
   ciphertext: string | null

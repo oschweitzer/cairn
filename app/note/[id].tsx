@@ -893,6 +893,53 @@ export default function NoteEditor() {
                   ? 'C’est ce nom qui s’affiche dans le coffre, à la place du titre.'
                   : 'Sans nom de code, cette note n’affiche aucun titre dans le coffre.'}
               </Txt>
+
+              {/**
+               * Content masking, note by note.
+               *
+               * A vault card shows what the note says once the vault is open,
+               * which is the default and the right one: hiding it a second time
+               * behind a code already entered protects nothing and makes the
+               * grid unreadable. Some notes are worth more than that though, and
+               * this is where their owner says so — one note at a time, never as
+               * a rule imposed on all of them.
+               *
+               * It masks the card, it does not encrypt anything: `is_encrypted`
+               * already did that on the way in. Which is why the hint says what
+               * is still true — the note opens and reads as usual.
+               */}
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: note.hide_content }}
+                accessibilityLabel="Masquer le contenu dans le coffre"
+                onPress={() =>
+                  updateNote.mutate({
+                    id: note.id,
+                    patch: { hide_content: !note.hide_content },
+                  })
+                }
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: space.md,
+                  minHeight: 48,
+                  marginTop: space.xs,
+                }}
+              >
+                <Feather
+                  name={note.hide_content ? 'check-square' : 'square'}
+                  size={18}
+                  color={note.hide_content ? theme.accent.default : theme.text.secondary}
+                />
+                <View style={{ flex: 1 }}>
+                  <Txt variant="label">Masquer le contenu</Txt>
+                  <Txt variant="caption" tone="muted">
+                    {note.hide_content
+                      ? 'La carte du coffre ne montre que le nom de code. La note s’ouvre et se lit normalement.'
+                      : 'La carte du coffre montre le contenu de la note, coffre ouvert.'}
+                  </Txt>
+                </View>
+              </Pressable>
             </View>
           ) : null}
 

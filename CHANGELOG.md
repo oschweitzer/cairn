@@ -9,6 +9,11 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Added
 
+- **Masquer le contenu**, under the code name of a vault note. Its card then
+  shows the code name alone — no preview, no items, no count — while the note
+  itself opens and reads as usual. Off by default: with the vault open, a card
+  shows what its note says, and this is the exception you choose note by note.
+  ([#40])
 - Open a link without leaving the writing view. When the caret is inside an
   address — in the body or in a checklist item — a bar appears above the
   toolbar: **Ouvrir**, followed by the address. One tap opens it in a new tab.

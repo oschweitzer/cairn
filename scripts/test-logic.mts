@@ -79,6 +79,7 @@ function note(over: Partial<Note> = {}): Note {
     position: 0,
     is_private: false,
     code_name: null,
+    hide_content: false,
     is_encrypted: false,
     ciphertext: null,
     created_at: '2026-01-01T00:00:00Z',

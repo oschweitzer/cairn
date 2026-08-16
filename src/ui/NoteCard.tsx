@@ -60,6 +60,35 @@ export function NoteCard({
   // pas fuir ce que le coffre est censé cacher.
   const heading = displayTitle(note)
   const empty = isEmptyNote(note)
+
+  /**
+   * A vault note that has asked to keep its content off its card.
+   *
+   * Nothing of what the note says is drawn below the heading: no preview, no
+   * items, not even how many are ticked, since a count is one more thing read
+   * over a shoulder. Tags stay — they are how the grid is filtered and coloured,
+   * they are chosen to be seen, and dropping them would leave a card with
+   * nothing to hold on to.
+   *
+   * Only the display is held back. The text is loaded, searched and edited as
+   * ever; this is the code name's kind of secrecy, not the ciphertext's.
+   */
+  const hidden = note.hide_content
+
+  /**
+   * What stands in for the title when there is none.
+   *
+   * A note whose content is masked and which carries no code name would have
+   * nothing at all to draw: a sliver the height of its padding, exactly like an
+   * empty note, while being full. The marker says which of the two it is.
+   */
+  const placeholder = empty
+    ? note.kind === 'checklist'
+      ? 'Liste vide'
+      : 'Note vide'
+    : hidden
+      ? 'Contenu masqué'
+      : null
   const shown = note.items.slice(0, PREVIEW_ITEMS)
   const remaining = note.items.length - shown.length
   const doneCount = note.items.filter((i) => i.is_done).length
@@ -97,7 +126,7 @@ export function NoteCard({
 
       <Pressable
         accessibilityRole={selectionMode ? 'checkbox' : 'button'}
-        accessibilityLabel={heading ?? (empty ? 'Note vide' : 'Note sans titre')}
+        accessibilityLabel={heading ?? placeholder ?? 'Note sans titre'}
         accessibilityState={selectionMode ? { checked: selected } : undefined}
         onPress={onPress}
         onLongPress={onLongPress}
@@ -123,7 +152,7 @@ export function NoteCard({
             <Txt variant="title" numberOfLines={2}>
               {heading}
             </Txt>
-          ) : empty ? (
+          ) : placeholder ? (
             /**
              * Sans ce repère, une note sans aucun contenu se réduit à une lamelle
              * de la hauteur de son padding, où l'icône d'épinglage dépasse même
@@ -132,10 +161,10 @@ export function NoteCard({
              * d'une session interrompue : elle doit rester lisible et cliquable.
              */
             <Txt variant="title" tone="muted">
-              {note.kind === 'checklist' ? 'Liste vide' : 'Note vide'}
+              {placeholder}
             </Txt>
           ) : null}
-          {note.kind === 'checklist' && note.items.length > 0 ? (
+          {!hidden && note.kind === 'checklist' && note.items.length > 0 ? (
             <Txt variant="caption" tone="muted">
               {doneCount} sur {note.items.length}
             </Txt>
@@ -151,11 +180,11 @@ export function NoteCard({
          * la PWA — exactement l'écueil documenté plus haut sur le bouton
          * d'épinglage. Toucher la carte ouvre la note, où le lien s'ouvre.
          */}
-        {note.kind === 'note' && note.body ? (
+        {!hidden && note.kind === 'note' && note.body ? (
           <RichText source={note.body} numberOfLines={8} tone="secondary" />
         ) : null}
 
-        {note.kind === 'checklist' ? (
+        {!hidden && note.kind === 'checklist' ? (
           <View style={{ gap: space.xs }}>
             {shown.map((item) => (
               <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
@@ -288,19 +317,24 @@ export function NoteCard({
 export function estimateCardHeight(note: NoteWithRelations): number {
   const heading = displayTitle(note)
   let height = 40
-  // Le repère « Note vide » occupe la place d'un titre d'une ligne.
-  if (!heading && isEmptyNote(note)) height += 24
+  // Le repère « Note vide » — ou « Contenu masqué » — occupe la place d'un titre
+  // d'une ligne.
+  if (!heading && (isEmptyNote(note) || note.hide_content)) height += 24
   if (heading) height += Math.min(2, Math.ceil(heading.length / 24)) * 24
-  if (note.kind === 'note' && note.body) {
-    // Sur le texte sans son balisage : `**gras**` compte quatre caractères de
-    // trop, et une note très marquée se croyait deux fois plus haute qu'elle
-    // n'est, ce qui déséquilibrait les colonnes de la grille.
-    height += Math.min(8, Math.ceil(plainText(note.body).length / 32)) * 24
-  }
-  if (note.kind === 'checklist') {
-    height += Math.min(PREVIEW_ITEMS, note.items.length) * 24
-    if (note.items.length > PREVIEW_ITEMS) height += 16
-    if (note.items.length > 0) height += 16
+  // Un contenu masqué n'est pas dessiné : le compter donnerait à la grille une
+  // colonne de trous, la carte occupant la place d'un texte qu'elle ne montre pas.
+  if (!note.hide_content) {
+    if (note.kind === 'note' && note.body) {
+      // Sur le texte sans son balisage : `**gras**` compte quatre caractères de
+      // trop, et une note très marquée se croyait deux fois plus haute qu'elle
+      // n'est, ce qui déséquilibrait les colonnes de la grille.
+      height += Math.min(8, Math.ceil(plainText(note.body).length / 32)) * 24
+    }
+    if (note.kind === 'checklist') {
+      height += Math.min(PREVIEW_ITEMS, note.items.length) * 24
+      if (note.items.length > PREVIEW_ITEMS) height += 16
+      if (note.items.length > 0) height += 16
+    }
   }
   if (note.tags.length > 0) height += 20
   return height
