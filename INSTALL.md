@@ -30,9 +30,12 @@ Both talk to the same account, so notes written in one show up in the other.
 
 ### 1. Get the APK
 
-Ask whoever runs this Cairn instance for a build link. It looks like
-`https://expo.dev/accounts/…/builds/…`, and opening it on the phone gives you a
-**Download** button.
+Open **https://github.com/oschweitzer/cairn/releases/latest** on the phone and
+download the `.apk` file attached to it. That is the latest published version.
+
+If there is no Release yet, ask whoever runs this Cairn instance for a build
+link: it looks like `https://expo.dev/accounts/…/builds/…`, and opening it on the
+phone gives you a **Download** button too.
 
 ### 2. Let Android install it
 

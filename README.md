@@ -216,6 +216,37 @@ No signing key to make: on the first Android build, EAS generates one and keeps
 it. Keeping it is what will later allow publishing an update of the same package,
 `app.cairn`.
 
+### Builds from CI
+
+`.github/workflows/android.yml` does both of the above without anyone typing a
+command.
+
+| Trigger | What happens |
+|---|---|
+| merge to `main` | an EAS build is started and not waited on — a fresh internal link, about a minute of runner time |
+| push of a `v*` tag | the same build, waited on, the APK downloaded and attached to a GitHub Release |
+
+A Release on every merge would be noise, and `appVersionSource: "remote"` means
+each build spends a version code whether or not anyone installs it. So tagging is
+the deliberate act:
+
+```
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+The workflow needs one secret, `EXPO_TOKEN` (expo.dev ▸ Account settings ▸ Access
+tokens), in Settings ▸ Secrets and variables ▸ Actions. The Supabase URL and anon
+key are not needed: they live in EAS environment variables, and `eas build` reads
+them there, so they never enter the workflow. Without the token, the merge job
+says so and stops rather than failing red on every merge.
+
+The APK is deliberately **not** built on the runner. `expo prebuild` plus
+`./gradlew assembleRelease` would sign with a keystore generated on the spot, and
+`public/.well-known/assetlinks.json` commits the certificate's SHA-256 while the
+Google OAuth Android client is registered against that same fingerprint: App
+Links would stop verifying and Google sign-in would stop working, in a build that
+installs and looks fine. EAS holds the keystore.
+
 Then check that `cairn://callback` really is in the Supabase project's Redirect
 URLs — that entry, and only it, is what makes Google sign-in succeed from the
 APK.

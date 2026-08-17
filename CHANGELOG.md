@@ -9,6 +9,11 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Added
 
+- The Android app is published as a GitHub Release. Tagging `v*` builds the APK
+  on EAS and attaches it to a Release, so installing Cairn no longer means asking
+  someone for a build link — `INSTALL.md` points at `/releases/latest`. Every
+  merge to `main` also starts an internal build, without publishing anything.
+  ([#25])
 - **Masquer le contenu**, under the code name of a vault note. Its card then
   shows the code name alone — no preview, no items, no count — while the note
   itself opens and reads as usual. Off by default: with the vault open, a card
@@ -199,6 +204,7 @@ work happened.
 [#20]: https://github.com/oschweitzer/cairn/issues/20
 [#21]: https://github.com/oschweitzer/cairn/issues/21
 [#24]: https://github.com/oschweitzer/cairn/issues/24
+[#25]: https://github.com/oschweitzer/cairn/issues/25
 [#27]: https://github.com/oschweitzer/cairn/issues/27
 [#32]: https://github.com/oschweitzer/cairn/issues/32
 [#34]: https://github.com/oschweitzer/cairn/issues/34

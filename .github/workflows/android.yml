@@ -1,0 +1,124 @@
+# Builds the Android app on EAS, and turns a tag into a Release.
+#
+# Two triggers, on purpose. A merge to `main` starts a build and walks away, so
+# there is always a fresh internal link and the job costs about a minute of
+# runner time. A `v*` tag waits for the APK and publishes a Release with it
+# attached: a release is a deliberate act, not a side effect of merging. Doing
+# both on every merge would be noise, and `appVersionSource: "remote"` means each
+# build consumes a version code whether or not anyone installs it.
+#
+# ── Why the APK is not built on the runner ───────────────────────────────────
+# `expo prebuild` then `./gradlew assembleRelease` would spend no EAS build
+# quota, only GitHub minutes. It would also sign with a keystore generated on the
+# spot, and that breaks two things at once, in a build that installs and looks
+# perfectly fine:
+#
+#   - `public/.well-known/assetlinks.json` commits the signing certificate's
+#     SHA-256, so a different key stops the App Links from verifying;
+#   - the Google OAuth Android client is registered against that same
+#     fingerprint, so Google sign-in stops working.
+#
+# Anyone already carrying Cairn would also meet `App not installed` on upgrade.
+# EAS holds the keystore. It stays there.
+name: android
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+# Builds are not cancelled halfway: EAS has already taken the job by then, and a
+# cancelled run leaves a build running with nobody reading its result.
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # A merge: start the build, do not wait for it.
+  internal:
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # eas-cli rather than a marketplace action: one dependency less to pin, and
+      # the CLI reads EXPO_TOKEN from the environment on its own.
+      - run: npm install --global eas-cli
+
+      # Without the token the job would fail on every merge until someone adds
+      # the secret, which teaches people to ignore a red mark. It says what is
+      # missing and stops instead.
+      - name: Build on EAS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::warning::EXPO_TOKEN is not set — no build was started. Add it in Settings ▸ Secrets ▸ Actions."
+            exit 0
+          fi
+          eas build --platform android --profile preview --non-interactive --no-wait
+
+  # A tag: wait for the APK, then publish it.
+  release:
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    permissions:
+      # The only job that writes anything, and all it writes is the Release.
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm install --global eas-cli
+
+      # 15 to 25 minutes of waiting, most of it on EAS's queue. That wait is the
+      # reason this job runs on tags only: on a private repository those are
+      # metered GitHub minutes.
+      - name: Build on EAS and wait
+        id: build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not set — the Release cannot be built. Add it in Settings ▸ Secrets ▸ Actions."
+            exit 1
+          fi
+          eas build --platform android --profile preview --non-interactive --wait --json > build.json
+          # `--json` prints an array of builds, one here. The URL points at the
+          # artifact itself, not at the build page.
+          url="$(jq -r '.[0].artifacts.buildUrl' build.json)"
+          if [ -z "$url" ] || [ "$url" = "null" ]; then
+            echo "::error::EAS returned no artifact URL. See build.json in the log above."
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Download the APK
+        run: curl --fail --location --output "cairn-${GITHUB_REF_NAME}.apk" "${{ steps.build.outputs.url }}"
+
+      # `--generate-notes` lists the commits since the previous tag. The
+      # changelog stays the written account; this is the automatic one.
+      - name: Publish the Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            "cairn-${GITHUB_REF_NAME}.apk"
