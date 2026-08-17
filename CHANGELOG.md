@@ -90,6 +90,13 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Fixed
 
+- Writing in a list no longer happens under the keyboard. On a phone, the
+  **Ajouter un élément** field sits at the bottom of the note and the keyboard
+  was drawn straight over it: you typed without seeing the text, so a typo only
+  turned up once the keyboard was gone — and every item added pushed the field
+  a little further under the keys. The screen now folds in front of the
+  keyboard, and the field comes back into view each time an item is added. The
+  note's body gains the same, on the same screen. ([#38])
 - Vault notes show their content again when the vault is opened a second time.
   The cards came back empty — no preview, no items — as if the vault had lost
   what it was holding; the first opening after a start worked, the ones after it
@@ -196,5 +203,6 @@ work happened.
 [#32]: https://github.com/oschweitzer/cairn/issues/32
 [#34]: https://github.com/oschweitzer/cairn/issues/34
 [#35]: https://github.com/oschweitzer/cairn/issues/35
+[#38]: https://github.com/oschweitzer/cairn/issues/38
 [#39]: https://github.com/oschweitzer/cairn/issues/39
 [#40]: https://github.com/oschweitzer/cairn/issues/40

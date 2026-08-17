@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Linking, Platform, Pressable, ScrollView, TextInput, View } from 'react-native'
+import {
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from 'react-native'
 import Animated from 'react-native-reanimated'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -27,6 +35,7 @@ import { useTheme } from '@/ui/ThemeProvider'
 import { Button, Card, Seam, Txt, noWebOutline } from '@/ui/components'
 import { FormatBar } from '@/ui/FormatBar'
 import { IconButton } from '@/ui/IconButton'
+import { useKeyboardOpen } from '@/ui/keyboard'
 import { RichText } from '@/ui/RichText'
 import { ColorPicker, TagPicker } from '@/ui/pickers'
 import { AgendaBouton, AgendaPanel } from '@/ui/AgendaPanel'
@@ -119,6 +128,7 @@ export default function NoteEditor() {
   const goBack = useGoBack()
   const { theme } = useTheme()
   const insets = useSafeAreaInsets()
+  const keyboardOpen = useKeyboardOpen()
 
   const { note, isLoading } = useNote(id)
   const tagsQuery = useTags()
@@ -321,6 +331,22 @@ export default function NoteEditor() {
   }, [flushEdits, toast])
 
   /**
+   * Ramène le champ d'ajout sous les yeux, en bas du défilement.
+   *
+   * L'écran se replie déjà devant le clavier, mais cela ne suffit pas à une
+   * liste : le champ est la dernière ligne du contenu, et chaque élément ajouté
+   * pousse le contenu vers le bas de la zone visible. Dix éléments d'affilée le
+   * feraient sortir par le bas sans que rien ne l'y ait poussé.
+   *
+   * Après le rendu et pas pendant : l'élément qui vient d'arriver doit avoir
+   * pris sa place pour que « la fin » soit la bonne. D'où l'attente d'une image.
+   */
+  const scroller = useRef<ScrollView | null>(null)
+  const keepDraftInView = useCallback(() => {
+    requestAnimationFrame(() => scroller.current?.scrollToEnd({ animated: true }))
+  }, [])
+
+  /**
    * Ajout d'un élément de liste.
    *
    * L'échec était muet : le champ se vidait, aucun élément n'apparaissait, et
@@ -335,13 +361,14 @@ export default function NoteEditor() {
     addItem.mutate(
       { noteId: note.id, content, position: note.items.length, encrypted },
       {
+        onSuccess: () => keepDraftInView(),
         onError: () => {
           setDraftItem((current) => (current ? current : content))
           toast('Élément non ajouté, le texte est revenu dans le champ.', { tone: 'danger' })
         },
       },
     )
-  }, [note, draftItem, addItem, toast, encrypted])
+  }, [note, draftItem, addItem, toast, encrypted, keepDraftInView])
 
   /** Texte affiché d'un élément : le brouillon s'il existe, sinon la base. */
   const itemText = useCallback(
@@ -711,7 +738,29 @@ export default function NoteEditor() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.surface.page, paddingTop: insets.top }}>
+    /**
+     * L'écran se replie devant le clavier, au lieu de se laisser recouvrir.
+     *
+     * On écrivait à l'aveugle : le champ « Ajouter un élément » est la dernière
+     * ligne de la liste, donc le bas du contenu, et le clavier se dessine
+     * par-dessus. Chaque élément ajouté allongeait la colonne au-dessus du champ
+     * et l'enfonçait un peu plus sous les touches — là où l'on ne voit ni ce
+     * qu'on tape, ni les fautes qu'on y fait.
+     *
+     * `padding` sur les deux plateformes, et non la recette habituelle
+     * « `undefined` sur Android ». Celle-ci suppose une fenêtre qui rétrécit
+     * d'elle-même sous le clavier, ce qu'une application dessinée bord à bord ne
+     * fait plus. Le rembourrage, lui, se calcule à partir du cadre réel de cette
+     * vue et de celui du clavier : il reste juste dans les deux cas.
+     *
+     * Le rembourrage se pose en bas, donc la barre du haut ne bouge pas d'un
+     * point : c'est la place offerte au contenu qui se réduit, et la barre
+     * d'actions du bas qui remonte se poser sur le clavier.
+     */
+    <KeyboardAvoidingView
+      behavior="padding"
+      style={{ flex: 1, backgroundColor: theme.surface.page, paddingTop: insets.top }}
+    >
       {/* Barre d'actions.
           Sept cibles de 48 points tiennent sur un écran de 360, plus sur un
           écran de 320. Le retour à la ligne fait alors descendre le dernier
@@ -822,6 +871,7 @@ export default function NoteEditor() {
        */}
       <Animated.View style={[{ flex: 1 }, rising]}>
         <ScrollView
+          ref={scroller}
           contentContainerStyle={{
             padding: space.lg,
             paddingBottom: space.xxxl,
@@ -1169,6 +1219,9 @@ export default function NoteEditor() {
                   }}
                   placeholder="Ajouter un élément"
                   placeholderTextColor={theme.text.muted}
+                  // Toucher le champ le ramène en vue : le clavier arrive dans
+                  // la foulée, et sans cela il se poserait dessus.
+                  onFocus={keepDraftInView}
                   returnKeyType="done"
                   // blurOnSubmit désactivé : on enchaîne les éléments sans avoir à
                   // recliquer dans le champ à chaque fois.
@@ -1197,7 +1250,10 @@ export default function NoteEditor() {
           borderTopWidth: 1,
           borderTopColor: theme.line.hairline,
           backgroundColor: theme.surface.card,
-          paddingBottom: insets.bottom,
+          // Clavier ouvert, la marge du bas ne protège plus rien : la barre de
+          // navigation du système est sous les touches. La garder laisserait une
+          // bande de page flotter au-dessus du clavier.
+          paddingBottom: keyboardOpen ? 0 : insets.bottom,
         }}
       >
         {/* Les panneaux poussent la barre vers le haut en s'ouvrant : ils
@@ -1361,6 +1417,6 @@ export default function NoteEditor() {
           ) : null}
         </View>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   )
 }
