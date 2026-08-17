@@ -41,12 +41,41 @@ delete notes and checklists, and hide some behind a passcode.
    cp .env.example .env
    ```
 
-4. Apply the schema. The files in `supabase/migrations/` paste as-is into the
-   dashboard's SQL editor, in filename order. With the Supabase CLI installed,
-   `supabase db push` does the same thing.
+4. Apply the schema, through the CLI:
 
-   On a project already in service, only the migrations not yet applied need
-   running.
+   ```
+   supabase link --project-ref <project-ref>
+   supabase db push
+   ```
+
+   `supabase/config.toml` is what makes this repository a project the CLI will
+   link. Only the migrations not yet applied are run.
+
+   The dashboard's SQL editor accepts the same files, in filename order, and it
+   is a reasonable way to bring up a brand new empty project. It is not the same
+   thing, and the difference is worth knowing: **a run through the editor leaves
+   no trace** in `supabase_migrations.schema_migrations`, the ledger the CLI
+   reads. Nothing can afterwards tell an applied migration from a missing one.
+   That is how two migrations went missing here, one of them silently for days,
+   until the app stopped reading anything at all with `column notes.position does
+   not exist` ([#20](https://github.com/oschweitzer/cairn/issues/20)).
+
+   To know where a database stands:
+
+   ```
+   supabase migration list
+   ```
+
+   Local and remote side by side, one line each. Every file marked applied on
+   both sides, and nothing on the remote that is not a file here, is what a
+   healthy project looks like.
+
+   When the two disagree — a version on the remote that matches no file, or a
+   file the remote has never heard of although the schema plainly holds it —
+   `supabase migration repair --status applied <version>` sets the ledger
+   straight without touching the schema. It states what has already run, so it is
+   only ever right when the database really does hold that migration; check
+   before claiming it.
 
 5. For Google sign-in, see the next section. Nothing to configure on the app
    side; the credentials stay with Supabase.
