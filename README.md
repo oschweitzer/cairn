@@ -305,7 +305,25 @@ Without them the build still succeeds and publishes an app that opens on its
 configuration screen. That is deliberate — a screen explaining what is missing
 beats a blank page — but it looks like a failure when only a variable is missing.
 
-Redeploying afterwards:
+### Production follows `main`
+
+The Netlify project is linked to this repository: every push to `main` builds and
+publishes, and every pull request gets its own deploy preview. Nobody uploads a
+build by hand, and nobody should — that is how the live site once ended up
+twenty-three commits behind, serving an app whose links, formatting and
+drag-to-reorder had been announced in the changelog months before they were ever
+deployed. A manual upload leaves `commit_ref: null` in the deploy's metadata: the
+site then has no way of telling anyone which code it is running.
+
+Linking is done once, in the Netlify project ▸ Project configuration ▸ Build &
+deploy ▸ Continuous deployment ▸ **Link repository**, with `main` as the
+production branch and deploy previews left on. The build itself needs nothing new
+— `netlify.toml` already pins the command, the publish directory, the Node
+version, the `/note/*` rewrite and the headers — but the three environment
+variables above must be set in the project, since `.env` is untracked and never
+reaches Netlify.
+
+The CLI stays available for an emergency, and only for that:
 
 ```bash
 npx -y @netlify/mcp@latest --site-id <project id>
