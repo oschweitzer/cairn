@@ -7,6 +7,27 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-28
+
+### Fixed
+
+- The date of a calendar export can be corrected on a phone again — the same
+  trap as the hour, on the field beside it: the numeric keyboard offers no `/`,
+  so deleting one left the date impossible to rewrite. Day, month and year are
+  now three fields with the `/` drawn between them, filling one moves on to the
+  next, and a lone `5` becomes `05` when you leave the field. A two-digit year
+  is left alone: `26` is not 2026, and completing it would pick a century nobody
+  typed. ([#49])
+- The hour of a calendar export can be corrected on a phone again. It was one
+  text field expecting `HH:MM`, and the numeric keyboard offers no `:` — deleting
+  the separator once left the hour impossible to rewrite, the send button greyed
+  out, and closing the panel the only way out. Hours and minutes are now two
+  fields of two digits with the `:` drawn between them: the second digit of the
+  hour moves on to the minutes, and a lone `9` becomes `09` when you leave the
+  field. ([#47])
+
+## [0.2.0] - 2026-08-17
+
 ### Added
 
 - The Android app is published as a GitHub Release. Tagging `v*` builds the APK
@@ -87,28 +108,9 @@ and the project follows [semantic versioning](https://semver.org/).
 - The Android app now carries native code of its own, for the widget. It no
   longer runs inside Expo Go: `npm run android` builds a development version
   (`expo run:android`). The web app and the PWA are unaffected. ([#6])
-- Comments, documentation, commit messages and pull request bodies are written
-  in English. The app itself stays in French. ([#14])
-- The Android app now carries native code of its own, for the widget. It no
-  longer runs inside Expo Go: `npm run android` builds a development version
-  (`expo run:android`). The web app and the PWA are unaffected. ([#6])
 
 ### Fixed
 
-- The date of a calendar export can be corrected on a phone again — the same
-  trap as the hour, on the field beside it: the numeric keyboard offers no `/`,
-  so deleting one left the date impossible to rewrite. Day, month and year are
-  now three fields with the `/` drawn between them, filling one moves on to the
-  next, and a lone `5` becomes `05` when you leave the field. A two-digit year
-  is left alone: `26` is not 2026, and completing it would pick a century nobody
-  typed. ([#49])
-- The hour of a calendar export can be corrected on a phone again. It was one
-  text field expecting `HH:MM`, and the numeric keyboard offers no `:` — deleting
-  the separator once left the hour impossible to rewrite, the send button greyed
-  out, and closing the panel the only way out. Hours and minutes are now two
-  fields of two digits with the `:` drawn between them: the second digit of the
-  hour moves on to the minutes, and a lone `9` becomes `09` when you leave the
-  field. ([#47])
 - Writing in a list no longer happens under the keyboard. On a phone, the
   **Ajouter un élément** field sits at the bottom of the note and the keyboard
   was drawn straight over it: you typed without seeing the text, so a typo only
@@ -176,17 +178,6 @@ and the project follows [semantic versioning](https://semver.org/).
   underneath, in smaller type, because that is the one worth copying into a bug
   report. The banner shown over cached notes no longer draws a crossed-out
   aerial for something that has nothing to do with the network. ([#21])
-- Changing the tag of a note that already had one works. The old one used to
-  come back: tags were replaced wholesale by a delete followed by an insert, and
-  two quick gestures interleaved. They are now put on and taken off one at a
-  time, which makes them independent. The inherited colour follows the change
-  instead of staying on the old category's; a colour picked by hand is still
-  left alone. ([#4])
-- Note editor: the content field fills the height available under the title
-  instead of stopping at 220 points. The large dead zone that followed it — two
-  thirds of the screen on a desktop — was clickable and did nothing; it is now
-  part of the field. No scrollbar as long as the text fits the space on offer.
-  ([#2])
 
 ## [0.1.0] - 2026-08-08
 
@@ -205,7 +196,9 @@ work happened.
 - Exporting a note to Google Calendar, APK builds, and Expo configuration in
   JavaScript.
 
-[Unreleased]: https://github.com/oschweitzer/cairn/compare/f630263...HEAD
+[Unreleased]: https://github.com/oschweitzer/cairn/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/oschweitzer/cairn/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/oschweitzer/cairn/compare/f630263...v0.2.0
 [#1]: https://github.com/oschweitzer/cairn/issues/1
 [#2]: https://github.com/oschweitzer/cairn/issues/2
 [#3]: https://github.com/oschweitzer/cairn/issues/3
