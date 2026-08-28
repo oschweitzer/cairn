@@ -95,6 +95,13 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Fixed
 
+- The hour of a calendar export can be corrected on a phone again. It was one
+  text field expecting `HH:MM`, and the numeric keyboard offers no `:` — deleting
+  the separator once left the hour impossible to rewrite, the send button greyed
+  out, and closing the panel the only way out. Hours and minutes are now two
+  fields of two digits with the `:` drawn between them: the second digit of the
+  hour moves on to the minutes, and a lone `9` becomes `09` when you leave the
+  field. ([#47])
 - Writing in a list no longer happens under the keyboard. On a phone, the
   **Ajouter un élément** field sits at the bottom of the note and the keyboard
   was drawn straight over it: you typed without seeing the text, so a typo only
@@ -212,3 +219,4 @@ work happened.
 [#38]: https://github.com/oschweitzer/cairn/issues/38
 [#39]: https://github.com/oschweitzer/cairn/issues/39
 [#40]: https://github.com/oschweitzer/cairn/issues/40
+[#47]: https://github.com/oschweitzer/cairn/issues/47

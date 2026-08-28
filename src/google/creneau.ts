@@ -31,6 +31,44 @@ export function formaterHeure(d: Date): string {
 }
 
 /**
+ * Ne garde que les chiffres, deux au plus. Une moitié d'heure ne peut rien
+ * contenir d'autre : ni séparateur, ni espace collé par un copier-coller.
+ */
+function deuxChiffresAuPlus(valeur: string): string {
+  return valeur.replace(/\D/g, '').slice(0, 2)
+}
+
+/**
+ * Découpe une heure « HH:MM » en ses deux moitiés, pour une saisie qui les
+ * sépare. Ce qui n'est pas un chiffre tombe, et une moitié absente rend une
+ * chaîne vide plutôt que rien : le champ correspondant s'affiche vide, pas
+ * incontrôlé.
+ */
+export function separerHeure(valeur: string): { heures: string; minutes: string } {
+  const [h = '', m = ''] = valeur.split(':')
+  return { heures: deuxChiffresAuPlus(h), minutes: deuxChiffresAuPlus(m) }
+}
+
+/** Recompose les deux moitiés dans le seul format que `lireCreneau` connaît. */
+export function composerHeure(heures: string, minutes: string): string {
+  return `${deuxChiffresAuPlus(heures)}:${deuxChiffresAuPlus(minutes)}`
+}
+
+/**
+ * Complète les moitiés laissées à un seul chiffre, une fois la saisie finie.
+ *
+ * Le zéro va devant, comme sur une horloge : « 9 » minutes, ce sont neuf
+ * minutes après l'heure, pas cinquante. Une moitié restée vide n'est pas
+ * devinée — mettre « 00 » à la place choisirait une heure que personne n'a
+ * saisie, alors que la laisser vide fait dire au panneau ce qu'il attend.
+ */
+export function completerHeure(valeur: string): string {
+  const { heures, minutes } = separerHeure(valeur)
+  if (!heures || !minutes) return valeur
+  return `${heures.padStart(2, '0')}:${minutes.padStart(2, '0')}`
+}
+
+/**
  * Proposition d'ouverture : la prochaine heure ronde.
  *
  * Pas « maintenant », qui donnerait 14:37 et obligerait à corriger deux chiffres

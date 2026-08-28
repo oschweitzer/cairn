@@ -53,10 +53,13 @@ import {
 } from '../src/vault/policy'
 import { countInRange, splitHash } from '../src/auth/pwnedLogic'
 import {
+  completerHeure,
+  composerHeure,
   decalerJours,
   formaterDate,
   lireCreneau,
   prochainCreneau,
+  separerHeure,
 } from '../src/google/creneau'
 import { randomBytes as nodeRandomBytes } from 'node:crypto'
 import {
@@ -1033,6 +1036,40 @@ test('le décalage laisse passer une date illisible sans planter', () => {
 
 test('le format de date est bien à deux chiffres', () => {
   assert.equal(formaterDate(new Date(2026, 0, 5)), '05/01/2026')
+})
+
+test('l’heure se découpe en deux moitiés de deux chiffres', () => {
+  assert.deepEqual(separerHeure('14:30'), { heures: '14', minutes: '30' })
+  assert.deepEqual(separerHeure('9:5'), { heures: '9', minutes: '5' })
+  // Une moitié vide reste une chaîne : le champ correspondant s'affiche vide
+  // plutôt que de basculer en non contrôlé.
+  assert.deepEqual(separerHeure(''), { heures: '', minutes: '' })
+  assert.deepEqual(separerHeure('14:'), { heures: '14', minutes: '' })
+})
+
+test('le découpage jette ce qui n’est pas un chiffre', () => {
+  assert.deepEqual(separerHeure(' 14 : 3o '), { heures: '14', minutes: '3' })
+  assert.deepEqual(separerHeure('149:305'), { heures: '14', minutes: '30' })
+})
+
+test('les deux moitiés se recomposent dans le format attendu', () => {
+  assert.equal(composerHeure('14', '30'), '14:30')
+  assert.equal(composerHeure('', ''), ':')
+  // Ce que `composerHeure` rend doit rester lisible par `lireCreneau`, sans
+  // quoi les deux champs produiraient une heure que le panneau refuse.
+  assert.equal(lireCreneau('12/08/2026', composerHeure('9', '05'), 60, MIDI).ok, true)
+})
+
+test('un chiffre seul reçoit son zéro devant à la sortie du champ', () => {
+  assert.equal(completerHeure('9:5'), '09:05')
+  assert.equal(completerHeure('14:30'), '14:30')
+})
+
+test('une moitié laissée vide n’est pas devinée', () => {
+  // Mettre « 00 » choisirait une heure que personne n'a saisie ; le panneau
+  // doit continuer de dire ce qu'il attend.
+  assert.equal(completerHeure('14:'), '14:')
+  assert.equal(completerHeure(':30'), ':30')
 })
 
 // --- Naming a database failure -----------------------------------------------
