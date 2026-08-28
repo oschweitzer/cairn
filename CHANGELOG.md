@@ -95,6 +95,13 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ### Fixed
 
+- The date of a calendar export can be corrected on a phone again — the same
+  trap as the hour, on the field beside it: the numeric keyboard offers no `/`,
+  so deleting one left the date impossible to rewrite. Day, month and year are
+  now three fields with the `/` drawn between them, filling one moves on to the
+  next, and a lone `5` becomes `05` when you leave the field. A two-digit year
+  is left alone: `26` is not 2026, and completing it would pick a century nobody
+  typed. ([#49])
 - The hour of a calendar export can be corrected on a phone again. It was one
   text field expecting `HH:MM`, and the numeric keyboard offers no `:` — deleting
   the separator once left the hour impossible to rewrite, the send button greyed
@@ -220,3 +227,4 @@ work happened.
 [#39]: https://github.com/oschweitzer/cairn/issues/39
 [#40]: https://github.com/oschweitzer/cairn/issues/40
 [#47]: https://github.com/oschweitzer/cairn/issues/47
+[#49]: https://github.com/oschweitzer/cairn/issues/49

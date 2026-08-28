@@ -5,19 +5,21 @@
  * coffre. L'écran de note masque déjà le bouton dans ces cas, mais ce composant
  * ne s'en remet pas à son appelant — voir `raisonIndisponible`.
  *
- * Aucun sélecteur natif : des champs de texte et des pastilles. Ajouter un
+ * Aucun sélecteur natif : des champs de chiffres et des pastilles. Ajouter un
  * module natif de date obligerait à reconstruire l'APK pour une saisie que ces
  * champs couvrent, et ferait entrer dans le projet une dépendance native de
- * plus. L'heure a en revanche son propre composant, `TimeField`, parce qu'un
- * champ libre y demandait un « : » que le clavier numérique ne donne pas.
+ * plus. La date et l'heure ont en revanche leur propre composant, parce qu'un
+ * champ libre y demandait un « / » et un « : » que le clavier numérique ne
+ * donne pas.
  */
 
 import { useMemo, useState } from 'react'
 import { View } from 'react-native'
-import { Button, Field, Txt } from './components'
+import { Button, Txt } from './components'
 import { space } from './theme'
 import { useToast } from './Toast'
 import { IconButton } from './IconButton'
+import { DateField } from './DateField'
 import { TimeField } from './TimeField'
 import {
   agendaConfigure,
@@ -140,15 +142,13 @@ export function AgendaPanel({
 
       <View style={{ flexDirection: 'row', gap: space.sm }}>
         <View style={{ flex: 1.4 }}>
-          <Field
+          <DateField
             label="Date"
             value={date}
             onChangeText={(v) => {
               setDate(v)
               setErreur(null)
             }}
-            placeholder="JJ/MM/AAAA"
-            inputMode="numeric"
           />
         </View>
         <View style={{ flex: 1 }}>

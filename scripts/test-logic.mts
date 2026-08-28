@@ -53,14 +53,20 @@ import {
 } from '../src/vault/policy'
 import { countInRange, splitHash } from '../src/auth/pwnedLogic'
 import {
-  completerHeure,
-  composerHeure,
   decalerJours,
   formaterDate,
   lireCreneau,
   prochainCreneau,
-  separerHeure,
+  SEGMENTS_DATE,
+  SEGMENTS_HEURE,
+  SEPARATEUR_DATE,
+  SEPARATEUR_HEURE,
 } from '../src/google/creneau'
+import {
+  completerSegments,
+  composerSegments,
+  separerSegments,
+} from '../src/ui/segments'
 import { randomBytes as nodeRandomBytes } from 'node:crypto'
 import {
   createDataKey,
@@ -1039,37 +1045,61 @@ test('le format de date est bien à deux chiffres', () => {
 })
 
 test('l’heure se découpe en deux moitiés de deux chiffres', () => {
-  assert.deepEqual(separerHeure('14:30'), { heures: '14', minutes: '30' })
-  assert.deepEqual(separerHeure('9:5'), { heures: '9', minutes: '5' })
+  const separer = (v: string) => separerSegments(v, SEPARATEUR_HEURE, SEGMENTS_HEURE)
+  assert.deepEqual(separer('14:30'), ['14', '30'])
+  assert.deepEqual(separer('9:5'), ['9', '5'])
   // Une moitié vide reste une chaîne : le champ correspondant s'affiche vide
   // plutôt que de basculer en non contrôlé.
-  assert.deepEqual(separerHeure(''), { heures: '', minutes: '' })
-  assert.deepEqual(separerHeure('14:'), { heures: '14', minutes: '' })
+  assert.deepEqual(separer(''), ['', ''])
+  assert.deepEqual(separer('14:'), ['14', ''])
+})
+
+test('la date se découpe en jour, mois et année', () => {
+  const separer = (v: string) => separerSegments(v, SEPARATEUR_DATE, SEGMENTS_DATE)
+  assert.deepEqual(separer('28/08/2026'), ['28', '08', '2026'])
+  assert.deepEqual(separer('5/8/26'), ['5', '8', '26'])
+  assert.deepEqual(separer(''), ['', '', ''])
 })
 
 test('le découpage jette ce qui n’est pas un chiffre', () => {
-  assert.deepEqual(separerHeure(' 14 : 3o '), { heures: '14', minutes: '3' })
-  assert.deepEqual(separerHeure('149:305'), { heures: '14', minutes: '30' })
+  assert.deepEqual(separerSegments(' 14 : 3o ', SEPARATEUR_HEURE, SEGMENTS_HEURE), ['14', '3'])
+  assert.deepEqual(separerSegments('149:305', SEPARATEUR_HEURE, SEGMENTS_HEURE), ['14', '30'])
+  // L'année en accepte quatre là où le jour en accepte deux.
+  assert.deepEqual(separerSegments('288/8/20266', SEPARATEUR_DATE, SEGMENTS_DATE), [
+    '28',
+    '8',
+    '2026',
+  ])
 })
 
-test('les deux moitiés se recomposent dans le format attendu', () => {
-  assert.equal(composerHeure('14', '30'), '14:30')
-  assert.equal(composerHeure('', ''), ':')
-  // Ce que `composerHeure` rend doit rester lisible par `lireCreneau`, sans
-  // quoi les deux champs produiraient une heure que le panneau refuse.
-  assert.equal(lireCreneau('12/08/2026', composerHeure('9', '05'), 60, MIDI).ok, true)
+test('les moitiés se recomposent dans le format attendu', () => {
+  assert.equal(composerSegments(['14', '30'], SEPARATEUR_HEURE, SEGMENTS_HEURE), '14:30')
+  assert.equal(composerSegments(['28', '08', '2026'], SEPARATEUR_DATE, SEGMENTS_DATE), '28/08/2026')
+  assert.equal(composerSegments([], SEPARATEUR_DATE, SEGMENTS_DATE), '//')
+  // Ce que la recomposition rend doit rester lisible par `lireCreneau`, sans
+  // quoi les champs produiraient un créneau que le panneau refuse.
+  const date = composerSegments(['12', '08', '2026'], SEPARATEUR_DATE, SEGMENTS_DATE)
+  const heure = composerSegments(['9', '05'], SEPARATEUR_HEURE, SEGMENTS_HEURE)
+  assert.equal(lireCreneau(date, heure, 60, MIDI).ok, true)
 })
 
 test('un chiffre seul reçoit son zéro devant à la sortie du champ', () => {
-  assert.equal(completerHeure('9:5'), '09:05')
-  assert.equal(completerHeure('14:30'), '14:30')
+  assert.equal(completerSegments('9:5', SEPARATEUR_HEURE, SEGMENTS_HEURE), '09:05')
+  assert.equal(completerSegments('14:30', SEPARATEUR_HEURE, SEGMENTS_HEURE), '14:30')
+  assert.equal(completerSegments('5/8/2026', SEPARATEUR_DATE, SEGMENTS_DATE), '05/08/2026')
+})
+
+test('l’année n’est pas complétée : « 26 » n’est pas 2026', () => {
+  // Compléter choisirait un siècle que personne n'a saisi. La date reste
+  // incomplète, et le panneau continue de dire ce qu'il attend.
+  assert.equal(completerSegments('05/08/26', SEPARATEUR_DATE, SEGMENTS_DATE), '05/08/26')
+  assert.equal(lireCreneau('05/08/26', '10:00', 60, MIDI).ok, false)
 })
 
 test('une moitié laissée vide n’est pas devinée', () => {
-  // Mettre « 00 » choisirait une heure que personne n'a saisie ; le panneau
-  // doit continuer de dire ce qu'il attend.
-  assert.equal(completerHeure('14:'), '14:')
-  assert.equal(completerHeure(':30'), ':30')
+  // Mettre « 00 » choisirait une valeur que personne n'a saisie.
+  assert.equal(completerSegments('14:', SEPARATEUR_HEURE, SEGMENTS_HEURE), '14:')
+  assert.equal(completerSegments('/08/2026', SEPARATEUR_DATE, SEGMENTS_DATE), '/08/2026')
 })
 
 // --- Naming a database failure -----------------------------------------------

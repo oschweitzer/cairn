@@ -12,6 +12,8 @@
  * dire produit des rendez-vous au mauvais jour onze fois sur douze.
  */
 
+import type { Segment } from '../ui/segments'
+
 export type Creneau = { debut: Date; fin: Date }
 export type LectureCreneau = { ok: true; creneau: Creneau } | { ok: false; erreur: string }
 
@@ -31,42 +33,27 @@ export function formaterHeure(d: Date): string {
 }
 
 /**
- * Ne garde que les chiffres, deux au plus. Une moitié d'heure ne peut rien
- * contenir d'autre : ni séparateur, ni espace collé par un copier-coller.
- */
-function deuxChiffresAuPlus(valeur: string): string {
-  return valeur.replace(/\D/g, '').slice(0, 2)
-}
-
-/**
- * Découpe une heure « HH:MM » en ses deux moitiés, pour une saisie qui les
- * sépare. Ce qui n'est pas un chiffre tombe, et une moitié absente rend une
- * chaîne vide plutôt que rien : le champ correspondant s'affiche vide, pas
- * incontrôlé.
- */
-export function separerHeure(valeur: string): { heures: string; minutes: string } {
-  const [h = '', m = ''] = valeur.split(':')
-  return { heures: deuxChiffresAuPlus(h), minutes: deuxChiffresAuPlus(m) }
-}
-
-/** Recompose les deux moitiés dans le seul format que `lireCreneau` connaît. */
-export function composerHeure(heures: string, minutes: string): string {
-  return `${deuxChiffresAuPlus(heures)}:${deuxChiffresAuPlus(minutes)}`
-}
-
-/**
- * Complète les moitiés laissées à un seul chiffre, une fois la saisie finie.
+ * Les moitiés que la saisie présente, séparément.
  *
- * Le zéro va devant, comme sur une horloge : « 9 » minutes, ce sont neuf
- * minutes après l'heure, pas cinquante. Une moitié restée vide n'est pas
- * devinée — mettre « 00 » à la place choisirait une heure que personne n'a
- * saisie, alors que la laisser vide fait dire au panneau ce qu'il attend.
+ * Elles vivent ici, avec la lecture du format, et non dans le champ qui les
+ * affiche : « JJ/MM/AAAA » et « HH:MM » sont décidés dans ce fichier, et deux
+ * endroits qui décrivent le même format finissent par ne plus le décrire
+ * pareil. Le champ, lui, ne connaît que des moitiés de chiffres.
  */
-export function completerHeure(valeur: string): string {
-  const { heures, minutes } = separerHeure(valeur)
-  if (!heures || !minutes) return valeur
-  return `${heures.padStart(2, '0')}:${minutes.padStart(2, '0')}`
-}
+export const SEGMENTS_DATE: readonly Segment[] = [
+  { label: 'Jour', longueur: 2, placeholder: 'JJ', zeroDevant: true },
+  { label: 'Mois', longueur: 2, placeholder: 'MM', zeroDevant: true },
+  { label: 'Année', longueur: 4, placeholder: 'AAAA', zeroDevant: false },
+]
+
+export const SEPARATEUR_DATE = '/'
+
+export const SEGMENTS_HEURE: readonly Segment[] = [
+  { label: 'Heures', longueur: 2, placeholder: 'HH', zeroDevant: true },
+  { label: 'Minutes', longueur: 2, placeholder: 'MM', zeroDevant: true },
+]
+
+export const SEPARATEUR_HEURE = ':'
 
 /**
  * Proposition d'ouverture : la prochaine heure ronde.
