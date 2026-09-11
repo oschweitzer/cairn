@@ -122,6 +122,36 @@ function retireOuvreLien(champ: TextInput | null) {
   ECOUTEURS.delete(el)
 }
 
+/**
+ * Whether list items wrap onto several lines while being written.
+ *
+ * A single-line field scrolls sideways once its text outruns the row, and on a
+ * phone the row leaves the text barely half the screen: the start of the item
+ * slid out of view, and reading it back meant scrolling one character at a time.
+ * A multiline field grows with its text instead.
+ *
+ * Native only. react-native-web ignores `submitBehavior`, and a multiline field
+ * there is a `textarea` that does not grow by itself, where return would insert a
+ * line break instead of adding the item. A desktop row is wide enough anyway.
+ */
+const ITEMS_WRAP = Platform.OS !== 'web'
+
+/**
+ * An item is one paragraph. Return no longer types a line break once the field
+ * is multiline, but a pasted text can still carry some: they become spaces.
+ */
+function oneLine(text: string): string {
+  return text.replace(/\r?\n/g, ' ')
+}
+
+/**
+ * Vertical padding that makes one line of body text a 44-point row, the height
+ * of the checkbox beside it. Padding rather than `minHeight` alone: a multiline
+ * field puts its text at the top, and the first line has to sit level with the
+ * checkbox, whatever the number of lines below it.
+ */
+const ITEM_PADDING = (44 - type.body.lineHeight) / 2
+
 export default function NoteEditor() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
@@ -1089,7 +1119,9 @@ export default function NoteEditor() {
                   layout={reflow}
                   entering={appear}
                   exiting={vanish}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}
+                  // Top, not centre: on a long item the checkbox and the buttons
+                  // stay level with its first line instead of floating mid-block.
+                  style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.sm }}
                 >
                   <Pressable
                     accessibilityRole="checkbox"
@@ -1124,11 +1156,16 @@ export default function NoteEditor() {
                       accessibilityRole="button"
                       accessibilityLabel="Revenir à l’écriture"
                       onPress={() => setReading(false)}
-                      style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}
+                      style={{
+                        flex: 1,
+                        minHeight: 44,
+                        paddingVertical: ITEM_PADDING,
+                        justifyContent: 'center',
+                      }}
                     >
+                      {/* No line cap: an item is read in full, however long. */}
                       <RichText
                         source={itemText(item.id, item.content)}
-                        numberOfLines={2}
                         tone={item.is_done ? 'muted' : 'primary'}
                         style={item.is_done ? { textDecorationLine: 'line-through' } : null}
                       />
@@ -1140,11 +1177,16 @@ export default function NoteEditor() {
                       // forme réécrit le contenu depuis l'extérieur du champ, et
                       // un `defaultValue` garderait à l'écran le texte d'avant.
                       value={itemText(item.id, item.content)}
+                      multiline={ITEMS_WRAP}
+                      // Return validates and leaves the field, as it did when the
+                      // field was single-line; a multiline one would break the line.
+                      submitBehavior="blurAndSubmit"
+                      textAlignVertical="top"
                       onChangeText={(next) => {
                         // Les éléments ne passent pas par `scheduleSave` : la
                         // frappe s'y annonce donc elle-même. Voir `markActivity`.
                         markActivity()
-                        setItemDrafts((current) => ({ ...current, [item.id]: next }))
+                        setItemDrafts((current) => ({ ...current, [item.id]: oneLine(next) }))
                       }}
                       onEndEditing={(e) => {
                         const next = e.nativeEvent.text.trim()
@@ -1164,37 +1206,50 @@ export default function NoteEditor() {
                           textDecorationLine: item.is_done ? 'line-through' : 'none',
                           fontFamily: type.body.fontFamily,
                           fontSize: type.body.fontSize,
+                          lineHeight: type.body.lineHeight,
+                          paddingVertical: ITEM_PADDING,
                         },
                         noWebOutline,
                       ]}
                     />
                   )}
 
-                  <IconButton
-                    icon="chevron-up"
-                    label="Monter"
-                    disabled={index === 0}
-                    onPress={() => moveItem(index, -1)}
-                    size="sm"
-                  />
-                  <IconButton
-                    icon="chevron-down"
-                    label="Descendre"
-                    disabled={index === note.items.length - 1}
-                    onPress={() => moveItem(index, 1)}
-                    size="sm"
-                  />
-                  <IconButton
-                    icon="x"
-                    label={`Supprimer ${item.content}`}
-                    tooltip="Supprimer l’élément"
-                    onPress={() => deleteItem.mutate(item.id)}
-                    size="sm"
-                  />
+                  {/* A 44-point band, so the 36-point buttons centre on the
+                      first line like the checkbox, not on the top edge. */}
+                  <View
+                    style={{
+                      height: 44,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: space.sm,
+                    }}
+                  >
+                    <IconButton
+                      icon="chevron-up"
+                      label="Monter"
+                      disabled={index === 0}
+                      onPress={() => moveItem(index, -1)}
+                      size="sm"
+                    />
+                    <IconButton
+                      icon="chevron-down"
+                      label="Descendre"
+                      disabled={index === note.items.length - 1}
+                      onPress={() => moveItem(index, 1)}
+                      size="sm"
+                    />
+                    <IconButton
+                      icon="x"
+                      label={`Supprimer ${item.content}`}
+                      tooltip="Supprimer l’élément"
+                      onPress={() => deleteItem.mutate(item.id)}
+                      size="sm"
+                    />
+                  </View>
                 </Animated.View>
               ))}
 
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.sm }}>
                 {/**
                  * Ce plus était un décor : une icône posée dans une vue, à
                  * l'emplacement d'une case à cocher. Il a exactement la forme d'un
@@ -1204,18 +1259,22 @@ export default function NoteEditor() {
                  * être le seul : à la souris on ne la cherche pas, et certains
                  * claviers logiciels renvoient à la ligne au lieu de valider.
                  */}
-                <IconButton
-                  icon="plus"
-                  label="Ajouter l’élément"
-                  size="sm"
-                  disabled={!draftItem.trim()}
-                  onPress={addDraftItem}
-                />
+                <View style={{ height: 44, justifyContent: 'center' }}>
+                  <IconButton
+                    icon="plus"
+                    label="Ajouter l’élément"
+                    size="sm"
+                    disabled={!draftItem.trim()}
+                    onPress={addDraftItem}
+                  />
+                </View>
                 <TextInput
                   value={draftItem}
+                  multiline={ITEMS_WRAP}
+                  textAlignVertical="top"
                   onChangeText={(next) => {
                     markActivity()
-                    setDraftItem(next)
+                    setDraftItem(oneLine(next))
                   }}
                   placeholder="Ajouter un élément"
                   placeholderTextColor={theme.text.muted}
@@ -1225,7 +1284,12 @@ export default function NoteEditor() {
                   returnKeyType="done"
                   // blurOnSubmit désactivé : on enchaîne les éléments sans avoir à
                   // recliquer dans le champ à chaque fois.
+                  // Both props say the same thing: `submitBehavior` is what native
+                  // reads, and it wins there; react-native-web only knows
+                  // `blurOnSubmit`. On native, `submit` also keeps return from
+                  // breaking the line now that the field is multiline.
                   blurOnSubmit={false}
+                  submitBehavior="submit"
                   onSubmitEditing={addDraftItem}
                   style={[
                     {
@@ -1234,6 +1298,8 @@ export default function NoteEditor() {
                       color: theme.text.primary,
                       fontFamily: type.body.fontFamily,
                       fontSize: type.body.fontSize,
+                      lineHeight: type.body.lineHeight,
+                      paddingVertical: ITEM_PADDING,
                     },
                     noWebOutline,
                   ]}

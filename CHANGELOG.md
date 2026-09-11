@@ -7,6 +7,16 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A long list item is shown in full on a phone. It used to be a single line
+  that scrolled sideways once the text outran the row — the start slid out of
+  view — and reading mode stopped after two lines. The item now wraps onto as
+  many lines as it needs, in writing and in reading, with the checkbox and the
+  buttons level with its first line. Return still validates the item rather
+  than breaking the line, and a pasted text with line breaks is kept on one
+  paragraph. ([#51])
+
 ## [0.2.1] - 2026-08-28
 
 ### Fixed
@@ -221,3 +231,4 @@ work happened.
 [#40]: https://github.com/oschweitzer/cairn/issues/40
 [#47]: https://github.com/oschweitzer/cairn/issues/47
 [#49]: https://github.com/oschweitzer/cairn/issues/49
+[#51]: https://github.com/oschweitzer/cairn/issues/51
