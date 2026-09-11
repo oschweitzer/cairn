@@ -2,12 +2,12 @@ import { Platform } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 /**
- * Petit stockage clé-valeur, volontairement pas AsyncStorage directement.
+ * A small key-value store, deliberately not AsyncStorage directly.
  *
- * Sur le web, AsyncStorage préfixe les clés dans localStorage. Or le script
- * anti-flash injecté dans app/+html.tsx lit localStorage avant que le bundle ne
- * soit chargé, donc avant qu'AsyncStorage existe. Les deux doivent tomber
- * d'accord sur le nom exact de la clé, d'où cet accès direct côté web.
+ * On the web, AsyncStorage prefixes keys in localStorage. And the anti-flash
+ * script injected in app/+html.tsx reads localStorage before the bundle is
+ * loaded, so before AsyncStorage exists. The two have to agree on the exact key
+ * name, hence this direct access on the web.
  */
 
 export const KEY_THEME = 'cairn.theme'
@@ -19,7 +19,7 @@ export async function kvGet(key: string): Promise<string | null> {
     try {
       return globalThis.localStorage?.getItem(key) ?? null
     } catch {
-      // Navigation privée ou stockage bloqué : on retombe sur les défauts.
+      // Private browsing or blocked storage: we fall back on the defaults.
       return null
     }
   }
@@ -31,7 +31,7 @@ export async function kvSet(key: string, value: string): Promise<void> {
     try {
       globalThis.localStorage?.setItem(key, value)
     } catch {
-      /* stockage indisponible, le réglage ne survivra pas au rechargement */
+      /* storage unavailable, the setting will not survive a reload */
     }
     return
   }
@@ -39,8 +39,8 @@ export async function kvSet(key: string, value: string): Promise<void> {
 }
 
 /**
- * Lecture synchrone, disponible uniquement sur le web. Permet de connaître le
- * thème dès le premier rendu, sans attendre un tour de boucle asynchrone.
+ * Synchronous read, available on the web only. Lets the theme be known from the
+ * first render, without waiting for an asynchronous turn of the loop.
  */
 export function kvGetSync(key: string): string | null {
   if (!isWeb) return null

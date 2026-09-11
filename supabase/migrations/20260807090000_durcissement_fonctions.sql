@@ -1,44 +1,45 @@
--- Durcissement des fonctions, sur signalement de l'auditeur Supabase.
+-- Hardening the functions, following a report from the Supabase advisor.
 --
--- Rien d'exploitable n'a été trouvé : les deux fonctions concernées s'exécutent
--- avec les droits de l'appelant, donc sous RLS. C'est de l'hygiène, pas un
--- correctif d'urgence — mais elle est gratuite et referme la porte avant qu'une
--- fonction future, elle en droits du définisseur, ne s'y engouffre.
+-- Nothing exploitable was found: the two functions concerned run with the
+-- caller's rights, so under RLS. This is hygiene, not an emergency fix — but it
+-- is free, and it shuts the door before a future function, running with the
+-- definer's rights, slips through it.
 
--- ------------------------------------------- chemin de recherche figé
+-- ---------------------------------------------------- fixed search path
 
--- Sans chemin fixé, un appelant peut placer devant `public` un schéma à lui
--- contenant une table ou une fonction homonyme, et détourner ce que le corps
--- désigne. Figer le chemin ferme cette porte.
+-- Without a fixed path, a caller can put a schema of their own in front of
+-- `public`, containing a table or function of the same name, and divert what
+-- the body refers to. Fixing the path shuts that door.
 --
--- `public` et non la chaîne vide que recommande la documentation : les corps
--- ci-dessous nomment leurs tables sans les qualifier, et vider le chemin les
--- casserait. Le figer suffit à l'usage.
+-- `public` and not the empty string the documentation recommends: the bodies
+-- below name their tables without qualifying them, and emptying the path would
+-- break them. Fixing it is enough in practice.
 alter function public.touch_updated_at() set search_path = public;
 alter function public.reorder_checklist_items(uuid, uuid[]) set search_path = public;
 
--- ------------------------------------- droits d'exécution des déclencheurs
+-- ------------------------------------------------- trigger execute rights
 
 /*
- * Les deux fonctions de déclencheur n'ont aucune raison d'être appelables.
+ * The two trigger functions have no reason to be callable.
  *
- * L'auditeur les signale comme joignables par `/rest/v1/rpc/`, ce qui surévalue
- * le risque : elles retournent `trigger`, et PostgREST n'expose pas ce type-là.
- * Le droit n'en reste pas moins accordé sans raison, et un droit inutile est un
- * droit à retirer.
+ * The advisor flags them as reachable through `/rest/v1/rpc/`, which overstates
+ * the risk: they return `trigger`, and PostgREST does not expose that type. The
+ * right is still granted for no reason, and a useless right is a right to
+ * revoke.
  *
- * Le retrait vise `public` et non les rôles nommés. Postgres accorde `execute`
- * à `public` par défaut sur toute fonction : retirer le droit à `anon` et à
- * `authenticated` ne leur enlève rien, puisqu'ils le tiennent de là. Une
- * première tentative ainsi rédigée a été appliquée sans le moindre effet.
+ * The revocation targets `public` and not the named roles. Postgres grants
+ * `execute` to `public` by default on every function: revoking the right from
+ * `anon` and `authenticated` takes nothing away from them, since they hold it
+ * from there. A first attempt written that way was applied without the
+ * slightest effect.
  *
- * Un déclencheur continue de se déclencher : Postgres vérifie `execute` à la
- * création du déclencheur, pas à chaque fois qu'il tire. Le test
- * « updated_at avance à la modification » de scripts/test-schema.mts le
- * démontre — il s'exécute sous le rôle `authenticated`, qui n'a plus ce droit.
+ * A trigger keeps firing: Postgres checks `execute` when the trigger is
+ * created, not every time it fires. The « updated_at avance à la modification »
+ * test in scripts/test-schema.mts demonstrates it — it runs as the
+ * `authenticated` role, which no longer has that right.
  *
- * `reorder_checklist_items` n'est pas touchée : l'application l'appelle en RPC,
- * lui retirer le droit la casserait.
+ * `reorder_checklist_items` is not touched: the app calls it over RPC, and
+ * revoking its right would break it.
  */
 revoke execute on function public.touch_updated_at() from public;
 revoke execute on function public.create_profile_for_new_user() from public;

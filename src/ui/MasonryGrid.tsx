@@ -14,23 +14,23 @@ import { Tooltip } from './Tooltip'
 import { radius, space } from './theme'
 
 /**
- * Grille en colonnes de hauteurs libres, façon Google Keep.
+ * A grid of free-height columns, Google Keep style.
  *
- * React Native n'a pas d'équivalent de `column-count`, et une FlatList à
- * plusieurs colonnes aligne les lignes sur la carte la plus haute, ce qui laisse
- * de grands trous.
+ * React Native has no equivalent of `column-count`, and a multi-column FlatList
+ * aligns rows on the tallest card, which leaves large gaps.
  *
- * La répartition et les paliers de largeur vivent dans src/db/noteLogic.ts, où ils
- * sont testés. Ce composant ne fait que mesurer la largeur et rendre le résultat.
+ * The distribution and the width breakpoints live in src/db/noteLogic.ts, where
+ * they are tested. This component only measures the width and renders the
+ * result.
  *
- * ── Glisser-déposer ──────────────────────────────────────────────────────────
- * Fourni avec `onReorder`. Chaque carte reçoit alors une poignée, et non un
- * appui long : l'appui long est déjà pris par la sélection multiple, et lui
- * donner un second sens rendrait les deux gestes incertains.
+ * ── Drag and drop ────────────────────────────────────────────────────────────
+ * Provided with `onReorder`. Each card then gets a handle, and not a long
+ * press: the long press is already taken by multiple selection, and giving it a
+ * second meaning would make both gestures uncertain.
  *
- * `PanResponder` plutôt que react-native-gesture-handler : il est dans React
- * Native, il fonctionne à la souris comme au doigt via react-native-web, et il
- * n'ajoute aucune dépendance à un projet qui n'en avait pas besoin.
+ * `PanResponder` rather than react-native-gesture-handler: it is in React
+ * Native, it works with a mouse as with a finger through react-native-web, and
+ * it adds no dependency to a project that did not need one.
  */
 export function MasonryGrid<T>({
   items,
@@ -47,11 +47,11 @@ export function MasonryGrid<T>({
   keyExtractor: (item: T) => string
   gap?: number
   /**
-   * Déplacement demandé, en indices sur `items`. Absent, la grille n'est pas
-   * réordonnable et aucune poignée n'est rendue.
+   * Requested move, as indices into `items`. When absent, the grid cannot be
+   * reordered and no handle is rendered.
    */
   onReorder?: (from: number, to: number) => void
-  /** Ce que le lecteur d'écran annonce sur la poignée d'un élément. */
+  /** What the screen reader announces on an item's handle. */
   reorderLabel?: (item: T) => string
 }) {
   const { width } = useWindowDimensions()
@@ -64,44 +64,44 @@ export function MasonryGrid<T>({
   )
 
   /**
-   * Rectangles mesurés, et non calculés.
+   * Rectangles that are measured, not computed.
    *
-   * Les hauteurs de carte sont libres : `estimateHeight` ne sert qu'à répartir
-   * les colonnes, et s'en servir pour localiser un dépôt reviendrait à viser
-   * avec une approximation qu'on sait fausse.
+   * Card heights are free: `estimateHeight` only serves to distribute the
+   * columns, and using it to locate a drop would mean aiming with an
+   * approximation we know to be wrong.
    *
-   * Deux niveaux, parce que `onLayout` rend la position dans le parent : une
-   * carte est placée dans sa colonne, la colonne dans la grille. Il faut les
-   * additionner pour comparer deux cartes de colonnes différentes — sans quoi
-   * toutes les colonnes se superposent au même abscisse, et un dépôt à droite
-   * atterrissait dans la première colonne.
+   * Two levels, because `onLayout` gives the position within the parent: a card
+   * is placed in its column, the column in the grid. They have to be added up
+   * to compare two cards from different columns — otherwise every column
+   * overlaps at the same x, and a drop on the right landed in the first column.
    *
-   * Des `ref` et non des états : ces mesures changent à chaque rendu et ne
-   * doivent surtout pas en provoquer un.
+   * Refs and not state: these measurements change on every render and must
+   * above all not trigger one.
    */
   const columnRects = useRef(new Map<number, LayoutRectangle>()).current
   const cellRects = useRef(new Map<string, LayoutRectangle>()).current
 
-  /** Carte en cours de déplacement, et sa destination pressentie. */
+  /** Card being moved, and its expected destination. */
   const [dragged, setDragged] = useState<string | null>(null)
   const [target, setTarget] = useState<string | null>(null)
   const offset = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current
 
   /**
-   * Miroir non réactif de tout ce dont le geste a besoin.
+   * Non-reactive mirror of everything the gesture needs.
    *
-   * Un `PanResponder` doit survivre au rendu — en reconstruire un à chaque fois
-   * couperait le geste en cours, la vue changeant de gestionnaire au milieu du
-   * glissement. Mais un gestionnaire gardé fige aussi les fermetures qu'il a
-   * capturées à sa création : la liste des cartes, la fonction de clé, et
-   * surtout `onReorder`, qui dépend des notes affichées.
+   * A `PanResponder` has to survive rendering — rebuilding one each time would
+   * cut the gesture in progress, the view switching handlers in the middle of
+   * the drag. But a kept handler also freezes the closures it captured when it
+   * was created: the list of cards, the key function, and above all
+   * `onReorder`, which depends on the notes on display.
    *
-   * Le premier glissement marchait donc, et les suivants appliquaient leur
-   * déplacement à la grille telle qu'elle était au tout premier rendu. Comme les
-   * indices, eux, venaient de la grille à jour, le résultat était un ordre
-   * plausible mais faux — parfois même identique, donc invisible.
+   * So the first drag worked, and the following ones applied their move to the
+   * grid as it was on the very first render. Since the indices came from the
+   * up-to-date grid, the result was a plausible but wrong order — sometimes even
+   * identical, so invisible.
    *
-   * Tout ce qui change passe donc par cette boîte, relue au moment du geste.
+   * So everything that changes goes through this box, read again at gesture
+   * time.
    */
   const live = useRef({
     items,
@@ -116,24 +116,23 @@ export function MasonryGrid<T>({
   live.current.onReorder = onReorder
 
   /**
-   * Un gestionnaire par carte, gardé d'un rendu à l'autre.
+   * One handler per card, kept from one render to the next.
    *
-   * Créé une seule fois, sans aucune dépendance : tout ce qui bouge est lu dans
-   * `live` au moment où le geste arrive.
+   * Created only once, with no dependency at all: everything that moves is read
+   * from `live` at the moment the gesture arrives.
    */
   const responders = useRef(new Map<string, PanResponderInstance>()).current
 
   const gesture = useRef({
     /**
-     * Rectangle d'une carte dans le repère de la grille.
+     * A card's rectangle in the grid's coordinate space.
      *
-     * La colonne est retrouvée dans la répartition du moment, et non retenue au
-     * dernier `onLayout` de la carte. C'est une distinction qui coûte cher :
-     * après un déplacement, une carte change de colonne sans forcément changer
-     * de place *dans* sa colonne — même abscisse, même ordonnée relatives, donc
-     * `onLayout` ne se déclenche pas. La carte gardait alors l'abscisse de son
-     * ancienne colonne, et le second glissement visait à côté, souvent dans le
-     * vide : le dépôt était ignoré, sans que rien ne l'explique.
+     * The column is found in the current distribution, and not remembered from
+     * the card's last `onLayout`. It is a costly distinction: after a move, a
+     * card changes column without necessarily changing place *within* its
+     * column — same relative x, same relative y, so `onLayout` does not fire.
+     * The card then kept its old column's x, and the second drag aimed beside
+     * it, often at nothing: the drop was ignored, with nothing to explain why.
      */
     rectOf(key: string): LayoutRectangle | null {
       const layout = cellRects.get(key)
@@ -150,7 +149,7 @@ export function MasonryGrid<T>({
         height: layout.height,
       }
     },
-    /** Carte dont le rectangle contient ce point, ou `null`. */
+    /** The card whose rectangle contains this point, or `null`. */
     cardAt(x: number, y: number): string | null {
       for (const item of live.current.items) {
         const key = live.current.keyExtractor(item)
@@ -175,8 +174,8 @@ export function MasonryGrid<T>({
     const created = PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      // La grille vit dans une ScrollView : sans ce refus, un glissement
-      // vertical partirait en défilement au lieu de déplacer la carte.
+      // The grid lives in a ScrollView: without this refusal, a vertical drag
+      // would turn into scrolling instead of moving the card.
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         offset.setValue({ x: 0, y: 0 })
@@ -188,9 +187,8 @@ export function MasonryGrid<T>({
         offset.setValue({ x: move.dx, y: move.dy })
         const from = gesture.rectOf(key)
         if (!from) return
-        // Le centre de la carte déplacée, et non le doigt : on dépose une carte,
-        // pas un point, et viser par son centre correspond à ce que l'on voit
-        // bouger.
+        // The centre of the dragged card, not the finger: you drop a card, not
+        // a point, and aiming by its centre matches what you see moving.
         const found = gesture.cardAt(
           from.x + from.width / 2 + move.dx,
           from.y + from.height / 2 + move.dy,
@@ -234,15 +232,15 @@ export function MasonryGrid<T>({
                 onLayout={(e) => cellRects.set(key, e.nativeEvent.layout)}
                 style={[
                   /**
-                   * La carte déplacée passe au-dessus et suit le doigt ; les
-                   * autres ne bougent pas.
+                   * The dragged card goes on top and follows the finger; the
+                   * others do not move.
                    *
-                   * Réorganiser la grille en direct serait plus vivant sur une
-                   * liste, et illisible ici : en maçonnerie, déplacer une carte
-                   * redistribue les colonnes, donc les voisines sauteraient
-                   * d'une colonne à l'autre à chaque pixel parcouru. La carte
-                   * visée est donc soulignée, et rien d'autre ne bouge avant le
-                   * dépôt.
+                   * Rearranging the grid live would be livelier on a list, and
+                   * unreadable here: in a masonry layout, moving a card
+                   * redistributes the columns, so its neighbours would jump
+                   * from one column to another at every pixel travelled. So the
+                   * target card is highlighted, and nothing else moves before
+                   * the drop.
                    */
                   isDragged
                     ? { zIndex: 10, opacity: 0.9, transform: offset.getTranslateTransform() }
@@ -260,14 +258,14 @@ export function MasonryGrid<T>({
                 {renderItem(item)}
 
                 {/**
-                 * Poignée de déplacement, sœur de la carte et non son enfant :
-                 * react-native-web rend chaque `Pressable` en `<button>`, et un
-                 * bouton dans un bouton casse l'hydratation de la PWA — le même
-                 * écueil que celui documenté sur le bouton d'épinglage.
+                 * Drag handle, a sibling of the card and not its child:
+                 * react-native-web renders every `Pressable` as a `<button>`,
+                 * and a button inside a button breaks the PWA's hydration — the
+                 * same pitfall as the one documented on the pin button.
                  *
-                 * Une `View` et non un `Pressable` : c'est le `PanResponder` qui
-                 * prend le geste, et un `Pressable` par-dessus se disputerait
-                 * l'appui avec lui.
+                 * A `View` and not a `Pressable`: the `PanResponder` is what
+                 * takes the gesture, and a `Pressable` on top would fight it
+                 * for the press.
                  */}
                 {onReorder ? (
                   <Tooltip

@@ -27,45 +27,41 @@ import {
 } from './secret'
 
 /**
- * État du coffre : configuré ou non, verrouillé ou non, et par quels moyens on
- * en sort.
+ * Vault state: configured or not, locked or not, and by what means you get out.
  *
- * ── Le verrouillage automatique est le cœur du sujet ─────────────────────────
- * Un coffre qui ne se referme jamais ne protège rien. Une seule règle désormais,
- * et elle tient en une phrase : cinq minutes sans rien faire referment le
- * coffre.
+ * ── Automatic locking is the heart of the matter ─────────────────────────────
+ * A vault that never closes protects nothing. A single rule now, and it fits in
+ * one sentence: five minutes without doing anything close the vault.
  *
- * Sans rien faire, et non « sans être au premier plan ». La version précédente
- * refermait au passage en arrière-plan, immédiatement — un onglet consulté à
- * côté, une adresse copiée dans une autre application, l'écran qui s'éteint une
- * seconde, et il fallait ressaisir le code. Le coffre s'ouvrait dix fois par
- * séance de travail, ce qui use la seule protection qu'on ait et pousse à
- * choisir un code court.
+ * Without doing anything, and not "without being in the foreground". The
+ * previous version closed on going to the background, immediately — a tab
+ * glanced at on the side, an address copied into another app, the screen going
+ * dark for a second, and the code had to be typed again. The vault was opened
+ * ten times per work session, which wears out the only protection there is and
+ * pushes people to pick a short code.
  *
- * Ce qu'on y perd est réel et se dit franchement : un téléphone repris sur la
- * table pendant que Cairn est en arrière-plan dispose maintenant de ce qui reste
- * des cinq minutes, là où il n'avait rien. Sur iOS le sélecteur d'applications
- * montre en plus une vignette de l'écran quitté. Le marché est fait en
- * connaissance de cause : c'est la porte laissée entrouverte cinq minutes contre
- * une porte qu'on finissait par ne plus refermer.
+ * What is lost is real and said plainly: a phone picked up from the table while
+ * Cairn is in the background now gets whatever remains of the five minutes,
+ * where it used to get nothing. On iOS the app switcher also shows a thumbnail
+ * of the screen that was left. The trade is made knowingly: a door left ajar
+ * for five minutes, against a door people ended up no longer closing.
  *
- * Le temps passé ailleurs compte comme du temps d'inactivité — il ne suspend pas
- * le compteur. Revenir au bout de dix secondes retrouve le coffre ouvert, revenir
- * au bout de six minutes le retrouve fermé.
+ * Time spent elsewhere counts as idle time — it does not pause the counter.
+ * Coming back after ten seconds finds the vault open, coming back after six
+ * minutes finds it closed.
  *
- * ── Ce que « faire quelque chose » veut dire ─────────────────────────────────
- * Un geste dans l'application : toucher, faire défiler, cliquer, taper. Pas un
- * rendu, pas une requête, pas un retour au premier plan — sans quoi le compteur
- * serait remis à zéro par l'application elle-même et ne mesurerait plus rien.
+ * ── What "doing something" means ─────────────────────────────────────────────
+ * A gesture in the app: touching, scrolling, clicking, typing. Not a render, not
+ * a request, not a return to the foreground — otherwise the counter would be
+ * reset by the app itself and would no longer measure anything.
  *
- * ── Ce que le déverrouillage donne accès ─────────────────────────────────────
- * Uniquement à la lecture de la liste masquée. Les notes du coffre ne sont pas
- * chargées tant que le coffre est fermé, et leur clé de cache ne descend jamais
- * sur le disque : refermer ne se contente pas de masquer une vue, cela retire
- * les données de la mémoire du cache.
+ * ── What unlocking gives access to ───────────────────────────────────────────
+ * Only to reading the hidden list. Vault notes are not loaded while the vault
+ * is closed, and their cache key never goes down to the disk: closing does not
+ * merely hide a view, it removes the data from the cache's memory.
  *
- * Le seuil et le calcul du temps restant vivent dans policy.ts, avec le reste
- * des règles du coffre qui se testent sous Node.
+ * The threshold and the time-left computation live in policy.ts, with the rest
+ * of the vault rules that are tested under Node.
  */
 
 /** What a request for a fingerprint came to. */
@@ -80,117 +76,116 @@ export type BiometricUnlock =
   | 'unavailable'
 
 export type BiometricSupport =
-  /** Matériel présent et au moins une empreinte ou un visage enregistré. */
+  /** Hardware present and at least one fingerprint or face enrolled. */
   | 'ready'
-  /** Matériel présent mais rien d'enregistré : proposer d'aller le configurer. */
+  /** Hardware present but nothing enrolled: offer to go and set it up. */
   | 'not-enrolled'
-  /** Pas de matériel, ou plateforme sans prise en charge (le web). */
+  /** No hardware, or a platform without support (the web). */
   | 'unavailable'
 
 /**
- * Où en est la clé de données, qui est ce qui chiffre réellement les notes.
+ * Where the data key stands, the key that actually encrypts the notes.
  *
- * Quatre états et non deux, parce que « pas de clé ici » ne veut pas dire la
- * même chose selon qu'il en existe une ailleurs. Sur un appareil neuf, en créer
- * une seconde rendrait les notes déjà chiffrées définitivement illisibles : il
- * faut au contraire réclamer la clé de secours. C'est la distinction que porte
- * `elsewhere`, et c'est la plus importante des quatre.
+ * Four states and not two, because "no key here" does not mean the same thing
+ * depending on whether one exists elsewhere. On a new device, creating a second
+ * one would make the notes already encrypted permanently unreadable: the
+ * recovery key must be asked for instead. That is the distinction `elsewhere`
+ * carries, and it is the most important of the four.
  */
 export type KeyStatus =
-  /** On interroge encore le serveur. */
+  /** Still asking the server. */
   | 'checking'
-  /** Aucune clé, ni ici ni là-bas : le chiffrement n'a jamais été activé. */
+  /** No key, neither here nor there: encryption has never been turned on. */
   | 'none'
-  /** La clé est sur cet appareil et chargée. */
+  /** The key is on this device, and loaded. */
   | 'ready'
-  /** Une clé scellée existe côté serveur, mais pas sur cet appareil. */
+  /** A sealed key exists on the server, but not on this device. */
   | 'elsewhere'
 
 type VaultContextValue = {
-  /** Faux jusqu'à la lecture du secret stocké. */
+  /** False until the stored secret has been read. */
   ready: boolean
-  /** Un code a déjà été défini. */
+  /** A code has already been set. */
   configured: boolean
   unlocked: boolean
   biometrics: BiometricSupport
-  /** L'utilisateur a activé le déverrouillage biométrique. */
+  /** The user has turned on biometric unlocking. */
   biometricsEnabled: boolean
-  /** Millisecondes restantes avant qu'une saisie soit à nouveau acceptée. */
+  /** Milliseconds left before an entry is accepted again. */
   coolingMs: number
   failures: number
   /**
-   * Repousse la fermeture automatique de cinq minutes de plus.
+   * Pushes automatic closing back by another five minutes.
    *
-   * À appeler pour un geste que le fournisseur ne peut pas voir lui-même, et il
-   * n'y en a qu'un : la frappe au clavier logiciel. Toucher, faire défiler,
-   * cliquer, taper sur un clavier physique sont déjà comptés — mais sur un
-   * téléphone les touches appartiennent au clavier du système, hors de l'arbre
-   * de l'application. Sans cet appel, écrire une note du coffre six minutes
-   * durant la ferait disparaître sous les doigts de qui l'écrit, ce qu'un délai
-   * d'inactivité est censé précisément empêcher.
+   * To be called for a gesture the provider cannot see by itself, and there is
+   * only one: typing on the software keyboard. Touching, scrolling, clicking,
+   * typing on a physical keyboard are already counted — but on a phone the keys
+   * belong to the system keyboard, outside the app's tree. Without this call,
+   * writing a vault note for six minutes straight would make it vanish under the
+   * fingers of the person writing it, which is precisely what an idle delay is
+   * meant to prevent.
    *
-   * Ne jamais l'appeler pour un rendu, une requête ou un retour au premier plan :
-   * le compteur mesurerait alors l'activité de l'application, et plus celle de
-   * son utilisateur.
+   * Never call it for a render, a request or a return to the foreground: the
+   * counter would then measure the app's activity, and no longer its user's.
    */
   markActivity: () => void
   configure: (pin: string, useBiometrics: boolean) => Promise<void>
   unlockWithPin: (pin: string) => Promise<{ ok: boolean; waitMs: number }>
   unlockWithBiometrics: () => Promise<BiometricUnlock>
   /**
-   * Abandonne une invite laissée en plan, pour qu'elle ne bloque pas la
-   * suivante. À appeler en quittant l'écran qui l'a demandée.
+   * Drops a prompt left hanging, so it does not block the next one. To be
+   * called when leaving the screen that asked for it.
    */
   cancelBiometrics: () => Promise<void>
   /**
-   * Confirme que c'est bien le propriétaire de l'appareil, sans ouvrir le
-   * coffre. Sert à garder les gestes qui désarment le coffre lui-même.
+   * Confirms it really is the device's owner, without opening the vault. Used
+   * to guard the gestures that disarm the vault itself.
    *
-   * Trois issues et non deux : « pas de capteur » n'est pas « refusé ». Les
-   * confondre condamnerait tout appareil sans lecteur d'empreinte, le web en
-   * tête, à ne plus jamais pouvoir remplacer un code oublié.
+   * Three outcomes and not two: "no sensor" is not "refused". Mixing them up
+   * would condemn every device without a fingerprint reader, the web first, to
+   * never again be able to replace a forgotten code.
    */
   confirmWithBiometrics: (reason: string) => Promise<'confirmed' | 'refused' | 'unavailable'>
   lock: () => void
-  /** Supprime le code. Les notes masquées le restent, elles redeviennent simplement inaccessibles jusqu'à un nouveau code. */
+  /** Removes the code. Hidden notes stay hidden, they simply become unreachable until a new code is set. */
   disable: () => Promise<void>
   /**
-   * Efface du stockage tout ce que le coffre y garde : le code ET la clé de
-   * données. Réservé à la suppression du compte — partout ailleurs c'est
-   * `disable` qu'il faut, qui préserve la clé pour qu'un code oublié ne coûte
-   * pas les notes chiffrées.
+   * Erases from storage everything the vault keeps there: the code AND the data
+   * key. Reserved for account deletion — everywhere else `disable` is what you
+   * want, which keeps the key so that a forgotten code does not cost the
+   * encrypted notes.
    */
   forgetEverything: () => Promise<void>
   setBiometricsEnabled: (next: boolean) => Promise<void>
 
-  // ------------------------------------------------------------ chiffrement
+  // ------------------------------------------------------------- encryption
 
   keyStatus: KeyStatus
   /**
-   * Clé de secours à montrer, mise en forme. Elle vit ici et non dans l'écran
-   * qui l'a demandée, et c'est une correction, pas un raffinement : la première
-   * version la gardait dans l'état du composant de mise en place, lequel
-   * disparaissait au moment précis où le chiffrement s'activait — la condition
-   * qui l'affichait cessait d'être vraie. La clé était donc créée, utilisée,
-   * puis jetée avec le composant, sans que personne ne l'ait lue.
+   * Recovery key to show, formatted. It lives here and not in the screen that
+   * asked for it, and that is a fix, not a refinement: the first version kept it
+   * in the state of the setup component, which disappeared at the very moment
+   * encryption turned on — the condition that displayed it stopped being true.
+   * So the key was created, used, then thrown away with the component, without
+   * anyone having read it.
    */
   pendingRecoveryKey: string | null
-  /** L'utilisateur déclare l'avoir notée. Rien ne la réaffichera. */
+  /** The user says they have written it down. Nothing will show it again. */
   acknowledgeRecoveryKey: () => void
-  /** Met le chiffrement en place, notes déjà rangées comprises. */
+  /** Sets encryption up, notes already in the vault included. */
   enableEncryption: () => Promise<{ encryptedNotes: number }>
   /**
-   * Réenveloppe la clé de données sous une clé de secours neuve.
+   * Rewraps the data key under a fresh recovery key.
    *
-   * L'ancienne cesse aussitôt de fonctionner. Sert quand on l'a perdue, ou
-   * qu'on la soupçonne vue par quelqu'un d'autre — et rattrape le cas où elle
-   * n'a jamais été affichée. Exige la clé de données en mémoire, donc un coffre
-   * ouvert : sans elle, il n'y aurait rien à envelopper.
+   * The old one stops working at once. Used when it has been lost, or is
+   * suspected to have been seen by someone else — and catches the case where it
+   * was never displayed. Requires the data key in memory, so an open vault:
+   * without it, there would be nothing to wrap.
    */
   regenerateRecoveryKey: () => Promise<void>
   /**
-   * Retrouve la clé de données sur un appareil neuf, à partir de la clé de
-   * secours saisie à la main.
+   * Gets the data key back on a new device, from the recovery key typed in by
+   * hand.
    */
   restoreWithRecoveryKey: (input: string) => Promise<'restored' | 'malformed' | 'wrong-key'>
 }
@@ -205,10 +200,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [coolingMs, setCoolingMs] = useState(0)
 
   /**
-   * Une demande d'empreinte est en cours.
+   * A fingerprint request is in progress.
    *
-   * Une référence et non un état : la valeur sert à décider dans l'instant, et
-   * un rendu de plus ne changerait rien à ce qui est affiché.
+   * A ref and not state: the value is used to decide on the spot, and one more
+   * render would change nothing on screen.
    */
   const demandeEnCours = useRef(false)
 
@@ -225,9 +220,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Capacités biométriques de l'appareil. Sondées une fois : elles ne changent
-  // pas pendant l'exécution, sauf à aller inscrire une empreinte dans les
-  // réglages système, ce qui repasse par un arrêt de l'application.
+  // The device's biometric capabilities. Probed once: they do not change while
+  // running, short of enrolling a fingerprint in the system settings, which goes
+  // through the app being stopped.
   useEffect(() => {
     if (Platform.OS === 'web') return
     let cancelled = false
@@ -250,12 +245,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const acknowledgeRecoveryKey = useCallback(() => setPendingRecoveryKey(null), [])
 
   /**
-   * Fermer le coffre retire la clé de la mémoire, pas du stockage.
+   * Closing the vault removes the key from memory, not from storage.
    *
-   * C'est la moitié qui compte : tant que la clé est chargée, tout ce que le
-   * cache contient est déchiffrable. La rendre au stockage sécurisé à chaque
-   * fermeture — cinq minutes sans un geste, ou le bouton « Refermer » — donne au
-   * verrouillage automatique un effet réel et pas seulement visuel.
+   * That is the half that matters: as long as the key is loaded, everything the
+   * cache holds can be decrypted. Handing it back to secure storage on every
+   * close — five minutes without a gesture, or the « Refermer » button — gives
+   * automatic locking a real effect and not merely a visual one.
    */
   const lock = useCallback(() => {
     unloadDataKey()
@@ -264,12 +259,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   /**
-   * Établit où se trouve la clé de données, et la charge si elle est ici.
+   * Works out where the data key is, and loads it if it is here.
    *
-   * L'ordre n'est pas indifférent : on regarde l'appareil d'abord. Trouver la
-   * clé localement dispense d'un aller-retour réseau à chaque ouverture, et
-   * surtout laisse le coffre s'ouvrir hors ligne, ce qui est la moitié de
-   * l'intérêt d'une application de notes.
+   * The order matters: the device is checked first. Finding the key locally
+   * saves a network round trip on every opening, and above all lets the vault
+   * open offline, which is half the point of a notes app.
    */
   const resolveKey = useCallback(async () => {
     const local = await readDataKey()
@@ -286,9 +280,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setKeyStatus(data?.wrapped_key ? 'elsewhere' : 'none')
   }, [])
 
-  // La clé n'est cherchée qu'une fois le coffre ouvert : avant, il n'y a rien à
-  // déchiffrer, et interroger le serveur signalerait l'existence d'un coffre à
-  // qui regarde le réseau.
+  // The key is only looked for once the vault is open: before that there is
+  // nothing to decrypt, and asking the server would reveal that a vault exists
+  // to anyone watching the network.
   useEffect(() => {
     if (!unlocked) return
     let cancelled = false
@@ -302,8 +296,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [unlocked, resolveKey])
 
   /**
-   * Instant du dernier geste. Une référence et non un état : un toucher ne doit
-   * rien redessiner, et il en arrive un par mouvement de doigt.
+   * Time of the last gesture. A ref and not state: a touch must not redraw
+   * anything, and one arrives with every finger movement.
    */
   const lastActivity = useRef(Date.now())
   const markActivity = useCallback(() => {
@@ -311,18 +305,18 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   /**
-   * Sur le web, les gestes se lisent depuis le document.
+   * On the web, gestures are read from the document.
    *
-   * La capture de responder posée plus bas suffit aux plateformes natives, mais
-   * elle ne voit ni la molette ni le clavier physique : lire une longue note à la
-   * molette, ou l'écrire au clavier sans toucher la souris, passerait pour de
-   * l'inactivité.
+   * The responder capture set further down is enough for native platforms, but
+   * it sees neither the mouse wheel nor the physical keyboard: reading a long
+   * note with the wheel, or writing it on the keyboard without touching the
+   * mouse, would pass for inactivity.
    */
   useEffect(() => {
     if (Platform.OS !== 'web') return
     const mark = () => markActivity()
-    // En capture, pour que rien ne puisse arrêter l'événement avant nous ;
-    // passif, parce qu'on ne fait que noter l'heure.
+    // In the capture phase, so nothing can stop the event before us; passive,
+    // because all we do is note the time.
     const options = { capture: true, passive: true } as const
     document.addEventListener('pointerdown', mark, options)
     document.addEventListener('keydown', mark, options)
@@ -335,13 +329,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [markActivity])
 
   /**
-   * Fermeture au bout de cinq minutes sans geste.
+   * Closing after five minutes without a gesture.
    *
-   * La minuterie ne décide de rien : à chaque réveil elle demande à
-   * `msBeforeAutoLock` ce qu'il reste, et se repose pour ce reste tant qu'il
-   * n'est pas nul. C'est ce qui la rend insensible à son propre retard, et ce qui
-   * rend le geste gratuit — marquer une activité n'a rien à replanifier, la
-   * minuterie s'en aperçoit d'elle-même en arrivant.
+   * The timer decides nothing: every time it wakes it asks `msBeforeAutoLock`
+   * what is left, and sleeps again for that remainder as long as it is not zero.
+   * That is what makes it immune to its own lateness, and what makes the gesture
+   * free — marking activity has nothing to reschedule, the timer notices by
+   * itself when it arrives.
    */
   useEffect(() => {
     if (!unlocked) return
@@ -359,12 +353,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [unlocked, lock])
 
   /**
-   * Retour au premier plan : on regarde l'heure, on ne remet rien à zéro.
+   * Back to the foreground: we look at the clock, we reset nothing.
    *
-   * Une application suspendue ne fait pas tourner ses minuteries, et sur le web
-   * un onglet caché les ralentit. Sans cette vérification, revenir après une
-   * heure laisserait le coffre ouvert le temps que la minuterie endormie se
-   * rende compte de son retard — c'est-à-dire le temps de tout lire.
+   * A suspended app does not run its timers, and on the web a hidden tab slows
+   * them down. Without this check, coming back after an hour would leave the
+   * vault open for as long as the sleeping timer takes to notice it is late —
+   * that is, long enough to read everything.
    */
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
@@ -374,8 +368,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => sub.remove()
   }, [lock])
 
-  // Décompte de la temporisation après échecs, pour que l'écran de saisie
-  // affiche un délai qui descend au lieu d'un refus opaque.
+  // Countdown of the cool-down after failures, so the entry screen shows a delay
+  // ticking down instead of an opaque refusal.
   const lockedUntil = secret?.lockedUntil ?? null
   useEffect(() => {
     if (lockedUntil === null) {
@@ -397,8 +391,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     async (pin: string, useBiometrics: boolean) => {
       const next = await createSecret(pin, useBiometrics)
       await persist(next)
-      // Définir le code ouvre le coffre : redemander la saisie dans la seconde
-      // qui suit serait de la cérémonie sans bénéfice.
+      // Setting the code opens the vault: asking for it again the next second
+      // would be ceremony with no benefit.
       setUnlocked(true)
     },
     [persist],
@@ -419,25 +413,25 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   )
 
   /**
-   * Le déverrouillage biométrique n'est proposé qu'en complément du code, jamais
-   * à sa place : le code reste le moyen de secours quand le capteur refuse, et
-   * c'est lui qui a servi à créer le secret.
+   * Biometric unlocking is only offered alongside the code, never instead of
+   * it: the code stays the fallback when the sensor refuses, and it is what was
+   * used to create the secret.
    */
   const unlockWithBiometrics = useCallback(async (): Promise<BiometricUnlock> => {
     if (Platform.OS === 'web' || !secret?.biometrics || biometrics !== 'ready') return 'unavailable'
-    // Deux demandes à la fois ne donnent pas deux invites : la seconde repart
-    // aussitôt, et laisse le module dans un état dont il ne revient pas. La
-    // barrière est ici parce que l'écran fermé en lance une au montage, pendant
-    // que le bouton reste sous le doigt.
+    // Two requests at once do not give two prompts: the second returns at once,
+    // and leaves the module in a state it does not come back from. The guard is
+    // here because the locked screen starts one on mount, while the button stays
+    // under the finger.
     if (demandeEnCours.current) return 'busy'
     demandeEnCours.current = true
     try {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Ouvrir le coffre',
         cancelLabel: 'Utiliser le code',
-        // Le repli système proposerait le code de déverrouillage de l'appareil,
-        // qui n'est pas celui du coffre. Deux codes différents dans le même geste
-        // est une confusion garantie.
+        // The system fallback would offer the device's unlock code, which is not
+        // the vault's. Two different codes in the same gesture is guaranteed
+        // confusion.
         disableDeviceFallback: true,
       })
       if (result.success) {
@@ -445,16 +439,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         return 'unlocked'
       }
       /**
-       * `app_cancel` sans qu'aucune invite ne soit apparue veut dire que le
-       * module se croit encore occupé par une demande précédente : il garde un
-       * seul drapeau, et répond sans rien afficher tant qu'il le croit levé
-       * (`LocalAuthenticationModule.kt`, `if (isAuthenticating)`). Rien ne le
-       * rabaisse tout seul — d'où un bouton qui ne fait plus rien, en silence et
-       * jusqu'au redémarrage.
+       * `app_cancel` without any prompt having appeared means the module still
+       * believes it is busy with a previous request: it keeps a single flag,
+       * and answers without showing anything as long as it believes it is set
+       * (`LocalAuthenticationModule.kt`, `if (isAuthenticating)`). Nothing
+       * clears it by itself — hence a button that does nothing any more,
+       * silently and until a restart.
        *
-       * L'annulation explicite est ce qui le rabaisse. On ne réessaie pas dans
-       * la foulée : la demande suivante doit venir de l'utilisateur, sinon une
-       * invite surgirait sans qu'il l'ait demandée.
+       * An explicit cancel is what clears it. We do not retry right away: the
+       * next request has to come from the user, otherwise a prompt would pop up
+       * without their having asked for it.
        */
       if (result.error === 'app_cancel') {
         await LocalAuthentication.cancelAuthenticate()
@@ -467,12 +461,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [secret, biometrics])
 
   /**
-   * Abandonne une invite laissée en plan.
+   * Drops a prompt left hanging.
    *
-   * Le module ne garde qu'un drapeau pour toute l'application : une invite
-   * quittée sans réponse le laisse levé, et toute demande suivante repart
-   * aussitôt sans rien afficher. Annuler en sortant est ce qui évite de laisser
-   * ce drapeau derrière soi.
+   * The module keeps one flag for the whole app: a prompt left without an
+   * answer leaves it set, and every following request returns at once without
+   * showing anything. Cancelling on the way out is what avoids leaving that flag
+   * behind.
    */
   const cancelBiometrics = useCallback(async () => {
     if (Platform.OS === 'web' || !demandeEnCours.current) return
@@ -480,14 +474,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   /**
-   * Garde d'identité pour les gestes qui désarment le coffre.
+   * Identity guard for the gestures that disarm the vault.
    *
-   * Le repli sur le code de l'appareil est ici autorisé, alors que le
-   * déverrouillage ordinaire le refuse. Ce n'est pas une incohérence : là-bas,
-   * proposer le code de l'appareil à la place du code du coffre est une
-   * confusion garantie, puisque les deux ouvrent la même chose. Ici, c'est le
-   * seul recours quand le doigt est mouillé — et sans lui, un capteur récalcitrant
-   * enfermerait définitivement quelqu'un qui a déjà oublié son code.
+   * Falling back on the device code is allowed here, whereas ordinary unlocking
+   * refuses it. That is not an inconsistency: there, offering the device code
+   * instead of the vault code is guaranteed confusion, since both open the same
+   * thing. Here, it is the only way out when the finger is wet — and without it,
+   * a stubborn sensor would lock out for good someone who has already forgotten
+   * their code.
    */
   const confirmWithBiometrics = useCallback<VaultContextValue['confirmWithBiometrics']>(
     async (reason) => {
@@ -503,13 +497,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   )
 
   /**
-   * Met le chiffrement en place.
+   * Sets encryption up.
    *
-   * L'ordre des écritures est le point délicat : la clé scellée part au serveur
-   * AVANT que la clé de données ne soit posée sur l'appareil. Dans l'autre sens,
-   * une coupure réseau laisserait une clé locale qui chiffre des notes sans que
-   * rien, nulle part, ne permette de les retrouver ailleurs — un coffre à sens
-   * unique, dont on ne s'apercevrait qu'en changeant de téléphone.
+   * The order of the writes is the delicate part: the sealed key goes to the
+   * server BEFORE the data key is written to the device. The other way round, a
+   * network cut would leave a local key encrypting notes with nothing, anywhere,
+   * to get them back elsewhere — a one-way vault, noticed only on changing
+   * phones.
    */
   const publishWrappedKey = useCallback(async (dataKey: Uint8Array) => {
     const recoveryKey = createRecoveryKey(platformRandom)
@@ -528,22 +522,22 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     await writeDataKey(bytesToHex(dataKey))
     loadDataKey(dataKey)
 
-    // Les notes déjà rangées sont chiffrées avant que le chiffrement ne soit
-    // déclaré actif : à l'arrivée, le coffre est cohérent ou il n'a pas bougé.
+    // Notes already in the vault are encrypted before encryption is declared
+    // active: at the end, the vault is consistent or it has not moved.
     const { notes } = await encryptExistingVaultNotes()
 
-    // La clé est posée avant `keyStatus`, et l'ordre est tout : c'est le
-    // passage à `ready` qui démonte l'écran de mise en place. Poser la clé
-    // après, c'est la poser dans le vide.
+    // The key is set before `keyStatus`, and the order is everything: switching
+    // to `ready` is what unmounts the setup screen. Setting the key afterwards
+    // means setting it into the void.
     setPendingRecoveryKey(shown)
     setKeyStatus('ready')
     return { encryptedNotes: notes }
   }, [publishWrappedKey])
 
   const regenerateRecoveryKey = useCallback(async () => {
-    // Relue du stockage plutôt que sortie du trousseau : celui-ci ne rend
-    // jamais la clé, il ne fait que s'en servir. C'est ce qui garantit qu'elle
-    // ne se promène pas dans l'application.
+    // Read back from storage rather than taken out of the keyring: the keyring
+    // never hands the key out, it only uses it. That is what guarantees it does
+    // not wander around the app.
     const stored = await readDataKey()
     if (!stored) throw new Error('Clé de données absente sur cet appareil.')
     setPendingRecoveryKey(await publishWrappedKey(hexToBytes(stored)))
@@ -551,9 +545,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const restoreWithRecoveryKey = useCallback<VaultContextValue['restoreWithRecoveryKey']>(
     async (input) => {
-      // Trois issues distinctes, parce que la conduite à tenir diffère : une clé
-      // mal recopiée se corrige, une clé qui ne correspond pas veut dire qu'on
-      // tient celle d'un autre coffre.
+      // Three distinct outcomes, because what to do differs: a mistyped key can
+      // be corrected, a key that does not match means you are holding another
+      // vault's.
       const recoveryKey = parseRecoveryKey(input)
       if (!recoveryKey) return 'malformed'
 
@@ -578,18 +572,17 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   /**
-   * Efface du stockage tout ce que le coffre y a déposé : le code et la clé de
-   * données. Accompagne la suppression du compte, et rien d'autre.
+   * Erases from storage everything the vault has put there: the code and the
+   * data key. Goes with account deletion, and nothing else.
    *
-   * `disable` ne convient pas ici, et la différence est le cœur du sujet : il
-   * retire le code en gardant la clé, précisément pour qu'un code oublié ne
-   * coûte pas les notes chiffrées. Ce qui est la bonne réponse là-bas est la
-   * mauvaise ici — laisser la clé derrière soi reviendrait à garder de quoi
-   * déchiffrer des notes dont on vient de promettre qu'elles n'existent plus.
+   * `disable` does not fit here, and the difference is the heart of the matter:
+   * it removes the code while keeping the key, precisely so that a forgotten
+   * code does not cost the encrypted notes. What is the right answer there is
+   * the wrong one here — leaving the key behind would mean keeping the means to
+   * decrypt notes we have just promised no longer exist.
    *
-   * Appelé même sans coffre configuré : une clé peut avoir survécu à un
-   * `disable`, ce qui est justement sa raison d'être. Effacer une entrée absente
-   * ne coûte rien.
+   * Called even with no vault configured: a key may have survived a `disable`,
+   * which is exactly what it is for. Erasing a missing entry costs nothing.
    */
   const forgetEverything = useCallback(async () => {
     unloadDataKey()
@@ -660,21 +653,21 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   )
 
   /**
-   * Les gestes se lisent au sommet de l'arbre, sans rien intercepter.
+   * Gestures are read at the top of the tree, without intercepting anything.
    *
-   * `onStartShouldSetResponderCapture` est appelé sur le chemin descendant, donc
-   * avant que la carte, le bouton ou la liste visés ne se saisissent du geste.
-   * Rendre `false` laisse ce geste continuer sa route intact : cette vue note
-   * l'heure et ne devient jamais responder. Un `onTouchStart` aurait le défaut
-   * inverse — il n'arrive qu'aux touchers que personne n'a pris.
+   * `onStartShouldSetResponderCapture` is called on the way down, so before the
+   * targeted card, button or list takes hold of the gesture. Returning `false`
+   * lets the gesture go on its way untouched: this view notes the time and never
+   * becomes the responder. An `onTouchStart` would have the opposite flaw — it
+   * only receives touches nobody has taken.
    *
-   * Le mouvement compte autant que l'appui : faire défiler une longue note est
-   * un geste continu où le doigt ne se repose pas, et le compter uniquement au
-   * premier contact refermerait le coffre au milieu d'une lecture.
+   * Movement counts as much as pressing: scrolling a long note is a continuous
+   * gesture where the finger never lifts, and counting it only on first contact
+   * would close the vault in the middle of reading.
    *
-   * `flex: 1` parce que cette vue s'insère entre le fournisseur de requêtes et
-   * toute l'application : sans cela elle se réduirait à la hauteur de son
-   * contenu et l'écran s'arrêterait avec elle.
+   * `flex: 1` because this view sits between the query provider and the whole
+   * app: otherwise it would shrink to the height of its content and the screen
+   * would stop with it.
    */
   return (
     <VaultContext.Provider value={value}>

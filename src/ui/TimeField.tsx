@@ -2,8 +2,8 @@ import { SEGMENTS_HEURE, SEPARATEUR_HEURE } from '@/google/creneau'
 import { SegmentedField } from './SegmentedField'
 
 /**
- * Saisie d'une heure : deux moitiés de deux chiffres, le « : » entre elles
- * étant dessiné et non tapé. Voir `SegmentedField` pour la raison.
+ * Entering a time: two parts of two digits, the ":" between them being drawn
+ * and not typed. See `SegmentedField` for why.
  */
 export function TimeField({
   label,
@@ -11,7 +11,7 @@ export function TimeField({
   onChangeText,
 }: {
   label: string
-  /** L'heure au format « HH:MM », le seul que `lireCreneau` connaisse. */
+  /** The time as "HH:MM", the only format `lireCreneau` knows. */
   value: string
   onChangeText: (heure: string) => void
 }) {

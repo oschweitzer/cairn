@@ -6,28 +6,27 @@ import { Card, Logotype, Screen, Txt } from '@/ui/components'
 import { space } from '@/ui/theme'
 
 /**
- * Point d'atterrissage du retour OAuth.
+ * Landing point for the OAuth return.
  *
- * Cette route vit dans le groupe (auth) volontairement. L'aiguillage du layout
- * racine renvoie vers la connexion tout utilisateur sans session qui se trouve
- * hors de ce groupe : placer le callback ailleurs le ferait rebondir vers
- * /sign-in pendant l'échange du code, en perdant le code au passage.
+ * This route lives in the (auth) group on purpose. The root layout's routing
+ * sends to sign-in every user without a session found outside this group:
+ * putting the callback elsewhere would bounce it to /sign-in during the code
+ * exchange, losing the code along the way.
  *
- * Sur le web, supabase-js lit le code dans l'URL à la création du client
- * (`detectSessionInUrl`). Sur mobile, l'échange est fait explicitement dans
- * AuthProvider avant même d'arriver ici. Dans les deux cas cet écran n'a rien à
- * faire d'autre qu'attendre, puis laisser l'aiguillage rediriger vers l'accueil
- * dès que la session apparaît.
+ * On the web, supabase-js reads the code from the URL when the client is
+ * created (`detectSessionInUrl`). On mobile, the exchange is done explicitly in
+ * AuthProvider before even arriving here. In both cases this screen has nothing
+ * to do but wait, then let routing redirect to home as soon as the session
+ * appears.
  */
 export default function Callback() {
   const { loading } = useAuth()
-  // Supabase et Google renvoient leurs échecs dans l'URL plutôt que par exception.
+  // Supabase and Google return their failures in the URL rather than by exception.
   const params = useLocalSearchParams<{ error?: string; error_description?: string }>()
   const [tooLong, setTooLong] = useState(false)
 
   useEffect(() => {
-    // Si rien ne se passe, mieux vaut une porte de sortie qu'un écran qui tourne
-    // indéfiniment.
+    // If nothing happens, a way out is better than a screen that spins forever.
     const timer = setTimeout(() => setTooLong(true), 8000)
     return () => clearTimeout(timer)
   }, [])

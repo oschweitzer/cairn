@@ -53,8 +53,8 @@ function NavRow({
         backgroundColor: pressed ? theme.surface.raised : 'transparent',
       })}
     >
-      {/* Le coffre porte le même glyphe qu'en tête de grille : deux dessins pour
-          un seul endroit se lisent comme deux endroits. */}
+      {/* The vault carries the same glyph as at the top of the grid: two
+          drawings for a single place read as two places. */}
       {icon === 'chest' ? (
         <Glyph name="chest" size={18} color={theme.text.secondary} />
       ) : (
@@ -72,12 +72,12 @@ function NavRow({
 }
 
 /**
- * Réglages du coffre, affichés seulement une fois un code défini.
+ * Vault settings, shown only once a code has been set.
  *
- * La suppression du code est irréversible dans le sens qui compte : elle ne rend
- * pas les notes masquées à la grille, elle les rend inaccessibles jusqu'à ce
- * qu'un nouveau code soit posé. C'est dit avant, pas après, et la confirmation
- * demande un second geste parce que le premier peut être un faux contact.
+ * Removing the code is irreversible in the sense that matters: it does not give
+ * the hidden notes back to the grid, it makes them unreachable until a new code
+ * is set. That is said before, not after, and confirming takes a second gesture
+ * because the first may be an accidental touch.
  */
 function VaultSettings() {
   const { theme } = useTheme()
@@ -88,17 +88,16 @@ function VaultSettings() {
   const toast = useToast()
 
   /**
-   * Garde les deux gestes qui désarment le coffre.
+   * Guards the two gestures that disarm the vault.
    *
-   * Sans elle, le coffre avait une porte de service : n'importe qui tenant
-   * l'appareil déverrouillé pouvait remplacer le code et lire ce qu'il gardait,
-   * sans jamais le connaître. Le capteur ferme cette porte pour le curieux, et
-   * la laisse ouverte pour le propriétaire.
+   * Without it, the vault had a back door: anyone holding the unlocked device
+   * could replace the code and read what it kept, without ever knowing it. The
+   * sensor shuts that door on the curious, and leaves it open for the owner.
    *
-   * Sur un appareil sans capteur — le web en particulier — il n'y a rien à
-   * demander et le geste passe. C'est assumé : refuser faute de capteur
-   * enfermerait dehors quelqu'un qui a simplement oublié son code, ce qui est
-   * exactement le contraire du but.
+   * On a device without a sensor — the web in particular — there is nothing to
+   * ask and the gesture goes through. That is deliberate: refusing for lack of a
+   * sensor would lock out someone who has simply forgotten their code, which is
+   * exactly the opposite of the goal.
    */
   const guard = async (reason: string): Promise<boolean> => {
     const verdict = await confirmWithBiometrics(reason)
@@ -110,12 +109,12 @@ function VaultSettings() {
   }
 
   /**
-   * Efface le code puis emmène tout de suite à la saisie du nouveau.
+   * Erases the code then goes straight to entering the new one.
    *
-   * L'attente avant la redirection n'est pas une politesse : tant que le secret
-   * n'est pas effacé, l'écran du coffre affiche encore le pavé de
-   * déverrouillage. Y arriver une image trop tôt ferait clignoter l'écran qu'on
-   * cherche justement à éviter, celui qui demande le code qu'on a oublié.
+   * Waiting before the redirect is not a courtesy: as long as the secret has
+   * not been erased, the vault screen still shows the unlock keypad. Arriving
+   * one frame too early would flash the very screen we are trying to avoid, the
+   * one asking for the code that was forgotten.
    */
   const replaceCode = async () => {
     if (!(await guard('Remplacer le code du coffre'))) return
@@ -165,17 +164,17 @@ function VaultSettings() {
       <Seam />
 
       {/**
-       * Le code oublié n'est pas une impasse, mais rien ne le disait.
+       * A forgotten code is not a dead end, but nothing said so.
        *
-       * Il n'est pas récupérable, et ce n'est pas un manque : l'appareil ne garde
-       * qu'une empreinte SHA-256 salée, qui ne remonte pas au code. Le remplacer
-       * ne coûte pourtant rien, parce que ce code ne chiffre pas les notes — il
-       * les masque. Elles restent en base, gardées par RLS comme les autres, et
-       * reviennent telles quelles dès qu'un nouveau code est posé.
+       * It cannot be recovered, and that is not a gap: the device only keeps a
+       * salted SHA-256 hash, which does not lead back to the code. Replacing it
+       * costs nothing though, because this code does not encrypt the notes — it
+       * hides them. They stay in the database, guarded by RLS like the others,
+       * and come back as they were as soon as a new code is set.
        *
-       * Le dire ici est nécessaire : le seul bouton disponible s'appelait
-       * « Supprimer le code », ce que personne ne tente quand il craint de perdre
-       * ce qu'il y a rangé.
+       * Saying it here is necessary: the only available button was called
+       * « Supprimer le code », which nobody tries when they fear losing what
+       * they filed there.
        */}
       <View style={{ gap: space.xxs }}>
         <Txt variant="label">Code oublié</Txt>
@@ -225,21 +224,21 @@ function VaultSettings() {
 }
 
 /**
- * Suppression du compte.
+ * Account deletion.
  *
- * ── Pourquoi recopier son adresse, et pas un simple « Confirmer » ────────────
- * Un second bouton ne prouve rien : il se clique du même geste que le premier,
- * et c'est exactement ce qui arrive quand on parcourt des réglages sans lire.
- * Recopier l'adresse demande de la lire, donc de savoir quel compte disparaît —
- * ce qui compte pour de bon quand on en a plusieurs. C'est aussi la seule barrière
- * disponible ici : redemander le mot de passe n'est pas possible pour un compte
- * Google, et le code du coffre ne dit rien du compte.
+ * ── Why copy out your address, and not a plain "Confirm" ─────────────────────
+ * A second button proves nothing: it is clicked with the same gesture as the
+ * first, and that is exactly what happens when you go through settings without
+ * reading. Copying the address out takes reading it, so knowing which account
+ * disappears — which really matters when you have several. It is also the only
+ * barrier available here: asking for the password again is not possible for a
+ * Google account, and the vault code says nothing about the account.
  *
- * ── L'ordre des deux effacements est un choix, pas une commodité ─────────────
- * Le serveur d'abord, l'appareil ensuite. Si l'appel réseau échoue, la clé de
- * données est encore là et le compte reste utilisable. Dans l'autre sens, un
- * échec laisserait un compte bien vivant dont les notes chiffrées seraient
- * devenues illisibles — le pire des deux résultats, et sans retour possible.
+ * ── The order of the two erasures is a choice, not a convenience ─────────────
+ * The server first, the device second. If the network call fails, the data key
+ * is still there and the account stays usable. The other way round, a failure
+ * would leave a very much alive account whose encrypted notes had become
+ * unreadable — the worst of the two outcomes, and with no way back.
  */
 function DeleteAccount() {
   const { session, deleteAccount } = useAuth()
@@ -250,8 +249,8 @@ function DeleteAccount() {
   const [busy, setBusy] = useState(false)
 
   const email = session?.user.email ?? ''
-  // Comparaison indulgente sur la casse et les espaces : la barrière est de
-  // savoir quelle adresse, pas de la taper au caractère près.
+  // A lenient comparison on case and spaces: the barrier is knowing which
+  // address, not typing it to the exact character.
   const matches = email !== '' && typed.trim().toLowerCase() === email.toLowerCase()
 
   async function remove() {
@@ -259,10 +258,10 @@ function DeleteAccount() {
     setBusy(true)
     try {
       await deleteAccount()
-      // Seulement une fois le serveur d'accord : voir l'en-tête.
+      // Only once the server has agreed: see the header.
       await vault.forgetEverything()
-      // Rien à faire ensuite. La session tombe, l'aiguillage de la racine
-      // ramène à l'écran de connexion.
+      // Nothing to do afterwards. The session drops, and the root routing
+      // brings you back to the sign-in screen.
     } catch (e) {
       setError((e as Error).message)
       setBusy(false)
@@ -298,11 +297,11 @@ function DeleteAccount() {
           tags, les rappels, et le compte lui-même. La suppression est immédiate : il n’y a
           pas de délai pendant lequel revenir en arrière.
         </Txt>
-        {/* `configured` et non `keyStatus` : ce dernier vaut « checking » tant que
-            le coffre n'a pas été ouvert dans la séance, y compris chez quelqu'un
-            qui n'en a jamais eu. La phrase s'affichait donc à des gens sans
-            coffre, pour leur parler d'une clé de secours qui n'existe pas. Vu à
-            l'écran, pas dans le code. */}
+        {/* `configured` and not `keyStatus`: the latter is "checking" as long as
+            the vault has not been opened during the session, including for
+            someone who never had one. So the sentence showed to people without
+            a vault, telling them about a recovery key that does not exist. Seen
+            on screen, not in the code. */}
         {vault.configured ? (
           <Txt variant="caption" tone="muted">
             La clé de secours du coffre cessera de servir à quoi que ce soit : ce qu’elle
@@ -313,9 +312,9 @@ function DeleteAccount() {
           Pour continuer, recopie l’adresse du compte.
         </Txt>
 
-        {/* L'adresse est en repère sous le champ plutôt qu'en étiquette : une
-            étiquette qui change d'un compte à l'autre ne dit plus ce que le
-            champ attend, et c'est justement ce qu'il faut comprendre ici. */}
+        {/* The address is a hint under the field rather than its label: a label
+            that changes from one account to another no longer says what the
+            field expects, and that is precisely what has to be understood here. */}
         <Field
           label="Recopier l’adresse"
           hint={email}
@@ -357,25 +356,25 @@ function DeleteAccount() {
 }
 
 /**
- * Connexion à Google Agenda.
+ * Google Calendar connection.
  *
- * Séparée de la section Compte, et ce n'est pas qu'une question de rangement :
- * la connexion à Cairn et l'autorisation d'écrire dans l'agenda sont deux
- * consentements distincts, l'un pouvant se retirer sans l'autre. Les afficher
- * ensemble laisserait croire que se déconnecter de Cairn révoque l'accès à
- * l'agenda, ou l'inverse.
+ * Kept apart from the Account section, and it is not just a matter of tidiness:
+ * signing in to Cairn and the permission to write to the calendar are two
+ * separate consents, one of which can be withdrawn without the other. Showing
+ * them together would suggest that signing out of Cairn revokes calendar
+ * access, or the reverse.
  *
- * La carte n'apparaît pas quand l'installation n'est pas configurée pour :
- * proposer une connexion qui échouera au premier clic n'apprend rien à
- * personne.
+ * The card does not appear when the installation is not configured for it:
+ * offering a connection that will fail on the first click teaches nobody
+ * anything.
  */
 /**
- * Réglages du widget Android.
+ * Android widget settings.
  *
- * Absente ailleurs qu'Android : sur le web et sur un appareil sans widget posé,
- * une carte de réglages pour quelque chose qui n'existe pas est du bruit. Le
- * réglage lui-même reste en base et suit le compte — c'est le widget d'un
- * téléphone, mais le choix est celui d'une personne.
+ * Absent anywhere but Android: on the web and on a device without a widget
+ * placed, a settings card for something that does not exist is noise. The
+ * setting itself stays in the database and follows the account — it is a
+ * phone's widget, but the choice is a person's.
  */
 function WidgetSettings() {
   const { theme } = useTheme()
@@ -461,9 +460,9 @@ function AgendaSettings() {
             <Txt variant="body">{compte.data?.google_email ?? 'compte Google'}</Txt>
           </View>
 
-          {/* L'échéance est dite tant qu'elle existe, pas seulement une fois
-              dépassée : en mode test Google elle tombe tous les sept jours, et
-              l'apprendre au moment d'envoyer une note est trop tard. */}
+          {/* The expiry is stated as long as it exists, not only once it has
+              passed: in Google's test mode it falls every seven days, and
+              learning it at the moment of sending a note is too late. */}
           {expire ? (
             <Txt variant="caption" tone="muted">
               Autorisation valable jusqu’au{' '}

@@ -1,9 +1,9 @@
 /**
- * Retire l'accès de Cairn à l'agenda.
+ * Removes Cairn's access to the calendar.
  *
- * Deux effacements, dans un ordre qui compte, et une révocation chez Google.
- * Le but est qu'aucun chemin d'échec ne laisse Cairn capable d'écrire dans un
- * agenda dont l'utilisateur croit avoir repris la clé.
+ * Two erasures, in an order that matters, and a revocation at Google. The goal
+ * is that no failure path leaves Cairn able to write to a calendar whose key the
+ * user believes they have taken back.
  */
 
 import { withSupabase } from 'npm:@supabase/server@1'
@@ -24,30 +24,29 @@ export default {
       .maybeSingle()
 
     /**
-     * La révocation d'abord, l'effacement ensuite — mais son échec n'arrête
-     * rien.
+     * Revocation first, erasure second — but its failure stops nothing.
      *
-     * Si Google est injoignable et qu'on s'arrêtait là, l'utilisateur resterait
-     * connecté contre sa volonté, sans moyen d'insister. Or effacer le jeton
-     * d'ici suffit à rendre Cairn incapable d'écrire quoi que ce soit : la
-     * révocation est un nettoyage chez Google, pas la condition du retrait.
-     * L'autorisation résiduelle reste visible et supprimable dans les réglages
-     * du compte Google, ce que dit la réponse.
+     * If Google were unreachable and we stopped there, the user would stay
+     * connected against their will, with no way to insist. Yet erasing the
+     * token from here is enough to make Cairn unable to write anything: the
+     * revocation is a clean-up at Google, not the condition for withdrawal. The
+     * leftover authorisation stays visible and removable in the Google account
+     * settings, which is what the response says.
      */
     let revoque = false
     if (ligne?.refresh_token_encrypted) {
       const jeton = await dechiffrer(ligne.refresh_token_encrypted)
       if (jeton) {
         const acces = await rafraichirJeton(jeton)
-        // On révoque le jeton d'accès quand on a pu en obtenir un : Google
-        // révoque alors toute la grappe, jeton de rafraîchissement compris.
+        // We revoke the access token when we could get one: Google then revokes
+        // the whole bundle, refresh token included.
         revoque = await revoquer(acces ?? jeton)
       }
     }
 
-    // Le secret en premier : c'est lui qui donne le pouvoir d'écrire. Si la
-    // seconde suppression échoue, il ne reste qu'une ligne de métadonnées sans
-    // effet, que la reconnexion écrasera.
+    // The secret first: it is what gives the power to write. If the second
+    // deletion fails, all that is left is a row of harmless metadata, which
+    // reconnecting will overwrite.
     await ctx.supabaseAdmin.from('google_credentials').delete().eq('user_id', utilisateur)
     await ctx.supabaseAdmin.from('google_accounts').delete().eq('user_id', utilisateur)
 

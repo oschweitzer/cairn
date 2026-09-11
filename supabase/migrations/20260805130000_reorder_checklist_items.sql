@@ -1,17 +1,17 @@
--- Réordonnancement atomique des éléments d'une liste.
+-- Atomic reordering of a list's items.
 --
--- Pourquoi une fonction et pas un upsert depuis le client : un upsert est un
--- insert-ou-update, alors qu'ici on ne veut que des updates. Sur un identifiant
--- absent il tenterait une insertion sans `content`, qui échouerait sur la
--- contrainte NOT NULL avec un message sans rapport avec le vrai problème.
+-- Why a function and not an upsert from the client: an upsert is an
+-- insert-or-update, whereas here we only want updates. On a missing id it would
+-- attempt an insert without `content`, which would fail on the NOT NULL
+-- constraint with a message unrelated to the real problem.
 --
--- Une boucle d'updates côté client marcherait, mais au prix d'un aller-retour
--- réseau par élément déplacé, et sans atomicité : une coupure au milieu
--- laisserait la liste dans un ordre incohérent.
+-- A loop of updates on the client would work, but at the cost of a network
+-- round trip per moved item, and without atomicity: a cut in the middle would
+-- leave the list in an inconsistent order.
 --
--- SECURITY INVOKER, le défaut, est ce qu'il faut ici : la fonction s'exécute avec
--- les droits de l'appelant, donc les politiques RLS de checklist_items
--- s'appliquent normalement et personne ne peut réordonner la liste d'autrui.
+-- SECURITY INVOKER, the default, is what is wanted here: the function runs with
+-- the caller's rights, so the RLS policies of checklist_items apply normally and
+-- nobody can reorder someone else's list.
 
 create or replace function reorder_checklist_items(p_note_id uuid, p_ids uuid[])
 returns void

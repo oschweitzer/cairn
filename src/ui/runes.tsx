@@ -2,33 +2,32 @@ import { View } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 
 /**
- * Iconographie runique. Ornementale, jamais fonctionnelle.
+ * Runic iconography. Ornamental, never functional.
  *
- * ── Pourquoi du vectoriel et pas du texte ────────────────────────────────────
- * Le bloc Runique d'Unicode (U+16A0 à U+16FF) existe, mais presque aucune police
- * système ne le couvre : ni Roboto sur Android, ni la pile par défaut des
- * navigateurs. Un `<Text>ᚱ</Text>` afficherait donc un rectangle vide sur la
- * grande majorité des appareils, et le vérifier sur le sien ne prouve rien. Les
- * runes sont donc tracées, ce qui a un bénéfice secondaire : l'épaisseur du
- * trait suit la couleur et la taille demandées, comme un vrai burin.
+ * ── Why vectors and not text ─────────────────────────────────────────────────
+ * Unicode's Runic block (U+16A0 to U+16FF) exists, but almost no system font
+ * covers it: not Roboto on Android, not the browsers' default stack. So a
+ * `<Text>ᚱ</Text>` would display an empty rectangle on the vast majority of
+ * devices, and checking it on your own proves nothing. So the runes are drawn,
+ * which has a side benefit: the stroke width follows the requested colour and
+ * size, like a real burin.
  *
- * ── Pourquoi elles ne portent jamais de sens ─────────────────────────────────
- * Le principe posé au départ tient toujours : le caractère passe par les
- * surfaces, la couleur, la typographie et le mouvement, et les affordances
- * restent conventionnelles. Une rune ne remplace donc jamais une icône que l'on
- * doit comprendre pour agir. Une case à cocher reste une case à cocher, la
- * corbeille garde son icône de corbeille. Les runes marquent, elles n'indiquent
- * pas. Elles sont par conséquent toutes masquées aux lecteurs d'écran.
+ * ── Why they never carry meaning ─────────────────────────────────────────────
+ * The principle set at the start still holds: character comes through
+ * surfaces, colour, typography and motion, and affordances stay conventional.
+ * So a rune never replaces an icon you have to understand to act. A checkbox
+ * stays a checkbox, the trash keeps its trash icon. Runes mark, they do not
+ * indicate. They are therefore all hidden from screen readers.
  *
- * ── Géométrie ────────────────────────────────────────────────────────────────
- * Chaque rune est décrite dans une boîte de 12 sur 20 unités, en traits droits
- * uniquement, ce qui est la définition même de l'alphabet : le futhark est
- * anguleux parce qu'il a été taillé au couteau dans le bois et à la pointe dans
- * la pierre, où une courbe est difficile et suit le fil du support. Les
- * extrémités sont carrées pour la même raison.
+ * ── Geometry ─────────────────────────────────────────────────────────────────
+ * Each rune is described in a 12 by 20 unit box, in straight strokes only,
+ * which is the very definition of the alphabet: the futhark is angular because
+ * it was cut with a knife into wood and with a point into stone, where a curve
+ * is hard and follows the grain of the material. Stroke ends are square for the
+ * same reason.
  */
 
-/** Futhark ancien, sous-ensemble réellement utilisé dans l'interface. */
+/** Elder futhark, the subset actually used in the interface. */
 const PATHS = {
   // ᚠ fehu
   fehu: 'M2 0 V20 M2 4 L9 1 M2 10 L9 7',
@@ -79,10 +78,11 @@ export type RuneName = keyof typeof PATHS
 export const runeNames = Object.keys(PATHS) as RuneName[]
 
 /**
- * « Cairn » translittéré en futhark ancien : ᚲᚨᛁᚱᚾ.
+ * "Cairn" transliterated into the elder futhark: ᚲᚨᛁᚱᚾ.
  *
- * Le futhark n'a pas de C, le son dur passe par kaunan. La translittération est
- * donc K-A-I-R-N, ce qui se lit correctement à voix haute et n'invente rien.
+ * The futhark has no C, the hard sound goes through kaunan. So the
+ * transliteration is K-A-I-R-N, which reads correctly aloud and invents
+ * nothing.
  */
 export const CAIRN: readonly RuneName[] = ['kaunan', 'ansuz', 'isaz', 'raido', 'naudiz']
 
@@ -90,13 +90,13 @@ const BOX_W = 12
 const BOX_H = 20
 
 /**
- * Géométrie brute, pour les rendus qui ne peuvent pas passer par `<Rune>` :
- * la gravure sur la pierre levée plus bas, et l'attente animée de
- * src/ui/RuneLoader.tsx, dont le trait change de couleur et doit donc être un
- * chemin animé plutôt qu'un chemin ordinaire.
+ * Raw geometry, for renders that cannot go through `<Rune>`: the engraving on
+ * the standing stone below, and the animated wait of src/ui/RuneLoader.tsx,
+ * whose stroke changes colour and must therefore be an animated path rather
+ * than an ordinary one.
  *
- * Le tracé reste défini ici, en un seul endroit. Le recopier ailleurs le
- * laisserait dériver à la première retouche.
+ * The outline stays defined here, in a single place. Copying it elsewhere would
+ * let it drift at the first touch-up.
  */
 export const runeBox = { width: BOX_W, height: BOX_H } as const
 
@@ -105,10 +105,10 @@ export function runePath(name: RuneName): string {
 }
 
 /**
- * Une rune. `size` est la hauteur souhaitée, la largeur en découle.
+ * A rune. `size` is the desired height, the width follows from it.
  *
- * L'épaisseur du trait suit la taille par défaut, sinon une rune agrandie
- * paraîtrait gravée avec une pointe de plus en plus fine.
+ * The stroke width follows the size by default, otherwise an enlarged rune
+ * would look engraved with an ever finer point.
  */
 export function Rune({
   name,
@@ -128,8 +128,8 @@ export function Rune({
     <Svg
       width={width}
       height={size}
-      // La marge d'une unité empêche le trait d'être rogné sur les bords de la
-      // boîte, où passent plusieurs runes.
+      // The one-unit margin keeps the stroke from being clipped at the edges of
+      // the box, where several runes run.
       viewBox={`-1 -1 ${BOX_W + 2} ${BOX_H + 2}`}
     >
       <Path
@@ -145,11 +145,11 @@ export function Rune({
 }
 
 /**
- * Une suite de runes sur une ligne, masquée aux lecteurs d'écran.
+ * A sequence of runes on one line, hidden from screen readers.
  *
- * L'appelant fournit `label` quand le mot runique remplace visuellement un texte
- * lisible, pour que la ligne reste annoncée. Sans `label`, l'ensemble est
- * purement décoratif et disparaît de l'arbre d'accessibilité.
+ * The caller provides `label` when the runic word visually replaces readable
+ * text, so the line is still announced. Without `label`, the whole is purely
+ * decorative and disappears from the accessibility tree.
  */
 export function RuneRow({
   runes,
@@ -184,12 +184,12 @@ export function RuneRow({
 }
 
 /**
- * Pierre levée gravée, pour les écrans vides.
+ * An engraved standing stone, for empty screens.
  *
- * Elle remplace l'icône Feather qui tenait ce rôle : un pictogramme d'interface
- * au milieu d'un écran vide est un panneau « il n'y a rien », alors qu'une
- * pierre debout est l'objet même que l'application empile. La silhouette est
- * volontairement irrégulière, une pierre dressée n'est pas un rectangle.
+ * It replaces the Feather icon that held this role: an interface pictogram in
+ * the middle of an empty screen is a "there is nothing here" sign, whereas an
+ * upright stone is the very object the app piles up. The silhouette is
+ * deliberately irregular, a raised stone is not a rectangle.
  */
 export function StandingStone({
   size = 72,
@@ -198,26 +198,27 @@ export function StandingStone({
   runes = ['algiz', 'isaz'],
 }: {
   size?: number
-  /** Contour de la pierre. */
+  /** The stone's outline. */
   color: string
-  /** Gravure, en général l'accent. */
+  /** Engraving, usually the accent. */
   carveColor: string
   runes?: readonly RuneName[]
 }) {
-  // Boîte de 60 sur 84, la pierre occupe 44 de large et laisse le socle respirer.
+  // A 60 by 84 box; the stone takes 44 of the width and leaves the base room to breathe.
   const width = (size * 60) / 84
 
   return (
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <Svg width={width} height={size} viewBox="0 0 60 84">
         {/**
-         * Silhouette : large à la base, effilée vers le haut, sommet de guingois.
+         * Silhouette: wide at the base, tapering towards the top, a lopsided
+         * peak.
          *
-         * Le sens de l'évasement n'est pas un détail de goût. Une forme plus
-         * étroite en bas qu'au milieu se lit immédiatement comme un cercueil,
-         * ce qu'a donné le premier tracé. Une pierre plantée fait l'inverse :
-         * elle est massive au sol et s'amincit en montant, et ses deux flancs ne
-         * sont pas symétriques.
+         * Which way it flares is not a matter of taste. A shape narrower at the
+         * bottom than in the middle reads at once as a coffin, which is what
+         * the first outline gave. A planted stone does the opposite: it is
+         * massive at the ground and thins as it rises, and its two sides are
+         * not symmetrical.
          */}
         <Path
           d="M13 80 L16 52 L18 28 L24 10 L33 5 L40 16 L43 44 L46 80 Z"
@@ -226,9 +227,9 @@ export function StandingStone({
           strokeLinejoin="miter"
           fill="none"
         />
-        {/* Ligne de sol, plus courte que la base : la pierre est plantée. */}
+        {/* Ground line, wider than the base: the stone is planted. */}
         <Path d="M8 80 H52" stroke={color} strokeWidth={2} strokeLinecap="square" />
-        {/* Gravure, centrée sur la face. */}
+        {/* Engraving, centred on the face. */}
         <CarvedRunes runes={runes} color={carveColor} />
       </Svg>
     </View>
@@ -236,14 +237,15 @@ export function StandingStone({
 }
 
 /**
- * Runes gravées sur la face de la pierre. Extrait pour garder `StandingStone`
- * lisible, et parce que la mise en colonne n'a rien à voir avec la silhouette.
+ * Runes engraved on the stone's face. Pulled out to keep `StandingStone`
+ * readable, and because stacking them in a column has nothing to do with the
+ * silhouette.
  */
 function CarvedRunes({ runes, color }: { runes: readonly RuneName[]; color: string }) {
   const height = 13
   const total = runes.length * height + (runes.length - 1) * 5
-  // Centrées sur la partie basse de la face, pas sur la boîte : le haut de la
-  // pierre est trop étroit pour accueillir une gravure sans la serrer.
+  // Centred on the lower part of the face, not on the box: the top of the
+  // stone is too narrow to take an engraving without cramping it.
   const top = 46 - total / 2
 
   return (
@@ -251,8 +253,8 @@ function CarvedRunes({ runes, color }: { runes: readonly RuneName[]; color: stri
       {runes.map((name, i) => {
         const y = top + i * (height + 5)
         const scale = height / BOX_H
-        // Chaque rune est ramenée dans le repère de la pierre par une
-        // transformation, plutôt que par un recalcul des chemins.
+        // Each rune is brought into the stone's coordinate space by a
+        // transform, rather than by recomputing the paths.
         return (
           <Path
             key={`${name}-${i}`}

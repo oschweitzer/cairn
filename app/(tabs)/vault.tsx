@@ -29,17 +29,17 @@ import { useRise } from '@/ui/transitions'
 import { motion, radius, space } from '@/ui/theme'
 
 /**
- * Le coffre.
+ * The vault.
  *
- * Trois états, un seul écran : à configurer, fermé, ouvert. Les séparer en trois
- * routes obligerait à décider laquelle afficher avant de savoir dans quel état
- * on est, et ferait clignoter une redirection au chargement.
+ * Three states, one screen: to set up, locked, open. Splitting them into three
+ * routes would force deciding which one to show before knowing which state we
+ * are in, and would make a redirect flicker on load.
  *
- * ── Le fond est la surface creusée ───────────────────────────────────────────
- * Tout l'écran bascule sur `surface.recessed`, la strate la plus sombre du
- * thème. C'est la seule vue de l'application qui le fait. On entre dans la
- * roche, et le changement de fond dit qu'on a changé d'endroit mieux qu'un
- * titre ne le ferait. La référence troglodyte sert alors à quelque chose.
+ * ── The background is the recessed surface ───────────────────────────────────
+ * The whole screen switches to `surface.recessed`, the theme's darkest stratum.
+ * It is the only view in the app that does. You enter the rock, and the change
+ * of background says you have changed places better than a title would. The
+ * cave-dwelling reference earns its keep there.
  */
 export default function Vault() {
   const { ready, configured, unlocked } = useVault()
@@ -48,27 +48,28 @@ export default function Vault() {
   const router = useRouter()
 
   /**
-   * Quitter l'onglet ne referme plus le coffre, et c'est un renoncement assumé.
+   * Leaving the tab no longer closes the vault, and that is a deliberate
+   * concession.
    *
-   * Tant que le coffre était un écran empilé, le quitter le détruisait et
-   * refermer au démontage ne coûtait rien. Devenu un onglet, il reste monté :
-   * le seul crochet équivalent serait la perte de focus — or ouvrir une note du
-   * coffre fait précisément perdre le focus à cet écran. Refermer là-dessus
-   * claquerait la porte à l'instant où l'on entre.
+   * As long as the vault was a stacked screen, leaving it destroyed it, and
+   * closing on unmount cost nothing. As a tab, it stays mounted: the only
+   * equivalent hook would be losing focus — and opening a vault note is
+   * precisely what makes this screen lose focus. Closing on that would slam the
+   * door at the very moment you walk in.
    *
-   * Reste le déclencheur qui porte réellement la protection : cinq minutes sans
-   * un geste, où qu'on soit dans l'application et même une fois passé ailleurs,
-   * le temps d'absence comptant comme du temps d'inactivité. Le bouton
-   * « Refermer » couvre le geste volontaire.
+   * What remains is the trigger that actually carries the protection: five
+   * minutes without a gesture, wherever you are in the app and even once you
+   * have gone elsewhere, time away counting as idle time. The « Refermer »
+   * button covers the deliberate gesture.
    */
 
   /**
-   * Note que l'éditeur a confiée au coffre en nous y envoyant.
+   * The note the editor handed to the vault when sending us here.
    *
-   * Elle est recopiée dans un état local, et non lue directement du paramètre de
-   * route, parce qu'elle se consomme : une fois rangée, la mention doit
-   * disparaître de l'écran, alors que le paramètre, lui, reste dans l'URL. Le
-   * drapeau empêche l'effet de la faire revenir aussitôt.
+   * It is copied into local state, rather than read straight from the route
+   * param, because it gets consumed: once filed, the notice has to leave the
+   * screen, while the param stays in the URL. The flag stops the effect from
+   * bringing it straight back.
    */
   const params = useLocalSearchParams<{ claim?: string }>()
   const [claim, setClaim] = useState<string | null>(null)
@@ -93,9 +94,9 @@ export default function Vault() {
       }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.sm }}>
-        {/* Le coffre s'atteint désormais par son onglet, où il n'y a rien
-            derrière : la flèche n'apparaît que si l'on y est venu depuis
-            ailleurs, l'éditeur qui confie une note par exemple. */}
+        {/* The vault is now reached through its tab, with nothing behind it:
+            the arrow only appears if you came from somewhere else, the editor
+            handing over a note for instance. */}
         {router.canGoBack() ? (
           <IconButton icon="arrow-left" label="Retour" onPress={() => router.back()} />
         ) : (
@@ -116,11 +117,11 @@ export default function Vault() {
 }
 
 /**
- * Rappel de l'intention en cours, tant que le coffre n'est pas ouvert.
+ * Reminder of the intent in progress, as long as the vault is not open.
  *
- * Sans cette ligne, l'écran de code apparaît sans raison lisible : on a demandé
- * à ranger une note, on se retrouve devant un pavé numérique. Dire pourquoi
- * coûte une phrase et évite d'abandonner en route.
+ * Without this line, the code screen appears for no readable reason: you asked
+ * to file a note, you find yourself in front of a keypad. Saying why costs one
+ * sentence and keeps people from giving up halfway.
  */
 function PendingNoteNotice() {
   return (
@@ -135,15 +136,15 @@ function PendingNoteNotice() {
   )
 }
 
-// ------------------------------------------------------------- configuration
+// -------------------------------------------------------------------- setup
 
 /**
- * Première mise en place du code.
+ * First setup of the code.
  *
- * Deux saisies, la seconde pour confirmer. Un code défini par erreur et jamais
- * retapé enfermerait les notes derrière une combinaison inconnue, et comme rien
- * n'est chiffré à ce stade, il n'y aurait même pas de récupération à proposer :
- * il faudrait effacer le coffre.
+ * Two entries, the second to confirm. A code set by mistake and never retyped
+ * would lock the notes behind an unknown combination, and since nothing is
+ * encrypted at this stage there would not even be a recovery to offer: the
+ * vault would have to be erased.
  */
 function Setup({ pendingNote }: { pendingNote: boolean }) {
   const { configure, biometrics } = useVault()
@@ -155,8 +156,8 @@ function Setup({ pendingNote }: { pendingNote: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const [useBiometrics, setUseBiometrics] = useState(biometrics === 'ready')
 
-  // Le sondage biométrique arrive après le premier rendu : la case suit, tant
-  // que l'utilisateur n'y a pas touché lui-même.
+  // The biometric probe arrives after the first render: the checkbox follows
+  // it, as long as the user has not touched it themselves.
   const [touched, setTouched] = useState(false)
   useEffect(() => {
     if (!touched) setUseBiometrics(biometrics === 'ready')
@@ -189,9 +190,9 @@ function Setup({ pendingNote }: { pendingNote: boolean }) {
           derrière ce code. Au moins {PIN_MIN_LENGTH} chiffres.
         </Txt>
         {/**
-         * Le périmètre est dit à l'utilisateur, pas seulement au développeur.
-         * Laisser croire à un chiffrement serait la pire des économies de mots :
-         * quelqu'un rangerait ici des choses qui méritent mieux.
+         * The scope is told to the user, not only to the developer. Letting
+         * people believe in encryption would be the worst way to save words:
+         * someone would file things here that deserve better.
          */}
         <Txt variant="caption" tone="muted">
           Ce code garde l’accès sur cet appareil{Platform.OS === 'web' ? ', et il est stocké dans le navigateur' : ''}.
@@ -255,19 +256,19 @@ function Setup({ pendingNote }: { pendingNote: boolean }) {
   )
 }
 
-// ------------------------------------------------------------------- fermé
+// ------------------------------------------------------------------ locked
 
 /**
- * Ce qu'il y a à dire d'une demande d'empreinte, ou rien.
+ * What there is to say about a fingerprint request, or nothing.
  *
- * Un refus ne dit rien : l'utilisateur vient d'annuler, ou le système lui a
- * déjà signalé que le doigt n'était pas reconnu. Répéter par-dessus n'ajoute
- * qu'un reproche.
+ * A refusal says nothing: the user has just cancelled, or the system has
+ * already told them the finger was not recognised. Repeating it on top only
+ * adds a reproach.
  *
- * Un capteur occupé, si : là, aucune invite n'est apparue, et sans un mot
- * l'écran est un bouton qui ne fait rien. La demande vient d'être rendue, donc
- * la suivante a des chances d'aboutir — d'où l'invitation à réessayer plutôt
- * qu'un renvoi au pavé.
+ * A busy sensor does: there, no prompt appeared, and without a word the screen
+ * is a button that does nothing. The request has just been released, so the
+ * next one stands a chance — hence the invitation to retry rather than sending
+ * people back to the keypad.
  */
 function messagePourEmpreinte(issue: BiometricUnlock): string | null {
   return issue === 'busy' ? 'Le capteur était occupé. Réessayer, ou saisir le code.' : null
@@ -289,13 +290,13 @@ function Locked({ pendingNote }: { pendingNote: boolean }) {
   const cooldown = useCooldownLabel(coolingMs)
   const cooling = coolingMs > 0
 
-  // Le capteur est proposé d'emblée : si l'utilisateur a activé la biométrie,
-  // c'est qu'il veut ouvrir d'un geste, pas taper un code puis découvrir qu'il
-  // y avait plus rapide. L'échec ou l'annulation laisse simplement le pavé.
+  // The sensor is offered straight away: if the user turned biometrics on,
+  // they want to open in one gesture, not type a code and then find out there
+  // was a faster way. Failure or cancelling simply leaves the keypad.
   //
-  // Une seule tentative automatique par montage, d'où le drapeau : sans lui,
-  // annuler la demande système la ferait réapparaître aussitôt, et il
-  // deviendrait impossible d'atteindre le pavé.
+  // A single automatic attempt per mount, hence the flag: without it,
+  // cancelling the system request would make it reappear at once, and the
+  // keypad would become impossible to reach.
   const demanderEmpreinte = useCallback(async () => {
     setError(messagePourEmpreinte(await unlockWithBiometrics()))
   }, [unlockWithBiometrics])
@@ -307,8 +308,8 @@ function Locked({ pendingNote }: { pendingNote: boolean }) {
     void demanderEmpreinte()
   }, [biometricsEnabled, biometrics, cooling, demanderEmpreinte])
 
-  // Une invite quittée sans réponse garde le capteur pour toute l'application.
-  // La rendre en sortant est ce qui évite que la prochaine parte dans le vide.
+  // A prompt left without an answer holds the sensor for the whole app.
+  // Releasing it on the way out is what keeps the next one from going nowhere.
   useEffect(() => () => void cancelBiometrics(), [cancelBiometrics])
 
   const submit = useCallback(async () => {
@@ -363,13 +364,13 @@ function Locked({ pendingNote }: { pendingNote: boolean }) {
   )
 }
 
-// ------------------------------------------------------------------ ouvert
+// -------------------------------------------------------------------- open
 
 function Contents({
   claim,
   onClaimSettled,
 }: {
-  /** Note confiée par l'éditeur, à ranger dès l'ouverture. */
+  /** Note handed over by the editor, to be filed as soon as the vault opens. */
   claim: string | null
   onClaimSettled: () => void
 }) {
@@ -386,15 +387,15 @@ function Contents({
   const composerRising = useRise({ distance: 16, delay: motion.fast })
 
   /**
-   * Le rangement promis à l'éditeur, honoré ici.
+   * The filing promised to the editor, honoured here.
    *
-   * Une seule fois, d'où le drapeau : le coffre peut se refermer et se rouvrir
-   * sans quitter l'écran, et rejouer l'écriture à chaque ouverture annoncerait
-   * un rangement déjà fait.
+   * Only once, hence the flag: the vault can close and reopen without leaving
+   * the screen, and replaying the write on every opening would announce a
+   * filing already done.
    *
-   * Sans nom de code, délibérément. En donner un est un choix éditorial, et
-   * l'inventer à la place de l'auteur serait pire que le silence : c'est le seul
-   * texte d'une note du coffre qui reste visible de l'extérieur.
+   * Without a code name, on purpose. Giving one is an editorial choice, and
+   * inventing it in the author's place would be worse than silence: it is the
+   * only text of a vault note that stays visible from outside.
    */
   const claiming = useRef(false)
   useEffect(() => {
@@ -414,8 +415,8 @@ function Contents({
     async (kind: NoteKind) => {
       setCreating(true)
       try {
-        // `isPrivate` dès l'insertion : la note ne doit jamais avoir existé
-        // dans la liste visible, pas même le temps d'un aller-retour.
+        // `isPrivate` from the insert on: the note must never have existed in
+        // the visible list, not even for the length of a round trip.
         const note = await createNote.mutateAsync({ kind, isPrivate: true })
         router.push(`/note/${note.id}`)
       } finally {
@@ -428,13 +429,13 @@ function Contents({
   return (
     <View style={{ flex: 1 }}>
       {/**
-       * Le contenu du coffre se lève à l'ouverture.
+       * The vault's content rises as it opens.
        *
-       * C'est le seul endroit de l'application où l'animation porte réellement
-       * une information : entre le pavé numérique et la grille des notes
-       * masquées, rien ne change de place à l'écran, et sans mouvement le
-       * basculement se lit comme un saut. La course est un peu plus longue
-       * qu'ailleurs, le geste étant celui d'un couvercle qu'on soulève.
+       * It is the only place in the app where the animation actually carries
+       * information: between the keypad and the grid of hidden notes, nothing
+       * changes place on screen, and without movement the switch reads as a
+       * jump. The travel is a little longer than elsewhere, the gesture being
+       * that of a lid being lifted.
        */}
       <Animated.View style={[{ flex: 1 }, rising]}>
         <ScrollView
@@ -462,15 +463,15 @@ function Contents({
           </View>
 
           {/**
-           * L'état de la clé passe avant le contenu.
+           * The key's state comes before the content.
            *
-           * Sans clé sur cet appareil, les notes s'afficheraient vides : montrer
-           * une grille de cartes muettes ferait croire à un coffre effacé, alors
-           * qu'il n'est que fermé d'une seconde serrure.
+           * Without a key on this device, the notes would display empty: showing
+           * a grid of silent cards would suggest an erased vault, when it is only
+           * shut by a second lock.
            */}
           {/**
-           * La clé de secours passe avant tout le reste, et ne dépend d'aucun
-           * autre état : c'est ce qui l'a fait disparaître la première fois.
+           * The recovery key comes before everything else, and depends on no
+           * other state: that is what made it disappear the first time.
            */}
           <RecoveryKeyReveal />
           {keyStatus === 'elsewhere' ? <EncryptionRestore /> : null}
@@ -508,8 +509,8 @@ function Contents({
         </ScrollView>
       </Animated.View>
 
-      {/* Les boutons suivent le contenu d'un temps, plutôt que d'apparaître au
-          milieu de son mouvement. */}
+      {/* The buttons follow the content a beat later, rather than appearing in
+          the middle of its movement. */}
       <Animated.View
         style={[
           composerRising,

@@ -2,21 +2,19 @@ import { getSupabase } from '../db/supabase'
 import { hasDataKey, sealItem, sealNote } from './keyring'
 
 /**
- * Chiffre ce qui était déjà rangé dans le coffre avant que le chiffrement
- * n'existe.
+ * Encrypts what was already filed in the vault before encryption existed.
  *
- * Sans ce passage, activer le chiffrement ne protégerait que les notes à venir
- * et laisserait les anciennes en clair dans la base — c'est-à-dire exactement
- * celles qu'on avait jugé bon de ranger là.
+ * Without this pass, turning encryption on would only protect notes to come and
+ * would leave the old ones in plaintext in the database — that is, exactly the
+ * ones someone had seen fit to file there.
  *
- * ── Note par note, et non en une transaction ────────────────────────────────
- * PostgREST n'offre pas de transaction sur un lot de mises à jour différentes,
- * chaque note recevant son propre scellé. Une coupure en cours de route laisse
- * donc un coffre à moitié chiffré — et c'est sans gravité : `is_encrypted` est
- * porté par la ligne, la lecture traite les deux cas, et relancer l'opération
- * reprend là où elle s'était arrêtée puisqu'on ne sélectionne que ce qui reste
- * en clair. L'ordre compte en revanche : le contenu est scellé avant que le
- * drapeau ne le déclare, dans la même écriture.
+ * ── Note by note, and not in one transaction ─────────────────────────────────
+ * PostgREST offers no transaction over a batch of different updates, each note
+ * receiving its own sealed blob. So a cut along the way leaves a half-encrypted
+ * vault — and that is harmless: `is_encrypted` is carried by the row, reading
+ * handles both cases, and running the operation again resumes where it stopped
+ * since only what is still in plaintext is selected. Order does matter, though:
+ * the content is sealed before the flag declares it, in the same write.
  */
 export async function encryptExistingVaultNotes(): Promise<{ notes: number; items: number }> {
   if (!hasDataKey()) throw new Error('Clé de données absente : rien ne peut être chiffré.')

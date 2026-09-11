@@ -26,8 +26,8 @@ export default function SignUp() {
     }
     setBusy(true)
     try {
-      // Avant d'ouvrir le compte : ce mot de passe circule-t-il déjà ? Le
-      // contrôle échoue ouvert, un service injoignable ne bloque donc rien.
+      // Before opening the account: is this password already out there? The
+      // check fails open, so an unreachable service blocks nothing.
       const leaks = await pwnedCount(password)
       if (leaks > 0) {
         setError(pwnedMessage(leaks))
@@ -36,7 +36,7 @@ export default function SignUp() {
 
       const { needsConfirmation } = await signUpWithPassword(email, password)
       if (needsConfirmation) setAwaitingConfirmation(true)
-      // Sinon la session est ouverte et l'aiguillage du layout racine redirige.
+      // Otherwise the session is open and the root layout's routing redirects.
     } catch (e) {
       setError((e as Error).message)
     } finally {

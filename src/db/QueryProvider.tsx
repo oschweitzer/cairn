@@ -5,29 +5,28 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { shouldPersistQuery } from './persistLogic'
 
 /**
- * Cache de requêtes, persisté pour que l'application s'ouvre sur du contenu même
- * sans réseau.
+ * Query cache, persisted so the app opens on content even without a network.
  *
- * Le choix important est ici : tout n'est pas persisté. Sur le web, AsyncStorage
- * s'appuie sur localStorage, lisible par n'importe quel script de l'origine.
- * Les notes du coffre n'y ont donc rien à faire, ni celles de la corbeille.
- * Seules les clés marquées comme persistables descendent sur le disque.
+ * The important choice is here: not everything is persisted. On the web,
+ * AsyncStorage sits on localStorage, readable by any script from the origin. So
+ * vault notes have no business there, and neither do trashed ones. Only the keys
+ * marked as persistable go down to the disk.
  *
- * C'est aussi pour cela que les notes masquées vivent dans une clé de requête
- * distincte plutôt que dans la liste principale filtrée côté client : la
- * séparation est structurelle, pas cosmétique.
+ * That is also why hidden notes live under a separate query key rather than in
+ * the main list filtered on the client: the separation is structural, not
+ * cosmetic.
  */
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Les données restent affichées pendant la revalidation, ce qui évite de
-      // voir la grille se vider à chaque retour sur l'écran.
+      // Data stays on display during revalidation, which avoids watching the
+      // grid empty itself every time the screen is revisited.
       staleTime: 30_000,
       gcTime: 1000 * 60 * 60 * 24,
       retry: 2,
-      // La reconnexion suffit à déclencher un rafraîchissement, inutile de
-      // rejouer toutes les requêtes au moindre retour de focus.
+      // Reconnecting is enough to trigger a refresh, no need to replay every
+      // query on the slightest return of focus.
       refetchOnWindowFocus: false,
     },
     mutations: {
@@ -49,8 +48,8 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       persistOptions={{
         persister,
         maxAge: 1000 * 60 * 60 * 24 * 7,
-        // À incrémenter si la forme des données en cache change de façon
-        // incompatible, pour invalider les caches déjà sur les appareils.
+        // Bump this if the shape of cached data changes incompatibly, to
+        // invalidate the caches already on devices.
         buster: 'v1',
         dehydrateOptions: {
           // Neither the vault nor the trash goes down to the disk, and neither

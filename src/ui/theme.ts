@@ -1,69 +1,69 @@
 /**
- * Source unique de vérité pour les couleurs, la typographie et les formes de Cairn.
+ * Single source of truth for Cairn's colours, typography and shapes.
  *
- * Ce fichier ne doit importer AUCUN module react-native. Il est lu par trois
- * consommateurs qui n'ont pas le même environnement d'exécution :
- *   - l'application (Android et web) via src/ui/ThemeProvider.tsx
- *   - scripts/gen-theme.ts sous Node, qui en dérive le CSS web et les
- *     ressources de couleurs du widget Android
- *   - app.config.ts, indirectement via generated/theme.json
+ * This file must import NO react-native module. It is read by three consumers
+ * that do not share the same runtime:
+ *   - the app (Android and web) through src/ui/ThemeProvider.tsx
+ *   - scripts/gen-theme.ts under Node, which derives the web CSS and the Android
+ *     widget's colour resources from it
+ *   - app.config.ts, indirectly through generated/theme.json
  *
- * Toute couleur ajoutée ici se propage aux trois surfaces sans recopie.
+ * Any colour added here spreads to all three surfaces without copying.
  *
- * ── Registre nordique ────────────────────────────────────────────────────────
- * L'identité est celle de la pierre levée du Nord, pas du calcaire du Quercy.
- * La pierre reste, mais elle change de lumière : le gneiss bleu-gris sous une
- * nuit polaire, la neige sur le granit au jour. Trois conséquences concrètes,
- * qui expliquent la plupart des valeurs ci-dessous.
+ * ── Nordic register ──────────────────────────────────────────────────────────
+ * The identity is the standing stone of the North, not the limestone of the
+ * Quercy. The stone stays, but its light changes: blue-grey gneiss under a polar
+ * night, snow on granite by day. Three concrete consequences, which explain most
+ * of the values below.
  *
- * 1. Les gris sont froids. Toutes les strates tournent autour de 200° de teinte,
- *    là où la palette précédente tournait autour de 30°.
- * 2. L'accent est l'aurore, un vert-cyan glacial. Il ne peut pas être le rouge
- *    des runes peintes à l'ocre : cette place est déjà prise par `state.danger`,
- *    et deux rouges dans une interface, l'un décoratif l'autre porteur d'alerte,
- *    est une confusion qu'aucune nuance ne rattrape.
- * 3. Les angles sont plus vifs. La roche est taillée au ciseau, pas roulée par
- *    la rivière. Voir `radius`.
+ * 1. The greys are cold. All the strata sit around a 200° hue, where the
+ *    previous palette sat around 30°.
+ * 2. The accent is the aurora, an icy green-cyan. It cannot be the red of runes
+ *    painted in ochre: that place is already taken by `state.danger`, and two
+ *    reds in one interface, one decorative and the other carrying alerts, is a
+ *    confusion no shade can make up for.
+ * 3. The corners are sharper. The rock is cut with a chisel, not rolled by the
+ *    river. See `radius`.
  */
 
 export type ThemeName = 'dark' | 'light'
 
 /**
- * Les jetons portent des noms de rôle, jamais des noms de couleur.
- * `surface.recessed` reste valable si l'aurore devient une braise un jour,
- * `vertGlacial` ne survivrait pas au premier changement de palette.
+ * Tokens carry role names, never colour names. `surface.recessed` still holds
+ * if the aurora turns into an ember one day; `vertGlacial` would not survive the
+ * first palette change.
  */
 export type Theme = {
   name: ThemeName
-  /** Ce que voit le système d'exploitation, pour la barre d'état et le fond racine. */
+  /** What the operating system sees, for the status bar and the root background. */
   scheme: 'dark' | 'light'
   surface: {
-    /** Fond de page, la strate la plus profonde. */
+    /** Page background, the deepest stratum. */
     page: string
-    /** Carte de note posée sur la page. */
+    /** Note card set on the page. */
     card: string
-    /** Élévation supérieure, modale et feuille glissante. */
+    /** Upper elevation, modal and bottom sheet. */
     raised: string
-    /** Creusé dans la roche, champ de saisie et coffre. */
+    /** Carved into the rock, text field and vault. */
     recessed: string
   }
   line: {
-    /** Couture géologique d'un pixel, remplace l'ombre portée. */
+    /** One-pixel geological seam, stands in for the drop shadow. */
     hairline: string
-    /** Bordure appuyée, survol et focus. */
+    /** Emphasised border, hover and focus. */
     strong: string
   }
   text: {
     primary: string
     secondary: string
     muted: string
-    /** Texte posé sur un aplat d'accent. */
+    /** Text set on a flat accent fill. */
     onAccent: string
   }
   accent: {
     default: string
     pressed: string
-    /** Fond teinté très léger pour les puces et les états sélectionnés. */
+    /** Very light tinted background for chips and selected states. */
     subtle: string
   }
   state: {
@@ -71,16 +71,16 @@ export type Theme = {
     success: string
     warning: string
   }
-  /** Voile derrière les modales. */
+  /** Veil behind modals. */
   overlay: string
 }
 
 /**
- * Nuit polaire sur le gneiss. C'est le thème appliqué par défaut.
+ * Polar night on gneiss. This is the theme applied by default.
  *
- * Toutes les valeurs ci-dessous sont issues d'une résolution sous contrainte de
- * contraste, pas d'un choix à l'œil. `npm run theme:contrast` rejoue la preuve.
- * Les modifier à la main sans relancer l'audit casse très probablement l'AA.
+ * Every value below comes out of solving under contrast constraints, not from
+ * picking by eye. `npm run theme:contrast` replays the proof. Changing them by
+ * hand without rerunning the audit very probably breaks AA.
  */
 const dark: Theme = {
   name: 'dark',
@@ -92,10 +92,10 @@ const dark: Theme = {
     recessed: '#070A0B',
   },
   line: {
-    // Même constat qu'en registre minéral : les strates ne peuvent pas s'écarter
-    // davantage sans virer au gris de bureau et perdre le caractère de pierre.
-    // C'est donc cette couture qui porte le contour de la carte, d'où un filet
-    // nettement plus affirmé que l'écart entre les fonds qu'elle sépare.
+    // Same finding as in the mineral register: the strata cannot move further
+    // apart without turning into office grey and losing the character of stone.
+    // So this seam is what carries the card's outline, hence a hairline much
+    // bolder than the difference between the backgrounds it separates.
     hairline: '#5C6E75',
     strong: '#7C9099',
   },
@@ -118,7 +118,7 @@ const dark: Theme = {
   overlay: 'rgba(5, 8, 9, 0.74)',
 }
 
-/** Neige tassée sur le granit, plutôt que blanc. */
+/** Packed snow on granite, rather than white. */
 const light: Theme = {
   name: 'light',
   scheme: 'light',
@@ -130,8 +130,8 @@ const light: Theme = {
   },
   line: {
     hairline: '#94A3A8',
-    // Assombri jusqu'à tenir 3:1 sur les quatre strates, la surface creusée
-    // étant la plus exigeante puisque c'est la plus foncée du thème clair.
+    // Darkened until it holds 3:1 on all four strata, the recessed surface being
+    // the most demanding since it is the darkest of the light theme.
     strong: '#5F6E73',
   },
   text: {
@@ -141,9 +141,9 @@ const light: Theme = {
     onAccent: '#FAFCFC',
   },
   accent: {
-    // Bien plus foncé que la variante sombre : l'aurore telle qu'on la voit dans
-    // le ciel ne tiendrait aucun contraste sur de la neige. C'est la même teinte,
-    // ramenée à la clarté qu'exige la surface creusée, la plus dure des quatre.
+    // Much darker than the dark variant: the aurora as seen in the sky would
+    // hold no contrast on snow. It is the same hue, brought down to the
+    // lightness the recessed surface demands, the hardest of the four.
     default: '#155C4A',
     pressed: '#114E3F',
     subtle: '#CBDFD8',
@@ -159,18 +159,18 @@ const light: Theme = {
 export const themes: Record<ThemeName, Theme> = { dark, light }
 
 /**
- * Palette de tags nordique. Dix teintes réparties sur le cercle chromatique et
- * désaturées de façon homogène, pour qu'aucun tag ne crie plus fort qu'un autre.
+ * Nordic tag palette. Ten hues spread around the colour wheel and evenly
+ * desaturated, so that no tag shouts louder than another.
  *
- * Chaque entrée est une teinte unique déclinée en deux clartés. Les valeurs sont
- * dérivées d'un couple teinte et chroma constant en OKLCH, dont seule la clarté
- * varie selon le thème. React Native n'accepte pas `oklch()` dans les styles,
- * donc les deux variantes sont figées ici en hexadécimal.
+ * Each entry is a single hue in two lightnesses. The values are derived from a
+ * constant hue and chroma pair in OKLCH, of which only the lightness varies with
+ * the theme. React Native does not accept `oklch()` in styles, so both variants
+ * are frozen here in hexadecimal.
  *
- * La base de données stocke la clé (`ambre`), jamais l'hexadécimal. Sinon le
- * thème clair ne pourrait pas remapper la couleur et la palette serait figée à
- * vie. Les clés sont aussi les valeurs du type `tag_color` en base : les
- * renommer demande une migration, voir
+ * The database stores the key (`ambre`), never the hexadecimal. Otherwise the
+ * light theme could not remap the colour and the palette would be frozen for
+ * life. The keys are also the values of the `tag_color` type in the database:
+ * renaming them takes a migration, see
  * supabase/migrations/20260806090000_nordic_tag_colors.sql.
  */
 export const tagPalette = {
@@ -191,12 +191,12 @@ export type TagColorKey = keyof typeof tagPalette
 export const tagColorKeys = Object.keys(tagPalette) as TagColorKey[]
 
 /**
- * Même couleur, rendue transparente.
+ * The same colour, made transparent.
  *
- * Sert aux halos de survol : un aplat d'accent à pleine opacité écraserait le
- * glyphe qu'il est censé mettre en valeur. La palette reste la source, on ne
- * fait qu'en diluer une valeur — aucune teinte nouvelle n'entre par cette porte,
- * et l'audit de contraste garde donc son sens.
+ * Used for hover glows: a flat accent fill at full opacity would crush the glyph
+ * it is meant to set off. The palette stays the source, we only dilute one of
+ * its values — no new hue comes in through this door, so the contrast audit
+ * keeps its meaning.
  */
 export function withAlpha(hex: string, alpha: number): string {
   const value = hex.replace('#', '')
@@ -206,34 +206,33 @@ export function withAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
-/** Résout une clé de palette vers l'hexadécimal du thème actif. */
+/** Resolves a palette key to the active theme's hexadecimal. */
 export function resolveTagColor(key: TagColorKey, theme: ThemeName): string {
   return tagPalette[key][theme]
 }
 
 /**
- * Noms de familles tels qu'exposés par les paquets @expo-google-fonts.
+ * Family names as exposed by the @expo-google-fonts packages.
  *
- * Viking porte le logotype et les titres de section, en capitales. C'est une
- * police d'affichage, et elle reste cantonnée à ce rôle : ses formes ne tiennent
- * pas la lecture longue ni les onze points d'un libellé d'onglet. Elle est
- * embarquée depuis assets/fonts, licence à côté du fichier — libre d'usage,
- * modification et redistribution interdites.
- * Junicode porte le contenu. C'est un serif de la Renaissance dessiné pour les
- * éditions savantes de textes médiévaux : il est fait pour être lu longuement,
- * et sa couverture latine est immense — ce qui compte moins ici, mais dit assez
- * le soin apporté. Sous licence SIL Open Font, texte complet dans assets/fonts.
- * Archivo habille l'interface, où un serif à 11 points nuirait à la lisibilité.
+ * Viking carries the logotype and section headings, in capitals. It is a
+ * display face, and it stays confined to that role: its shapes hold up neither
+ * to long reading nor to the eleven points of a tab label. It is bundled from
+ * assets/fonts, licence next to the file — free to use, modification and
+ * redistribution forbidden.
+ * Junicode carries the content. It is a Renaissance serif drawn for scholarly
+ * editions of medieval texts: it is made to be read at length, and its Latin
+ * coverage is immense — which matters less here, but says enough about the care
+ * put into it. Under the SIL Open Font licence, full text in assets/fonts.
+ * Archivo dresses the interface, where a serif at 11 points would hurt
+ * readability.
  *
- * Les runes elles-mêmes ne sont pas typographiques. Le bloc Runique d'Unicode
- * n'est présent dans presque aucune police système, un ᚱ posé dans un Text
- * donnerait un rectangle vide sur la majorité des appareils. Elles sont donc
- * tracées en vectoriel, voir src/ui/runes.tsx.
+ * The runes themselves are not typographic. Unicode's Runic block is present in
+ * almost no system font; a ᚱ set in a Text would give an empty rectangle on most
+ * devices. So they are drawn as vectors, see src/ui/runes.tsx.
  */
 export const fonts = {
-  // Une seule graisse : Viking n'en propose pas d'autre. Les deux jetons
-  // pointent donc au même endroit, plutôt que de laisser croire à une variante
-  // qui n'existe pas.
+  // A single weight: Viking offers no other. So both tokens point to the same
+  // place, rather than suggesting a variant that does not exist.
   display: 'Viking',
   displayMedium: 'Viking',
   serif: 'Junicode',
@@ -243,61 +242,61 @@ export const fonts = {
 } as const
 
 export const type = {
-  /** Logotype et titres d'écran, en capitales espacées. */
+  /** Logotype and screen titles, in spaced capitals. */
   display: { fontFamily: fonts.display, fontSize: 21, lineHeight: 27, letterSpacing: 3.2 },
-  /** Titre de note dans la grille. */
+  /** Note title in the grid. */
   title: { fontFamily: fonts.serifMedium, fontSize: 19, lineHeight: 26 },
   /**
-   * Corps de note et éléments de liste.
+   * Note body and list items.
    *
-   * Un point de plus qu'avec Alegreya, et ce n'est pas un ajustement à l'œil :
-   * l'œil de Junicode mesure 0,418 em contre 0,456, soit 8 % de moins. À taille
-   * égale le texte paraîtrait plus petit, alors qu'il s'agit de la même lecture.
-   * Le calcul donne 17,5 ; on retient 17, la demi-taille ne se voyant pas et les
-   * nombres entiers se propageant mieux dans les hauteurs de ligne.
+   * One point more than with Alegreya, and it is not an adjustment by eye:
+   * Junicode's x-height measures 0.418 em against 0.456, 8% less. At the same
+   * size the text would look smaller, when it is the same reading. The
+   * computation gives 17.5; we keep 17, the half size not being visible and
+   * whole numbers carrying better into line heights.
    */
   body: { fontFamily: fonts.serif, fontSize: 17, lineHeight: 26 },
   /**
-   * Onglets, boutons, noms de tags. Reste en sans, et c'est un choix : ce sont
-   * des commandes, pas de la prose. Un serif y perdrait en netteté à quatorze
-   * points, et l'écart de police marque justement la frontière entre ce qu'on
-   * lit et ce sur quoi on appuie.
+   * Tabs, buttons, tag names. Stays sans, and that is a choice: these are
+   * commands, not prose. A serif would lose sharpness there at fourteen points,
+   * and the change of font marks precisely the boundary between what you read
+   * and what you press.
    */
   label: { fontFamily: fonts.sansMedium, fontSize: 14, lineHeight: 20 },
   /**
-   * Explications, horodatages, métadonnées. Passées au serif : ce sont des
-   * phrases, pas des commandes, et les Réglages en sont presque entièrement
-   * faits. Un point gagné pour la même raison que le corps, l'œil plus petit
-   * pesant davantage encore à cette taille.
+   * Explanations, timestamps, metadata. Moved to the serif: they are sentences,
+   * not commands, and Settings is made almost entirely of them. One point gained
+   * for the same reason as the body, the smaller x-height weighing even more at
+   * this size.
    */
   caption: { fontFamily: fonts.serif, fontSize: 13, lineHeight: 18, letterSpacing: 0.2 },
 } as const
 
 /**
- * Angles taillés au ciseau. La pierre levée n'a pas été roulée par la rivière :
- * les arêtes sont franches, juste assez adoucies pour ne pas couper l'œil.
- * Ce sont volontairement des valeurs plus basses que la convention mobile.
+ * Chisel-cut corners. The standing stone was not rolled by the river: the edges
+ * are clean, softened just enough not to cut the eye. These are deliberately
+ * lower values than the mobile convention.
  */
 export const radius = { sm: 2, md: 4, lg: 6, xl: 9, pill: 999 } as const
 
 export const space = { xxs: 2, xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32 } as const
 
 /**
- * La pierre ne fait pas ressort, et le ciseau ne traîne pas. Départ franc,
- * arrêt net, sur des durées plus courtes que la palette minérale : là où le
- * registre précédent cherchait le posé, celui-ci cherche le frappé.
+ * Stone does not spring, and the chisel does not linger. A sharp start, a clean
+ * stop, over shorter durations than the mineral palette: where the previous
+ * register looked for poise, this one looks for a strike.
  */
 export const motion = {
   fast: 120,
   base: 190,
   slow: 240,
-  /** Courbe de Bézier à départ vif et arrêt ferme, pour Reanimated ou `transition-timing-function`. */
+  /** Bézier curve with a brisk start and a firm stop, for Reanimated or `transition-timing-function`. */
   easing: [0.12, 0.8, 0.24, 1] as const,
 } as const
 
-/** Contraintes propres au widget Android, rappelées ici pour éviter la dérive. */
+/** Constraints specific to the Android widget, restated here to prevent drift. */
 export const widgetConstraints = {
-  /** Le widget se pose sur un fond d'écran inconnu, son fond est donc toujours opaque. */
+  /** The widget sits on an unknown wallpaper, so its background is always opaque. */
   opaqueBackground: true,
   headerFontSize: 15,
   itemFontSize: 13,

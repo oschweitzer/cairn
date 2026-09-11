@@ -25,8 +25,8 @@ export default function SignIn() {
       } else {
         await signInWithGoogle()
       }
-      // La redirection est faite par l'aiguillage du layout racine, dès que la
-      // session change. Rien à faire ici.
+      // The redirect is done by the root layout's routing, as soon as the
+      // session changes. Nothing to do here.
     } catch (e) {
       setError((e as Error).message)
     } finally {

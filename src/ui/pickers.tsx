@@ -8,8 +8,8 @@ import { Tooltip } from './Tooltip'
 import { radius, space, tagColorKeys, tagPalette, type, type TagColorKey } from './theme'
 
 /**
- * Sélecteur de couleur de note. Le premier choix est l'absence de couleur, qui
- * est l'état par défaut et doit rester atteignable en un geste.
+ * Note colour picker. The first choice is no colour, which is the default state
+ * and must stay reachable in one gesture.
  */
 export function ColorPicker({
   value,
@@ -26,8 +26,8 @@ export function ColorPicker({
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ gap: space.sm, paddingVertical: space.xs }}
     >
-      {/* Une pastille de couleur ne dit pas son nom, et « bruyère » ne se devine
-          pas d'un violet. La bulle est ici la seule façon de lire la palette. */}
+      {/* A colour swatch does not say its name, and « bruyère » cannot be guessed
+          from a purple. The tooltip is the only way to read the palette here. */}
       <Tooltip label="Aucune couleur">
         <Pressable
           accessibilityRole="radio"
@@ -86,13 +86,12 @@ export function ColorPicker({
 }
 
 /**
- * Association de tags à une note. Liste de bascules plutôt qu'un champ de
- * saisie : les tags sont peu nombreux, on ne fait ici que cocher.
+ * Attaching tags to a note. A list of toggles rather than a text field: tags are
+ * few, and all you do here is tick.
  *
- * `onCreate` ajoute de quoi en créer un sans quitter l'écran. Facultatif, parce
- * que tous les appelants n'ont pas le droit d'écrire dans la table des tags —
- * et parce qu'un champ de saisie de plus n'a rien à faire là où l'on ne fait
- * que filtrer.
+ * `onCreate` adds a way to create one without leaving the screen. Optional,
+ * because not every caller is allowed to write to the tags table — and because
+ * one more text field has no business where all you do is filter.
  */
 export function TagPicker({
   tags,
@@ -107,7 +106,7 @@ export function TagPicker({
   selectedIds: string[]
   onToggle: (tagId: string) => void
   emptyHint: string
-  /** Reçoit le nom saisi, déjà rogné. Absent, aucun champ de création n'est rendu. */
+  /** Receives the typed name, already trimmed. When absent, no creation field is rendered. */
   onCreate?: (name: string) => void
   creating?: boolean
   createError?: string | null
@@ -168,18 +167,17 @@ export function TagPicker({
 }
 
 /**
- * Champ de création d'un tag, posé sous les bascules.
+ * Tag creation field, set under the toggles.
  *
- * Le brouillon vit ici et non chez l'appelant : c'est un état d'écran qui ne
- * survit pas à la fermeture du panneau, et le remonter obligerait chaque écran
- * à le porter pour rien.
+ * The draft lives here and not with the caller: it is screen state that does
+ * not outlive the panel closing, and lifting it up would force every screen to
+ * carry it for nothing.
  *
- * Aucun choix de couleur, volontairement. Le panneau se déplie au-dessus de la
- * barre d'actions, dans le peu de place que laisse le clavier, et la couleur
- * n'est pas la décision qu'on prend en posant un tag sur une note — elle se
- * retouche dans l'onglet Tags, où c'est le sujet. La teinte proposée est la
- * moins servie de la palette, ce qui évite d'obtenir dix tags de la même
- * couleur en les créant à la volée.
+ * No colour choice, on purpose. The panel unfolds above the action bar, in the
+ * little room the keyboard leaves, and colour is not the decision made when
+ * putting a tag on a note — it is adjusted in the Tags tab, where it is the
+ * subject. The hue offered is the least used in the palette, which avoids
+ * ending up with ten tags of the same colour when creating them on the fly.
  */
 function TagCreator({
   onCreate,
@@ -212,7 +210,7 @@ function TagCreator({
           placeholderTextColor={theme.text.muted}
           accessibilityLabel="Nom du nouveau tag"
           returnKeyType="done"
-          // On enchaîne les tags sans avoir à recliquer dans le champ.
+          // Tags are chained without having to click back into the field.
           blurOnSubmit={false}
           onSubmitEditing={submit}
           style={[
@@ -233,9 +231,9 @@ function TagCreator({
           onFocus={focus.onFocus}
           onBlur={focus.onBlur}
         />
-        {/* La touche entrée reste le geste rapide, mais elle ne peut pas être le
-            seul : à la souris on ne la cherche pas, et certains claviers
-            logiciels renvoient à la ligne au lieu de valider. */}
+        {/* The return key stays the quick gesture, but it cannot be the only
+            one: with a mouse nobody looks for it, and some software keyboards
+            insert a line break instead of submitting. */}
         <Tooltip label="Créer le tag et le poser sur la note">
           <Pressable
             accessibilityRole="button"

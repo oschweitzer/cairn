@@ -1,33 +1,32 @@
 // @ts-check
 
 /**
- * En JavaScript, et pas en TypeScript, pour une raison extérieure au projet.
+ * In JavaScript, and not TypeScript, for a reason outside the project.
  *
- * eas-cli embarque sa propre copie du chargeur de configuration, laquelle
- * réclame TypeScript en pair optionnel `^5.0.0` mais se retrouve installée avec
- * la 7.x. Or TypeScript 7 est la réécriture en Go : son entrée principale
- * n'expose plus que `version`, l'API du compilateur ayant migré sous
- * `typescript/unstable/*`. Le chargeur y lit donc `ModuleKind.CommonJS` sur un
- * `undefined` et s'arrête sur « Cannot read properties of undefined ». La
- * version du chargeur qu'embarque eas-cli est antérieure au garde-fou qui
- * neutralise ce cas, et il n'existe aucun repli : ni babel, ni
- * `module.stripTypeScriptTypes`, absent avant Node 22.13.
+ * eas-cli bundles its own copy of the config loader, which asks for TypeScript
+ * as an optional peer `^5.0.0` but ends up installed with 7.x. And TypeScript 7
+ * is the Go rewrite: its main entry point only exposes `version`, the compiler
+ * API having moved under `typescript/unstable/*`. So the loader reads
+ * `ModuleKind.CommonJS` off an `undefined` and stops on "Cannot read properties
+ * of undefined". The loader version bundled by eas-cli predates the guard that
+ * handles this case, and there is no fallback: neither babel nor
+ * `module.stripTypeScriptTypes`, missing before Node 22.13.
  *
- * Ce fichier est le seul du dépôt que des outils tiers chargent par eux-mêmes,
- * chacun avec son propre transpileur. Le garder en JavaScript le met hors
- * d'atteinte de ces divergences. Le typage n'est pas perdu pour autant : le
- * `@ts-check` ci-dessus et l'annotation portée sur `config` font vérifier ce
- * fichier par `npm run typecheck` exactement comme avant.
+ * This file is the only one in the repository that third-party tools load by
+ * themselves, each with its own transpiler. Keeping it in JavaScript puts it out
+ * of reach of those divergences. Typing is not lost for all that: the
+ * `@ts-check` above and the annotation on `config` have this file checked by
+ * `npm run typecheck` exactly as before.
  */
 
 /**
- * Les couleurs natives viennent de generated/theme.json, lui-même dérivé de
- * src/ui/theme.ts. Aucune valeur hexadécimale n'est recopiée ici à la main :
- * l'écran de démarrage, le fond racine et l'icône adaptative suivent donc
- * automatiquement toute retouche de la palette.
+ * The native colours come from generated/theme.json, itself derived from
+ * src/ui/theme.ts. No hexadecimal value is copied here by hand: so the splash
+ * screen, the root background and the adaptive icon automatically follow any
+ * touch-up of the palette.
  *
- * On prend la variante sombre parce que c'est le thème par défaut de Cairn,
- * indépendamment du réglage du système. Cela évite le flash blanc au lancement.
+ * The dark variant is taken because it is Cairn's default theme, regardless of
+ * the system setting. That avoids the white flash at launch.
  *
  * @type {{ dark: Record<string, string>, light: Record<string, string> }}
  */
@@ -36,23 +35,22 @@ const theme = require('./generated/theme.json')
 const dark = theme.dark
 
 /**
- * Hôte de la PWA, pour les liens d'application Android.
+ * The PWA's host, for Android app links.
  *
- * Un évènement Google Agenda créé depuis une note porte un lien
- * `https://<domaine>/note/<id>`. Déclarer cet hôte ici demande à Android
- * d'ouvrir ce lien dans Cairn plutôt que dans le navigateur, à condition que le
- * domaine serve un `/.well-known/assetlinks.json` concordant — d'où
- * `npm run assetlinks`.
+ * A Google Calendar event created from a note carries a
+ * `https://<domain>/note/<id>` link. Declaring that host here asks Android to
+ * open the link in Cairn rather than in the browser, provided the domain serves
+ * a matching `/.well-known/assetlinks.json` — hence `npm run assetlinks`.
  *
- * Un `https://` ordinaire, et non le schéma `cairn://` : le même lien doit
- * rester ouvrable depuis un ordinateur, où l'application n'existe pas. Google
- * l'impose de surcroît pour le retour de consentement, ayant déprécié les
- * schémas privés côté Android. Le schéma `cairn://` ne sert plus qu'au retour
- * de connexion Supabase, qui n'a pas cette contrainte.
+ * An ordinary `https://`, and not the `cairn://` scheme: the same link has to
+ * stay openable from a computer, where the app does not exist. Google also
+ * requires it for the consent return, having deprecated private schemes on the
+ * Android side. The `cairn://` scheme now only serves the Supabase sign-in
+ * return, which has no such constraint.
  *
- * Sans variable, aucun filtre n'est déclaré. Un filtre portant un hôte vide
- * serait accepté par le build puis ignoré par Android, ce qui se diagnostique
- * très mal ; ne rien déclarer est plus honnête.
+ * Without the variable, no filter is declared. A filter with an empty host
+ * would be accepted by the build and then ignored by Android, which is very
+ * hard to diagnose; declaring nothing is more honest.
  *
  * @type {string | null}
  */
@@ -77,40 +75,41 @@ const config = {
   scheme: 'cairn',
   icon: './assets/icon.png',
 
-  // 'automatic' laisse le système piloter la barre d'état et le fond natif.
-  // Le thème applicatif, lui, démarre en sombre et est posé au runtime par
-  // src/ui/ThemeProvider.tsx via expo-system-ui.
+  // 'automatic' lets the system drive the status bar and the native background.
+  // The app theme, for its part, starts dark and is set at runtime by
+  // src/ui/ThemeProvider.tsx through expo-system-ui.
   userInterfaceStyle: 'automatic',
 
   android: {
     package: 'app.cairn',
-    // Fond de la fenêtre native, sous l'arbre React. Évite l'éclair blanc entre
-    // la disparition de l'écran de démarrage et le premier rendu.
+    // Background of the native window, under the React tree. Avoids the white
+    // flash between the splash screen disappearing and the first render.
     backgroundColor: dark['surface-page'],
     adaptiveIcon: {
       backgroundColor: dark['surface-page'],
       foregroundImage: './assets/android-icon-foreground.png',
       monochromeImage: './assets/android-icon-monochrome.png',
     },
-    // Le bord à bord n'est plus une option depuis le SDK 54, il est systématique.
+    // Edge-to-edge is no longer optional since SDK 54, it is always on.
     predictiveBackGestureEnabled: false,
 
     /**
-     * Deux chemins remis à l'application plutôt qu'au navigateur.
+     * Two paths handed to the app rather than to the browser.
      *
-     * `/note` porte les liens déposés dans les évènements d'agenda : les
-     * ouvrir depuis le téléphone doit mener à la note, pas à la PWA.
+     * `/note` carries the links left in calendar events: opening them from the
+     * phone has to lead to the note, not to the PWA.
      *
-     * `/google` est l'adresse de retour du consentement Google. Elle est ici
-     * par nécessité et non par confort : Google a déprécié les schémas privés
-     * côté Android, la redirection ne peut donc plus être `cairn://`, et sans
-     * ce filtre la réponse s'ouvrirait dans le navigateur — l'application
-     * attendrait un code qui ne lui reviendrait jamais.
+     * `/google` is the Google consent's return address. It is here out of
+     * necessity and not convenience: Google has deprecated private schemes on
+     * the Android side, so the redirect can no longer be `cairn://`, and
+     * without this filter the response would open in the browser — the app
+     * would be waiting for a code that would never come back to it.
      *
-     * `autoVerify` demande à Android de vérifier `/.well-known/assetlinks.json`
-     * à l'installation. Vérifié, le lien ouvre Cairn sans rien demander ; non
-     * vérifié, il part au navigateur sans erreur visible — d'où l'importance de
-     * `npm run assetlinks`, et le fait que la connexion à l'agenda en dépend.
+     * `autoVerify` asks Android to check `/.well-known/assetlinks.json` at
+     * install time. Verified, the link opens Cairn without asking anything;
+     * unverified, it goes to the browser with no visible error — hence the
+     * importance of `npm run assetlinks`, and the fact that the calendar
+     * connection depends on it.
      */
     ...(hoteWeb
       ? {
@@ -131,9 +130,9 @@ const config = {
 
   web: {
     bundler: 'metro',
-    // Rendu statique : nécessaire pour déployer la PWA sur un hébergeur de
-    // fichiers, et pour que chaque route existe comme fichier servi tel quel.
-    // La route dynamique fait exception, d'où la réécriture de netlify.toml.
+    // Static rendering: needed to deploy the PWA on a file host, and so every
+    // route exists as a file served as is. The dynamic route is the exception,
+    // hence the rewrite in netlify.toml.
     output: 'static',
     favicon: './assets/favicon.png',
   },
@@ -142,9 +141,9 @@ const config = {
     'expo-router',
     'expo-secure-store',
     'expo-web-browser',
-    // Ajoute USE_BIOMETRIC et USE_FINGERPRINT au manifeste Android, et porte le
-    // texte présenté par le système au moment de la demande. Ce libellé est vu
-    // par l'utilisateur : il doit dire ce qui s'ouvre, pas « authentification ».
+    // Adds USE_BIOMETRIC and USE_FINGERPRINT to the Android manifest, and
+    // carries the text the system shows when asking. The user sees this label:
+    // it has to say what opens, not "authentication".
     ['expo-local-authentication', { faceIDPermission: 'Ouvrir le coffre de Cairn.' }],
     [
       'expo-splash-screen',
@@ -162,14 +161,14 @@ const config = {
     typedRoutes: true,
   },
 
-  // Rattache le dossier au projet EAS, et c'est lui que lit `eas build` pour
-  // savoir où envoyer la construction. Posé par `eas init`, qui l'affiche sous
-  // la forme d'un app.json — enveloppé dans une clé `expo`. Cette enveloppe ne
-  // se recopie pas ici : l'objet exporté par ce fichier est déjà la
-  // configuration Expo, `extra` se pose donc à sa racine.
+  // Links the folder to the EAS project, and it is what `eas build` reads to
+  // know where to send the build. Set by `eas init`, which shows it as an
+  // app.json — wrapped in an `expo` key. That wrapper is not copied here: the
+  // object this file exports is already the Expo config, so `extra` goes at its
+  // root.
   //
-  // Ce n'est pas un secret. L'identifiant désigne le projet, il n'autorise
-  // rien par lui-même — la permission de construire tient au compte connecté.
+  // It is not a secret. The id names the project, it authorises nothing by
+  // itself — the permission to build belongs to the signed-in account.
   extra: {
     eas: { projectId: '85a0f0f0-a331-47ea-a44a-348f79c6b5ac' },
   },

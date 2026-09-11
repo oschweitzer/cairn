@@ -1,22 +1,21 @@
 /**
- * Crée un évènement Google Agenda à partir d'une note.
+ * Creates a Google Calendar event from a note.
  *
- * Ce que Cairn confie à Google : le titre de la note, un créneau, et un lien
- * pour l'ouvrir. Pas le corps, pas les éléments de la liste. Le lien porte
- * l'information ; l'agenda n'a pas à en devenir une copie.
+ * What Cairn hands over to Google: the note's title, a slot, and a link to open
+ * it. Not the body, not the list items. The link carries the information; the
+ * calendar does not need to become a copy of it.
  *
- * Trois refus, à trois profondeurs différentes, et cette redondance est
- * voulue :
+ * Three refusals, at three different depths, and the redundancy is deliberate:
  *
- *   ici          on relit la note et on s'arrête si elle est chiffrée ou rangée
- *                dans le coffre, avant tout appel à Google.
- *   la base      le déclencheur `reminders_refuse_export_note_protegee` refuse
- *                la ligne, y compris si la note a changé d'état entre-temps.
- *   l'interface  le bouton n'apparaît pas sur ces notes.
+ *   here           we read the note again and stop if it is encrypted or filed
+ *                  in the vault, before any call to Google.
+ *   the database   the `reminders_refuse_export_note_protegee` trigger rejects
+ *                  the row, even if the note has changed state in the meantime.
+ *   the interface  the button does not appear on those notes.
  *
- * La première évite un aller-retour réseau inutile, la deuxième est la seule
- * qui tienne quoi qu'il arrive, la troisième évite de proposer ce qui sera
- * refusé. Aucune ne rend les autres superflues.
+ * The first avoids a useless network round trip, the second is the only one
+ * that holds whatever happens, the third avoids offering what will be refused.
+ * None makes the others redundant.
  */
 
 import { withSupabase } from 'npm:@supabase/server@1'
@@ -30,7 +29,7 @@ type Corps = {
   time_zone?: string
 }
 
-/** Vrai si la chaîne est une date ISO que Date sait relire. */
+/** True if the string is an ISO date that Date can parse back. */
 function dateValide(valeur: string | undefined): valeur is string {
   return typeof valeur === 'string' && !Number.isNaN(Date.parse(valeur))
 }
@@ -63,12 +62,12 @@ export default {
     }
 
     /**
-     * Lecture sous RLS, et non avec la clé de service.
+     * Read under RLS, and not with the service key.
      *
-     * `ctx.supabase` porte le JWT de l'appelant : la politique `own_notes`
-     * filtre donc d'elle-même, et une note qui ne lui appartient pas revient
-     * simplement absente. Écrire la vérification de propriété à la main
-     * ouvrirait la porte à l'oublier un jour ; ici l'oubli est impossible.
+     * `ctx.supabase` carries the caller's JWT: so the `own_notes` policy filters
+     * by itself, and a note that does not belong to them simply comes back
+     * missing. Writing the ownership check by hand would open the door to
+     * forgetting it one day; here forgetting is impossible.
      */
     const { data: note, error: erreurNote } = await ctx.supabase
       .from('notes')
@@ -89,7 +88,7 @@ export default {
       )
     }
 
-    // --------------------------------------------------------- jeton Google
+    // --------------------------------------------------------- Google token
 
     const { data: identifiants } = await ctx.supabaseAdmin
       .from('google_credentials')
@@ -105,12 +104,12 @@ export default {
     const acces = jetonDurable ? await rafraichirJeton(jetonDurable) : null
 
     /**
-     * Jeton mort : on le dit, on le note, et on n'insiste pas.
+     * Dead token: we say so, we record it, and we do not insist.
      *
-     * `needs_reauth` est ce que lit l'interface pour afficher sa bannière de
-     * reconnexion. Sans cette écriture, l'utilisateur reverrait la même erreur à
-     * chaque tentative sans jamais comprendre qu'il doit réautoriser — et en
-     * mode test Google, cela se produit toutes les semaines.
+     * `needs_reauth` is what the interface reads to show its reconnect banner.
+     * Without this write, the user would see the same error on every attempt
+     * without ever understanding that they must reauthorise — and in Google's
+     * test mode, that happens every week.
      */
     if (!acces) {
       await ctx.supabaseAdmin
@@ -123,7 +122,7 @@ export default {
       )
     }
 
-    // ------------------------------------------------------------ évènement
+    // ---------------------------------------------------------------- event
 
     const base = Deno.env.get('CAIRN_WEB_URL')?.replace(/\/+$/, '')
     if (!base) {
@@ -134,10 +133,10 @@ export default {
     }
     const lien = `${base}/note/${note.id}`
 
-    // `code_name` ne devrait pas exister ici, une note à nom de code étant
-    // forcément privée et donc déjà refusée plus haut. Il est préféré au titre
-    // par précaution : si cet invariant venait à bouger, le pire serait un
-    // évènement au nom trop discret, jamais un titre échappé.
+    // `code_name` should not exist here, a note with a code name necessarily
+    // being private and so already refused above. It is preferred to the title
+    // as a precaution: should that invariant ever move, the worst would be an
+    // event with an overly discreet name, never a leaked title.
     const titre = note.code_name ?? note.title ?? 'Note sans titre'
 
     let evenement
@@ -148,14 +147,14 @@ export default {
     }
 
     /**
-     * L'enregistrement local, et le retour arrière s'il échoue.
+     * The local record, and the rollback if it fails.
      *
-     * Insertion sous RLS, donc le déclencheur de la base a le dernier mot. S'il
-     * refuse — la note ayant été rangée dans le coffre pendant l'appel à
-     * Google — l'évènement existe déjà chez Google. Le laisser serait garder
-     * chez un tiers la trace d'une note que l'utilisateur vient de protéger, et
-     * Cairn n'en aurait même pas la référence pour la retirer plus tard. On le
-     * supprime donc, et on rend l'erreur.
+     * An insert under RLS, so the database trigger has the last word. If it
+     * refuses — the note having been filed in the vault during the call to
+     * Google — the event already exists at Google. Leaving it would mean keeping
+     * at a third party the trace of a note the user has just protected, and
+     * Cairn would not even have the reference to remove it later. So we delete
+     * it, and return the error.
      */
     const { error: erreurRappel } = await ctx.supabase.from('reminders').insert({
       user_id: utilisateur,

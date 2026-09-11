@@ -6,18 +6,17 @@ import { Button, Card, Field, Logotype, Screen, Txt } from '@/ui/components'
 import { space } from '@/ui/theme'
 
 /**
- * Demande de récupération.
+ * Recovery request.
  *
- * ── La réponse est la même dans tous les cas ─────────────────────────────────
- * Adresse connue ou non, l'écran répond « c'est parti ». Distinguer les deux
- * ferait de ce formulaire un outil de découverte : n'importe qui pourrait y
- * essayer des adresses et apprendre lesquelles ont un compte ici. Supabase ne le
- * dit pas non plus, et c'est délibéré de sa part comme de la nôtre.
+ * ── The answer is the same in every case ─────────────────────────────────────
+ * Known address or not, the screen answers "it's on its way". Telling the two
+ * apart would turn this form into a discovery tool: anyone could try addresses
+ * there and learn which ones have an account here. Supabase does not say either,
+ * and that is deliberate on its part as on ours.
  *
- * Le courriel part par le service intégré de Supabase, plafonné par heure et à
- * l'échelle du projet. Pour une application personnelle, c'est sans conséquence.
- * Le jour où elle s'ouvre, un SMTP personnalisé se règle dans le tableau de bord
- * sans toucher à ce code.
+ * The email goes out through Supabase's built-in service, capped per hour and
+ * project-wide. For a personal app, that is of no consequence. The day it opens
+ * up, a custom SMTP is set in the dashboard without touching this code.
  */
 export default function ForgotPassword() {
   const { sendPasswordReset } = useAuth()

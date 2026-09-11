@@ -1,25 +1,25 @@
 /**
- * Écrit public/.well-known/assetlinks.json, qui autorise l'application Android
- * à ouvrir les liens du domaine de la PWA.
+ * Writes public/.well-known/assetlinks.json, which allows the Android app to
+ * open links on the PWA's domain.
  *
  *   npm run assetlinks
  *
- * Android lit ce fichier à l'installation. S'il concorde avec le certificat qui
- * a signé l'APK, un lien `https://<domaine>/note/<id>` ouvre Cairn directement.
- * Sinon il part au navigateur — sans message, sans avertissement, sans rien qui
- * signale une empreinte erronée. D'où les vérifications de ce script : c'est le
- * seul endroit où une faute peut encore être dite.
+ * Android reads this file at install time. If it matches the certificate that
+ * signed the APK, a `https://<domain>/note/<id>` link opens Cairn directly.
+ * Otherwise it goes to the browser — with no message, no warning, nothing that
+ * signals a wrong fingerprint. Hence this script's checks: it is the only place
+ * where a mistake can still be called out.
  *
- * Deux valeurs, dans .env :
+ * Two values, in .env:
  *
- *   EXPO_PUBLIC_WEB_URL   l'adresse de la PWA, dont l'hôte est déjà déclaré en
- *                         `intentFilters` par app.config.js
- *   ANDROID_CERT_SHA256   l'empreinte du certificat de signature, rendue par
+ *   EXPO_PUBLIC_WEB_URL   the PWA's address, whose host is already declared in
+ *                         `intentFilters` by app.config.js
+ *   ANDROID_CERT_SHA256   the signing certificate's fingerprint, as returned by
  *                         `eas credentials`
  *
- * Le fichier n'est pas écrit tant que les deux ne sont pas là. Un fichier
- * incomplet servi en production ne vaut pas mieux qu'aucun fichier, et ressemble
- * bien davantage à une configuration terminée.
+ * The file is not written until both are there. An incomplete file served in
+ * production is no better than no file at all, and looks far more like a
+ * finished configuration.
  */
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
@@ -32,17 +32,17 @@ const sortie = join(root, 'public', '.well-known', 'assetlinks.json')
 const mode = process.argv[2] ?? '--write'
 
 /**
- * Doit rester d'accord avec `android.package` d'app.config.js. Une divergence
- * ne se verrait qu'à l'usage, par un lien qui s'obstine à ouvrir le navigateur.
+ * Must stay in agreement with app.config.js's `android.package`. A divergence
+ * would only show in use, as a link that keeps opening the browser.
  */
 const PAQUET = 'app.cairn'
 
-// ------------------------------------------------------------------ lecture
+// --------------------------------------------------------------------- read
 
 /**
- * .env n'est pas chargé par tsx, contrairement à ce que fait Expo au démarrage.
- * On le lit donc à la main, sans dépendance : trois lignes suffisent, et une
- * dépendance de plus pour cela seul serait mal employée.
+ * .env is not loaded by tsx, unlike what Expo does on startup. So we read it by
+ * hand, with no dependency: three lines are enough, and one more dependency for
+ * that alone would be poorly spent.
  */
 function chargerEnv(): Record<string, string> {
   const chemin = join(root, '.env')
@@ -80,11 +80,10 @@ if (manques.length > 0) {
 // --------------------------------------------------------------- validation
 
 /**
- * Trente-deux octets en hexadécimal séparés par des deux-points, soit
- * exactement la forme que rend `eas credentials`. La vérifier ici évite le seul
- * mode de panne réellement silencieux de toute cette chaîne : une empreinte
- * recopiée de travers produit un fichier parfaitement valide au regard du JSON,
- * qu'Android rejette sans un mot.
+ * Thirty-two bytes in hexadecimal separated by colons, exactly the shape
+ * `eas credentials` returns. Checking it here avoids the only truly silent
+ * failure mode in this whole chain: a mistyped fingerprint produces a file that
+ * is perfectly valid JSON, which Android rejects without a word.
  */
 if (!/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(empreinte!)) {
   console.error('assetlinks : ANDROID_CERT_SHA256 n’a pas la forme attendue.')
@@ -102,7 +101,7 @@ try {
   process.exit(1)
 }
 
-// ------------------------------------------------------------------ écriture
+// -------------------------------------------------------------------- write
 
 const contenu =
   JSON.stringify(

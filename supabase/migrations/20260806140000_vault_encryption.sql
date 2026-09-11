@@ -1,32 +1,32 @@
--- Chiffrement bout en bout du coffre.
+-- End-to-end encryption of the vault.
 --
--- Le schéma initial prévoyait la place (is_encrypted, ciphertext, nonce,
--- wrapped_key sur notes) mais avec une hypothèse qui ne tient pas à l'usage :
--- une clé par note. Une clé par note oblige à la réenvelopper pour chacune à
--- chaque changement de clé de secours, et ne dit rien de ce qu'il faut faire
--- des éléments de liste, qui n'avaient aucune colonne.
+-- The initial schema had made room for it (is_encrypted, ciphertext, nonce,
+-- wrapped_key on notes) but with an assumption that does not hold in use: one
+-- key per note. One key per note forces rewrapping it for each note on every
+-- change of recovery key, and says nothing about what to do with list items,
+-- which had no column at all.
 --
--- Le modèle retenu, décrit en détail dans src/vault/crypto.ts :
+-- The model chosen, described in detail in src/vault/crypto.ts:
 --
---   clé de secours (160 bits, chez l'utilisateur, affichée une fois)
---        └─HKDF─▶ clé d'enveloppe ─chiffre─▶ clé de données (256 bits)
---                                                  └─chiffre─▶ titres, corps,
---                                                              éléments
+--   recovery key (160 bits, held by the user, shown once)
+--        └─HKDF─▶ wrapping key ─encrypts─▶ data key (256 bits)
+--                                              └─encrypts─▶ titles, bodies,
+--                                                           items
 --
--- Une seule clé de données par personne, scellée une fois dans vault_keys. Le
--- nonce voyage en tête du chiffré plutôt que dans sa propre colonne : il n'a
--- aucun sens hors du chiffré qu'il accompagne, et deux colonnes à tenir
--- synchronisées sont deux occasions de les désynchroniser.
+-- A single data key per person, sealed once in vault_keys. The nonce travels at
+-- the head of the ciphertext rather than in its own column: it means nothing
+-- outside the ciphertext it goes with, and two columns to keep in sync are two
+-- chances to let them fall out of sync.
 
--- ------------------------------------------------- clé de données scellée
+-- ------------------------------------------------------------ sealed data key
 
 create table vault_keys (
   user_id uuid primary key default auth.uid() references auth.users on delete cascade,
 
-  -- Clé de données chiffrée par la clé d'enveloppe. Sans la clé de secours,
-  -- cette ligne ne vaut rien : c'est ce qui permet de la garder côté serveur
-  -- sans affaiblir le coffre, et c'est ce qui permet d'ouvrir ses notes sur un
-  -- appareil neuf.
+  -- The data key encrypted by the wrapping key. Without the recovery key, this
+  -- row is worth nothing: that is what makes it possible to keep it on the
+  -- server without weakening the vault, and what makes it possible to open
+  -- one's notes on a new device.
   wrapped_key text not null,
 
   created_at timestamptz not null default now(),
@@ -46,14 +46,14 @@ create policy own_vault_key on vault_keys for all
 create trigger vault_keys_touch before update on vault_keys
   for each row execute function touch_updated_at();
 
--- --------------------------------------------------- notes : une seule clé
+-- --------------------------------------------------------- notes: one key
 
 alter table notes drop constraint encrypted_note_has_no_plaintext;
 alter table notes drop column nonce;
 alter table notes drop column wrapped_key;
 
--- Même invariant qu'avant, sur le matériel qui reste : une note chiffrée ne
--- garde aucun texte clair, une note en clair ne traîne aucun chiffré.
+-- Same invariant as before, on the material that remains: an encrypted note
+-- keeps no plaintext, a plaintext note carries no ciphertext.
 alter table notes add constraint encrypted_note_has_no_plaintext check (
   case when is_encrypted
     then title is null and body is null and ciphertext is not null
@@ -61,14 +61,14 @@ alter table notes add constraint encrypted_note_has_no_plaintext check (
   end
 );
 
--- ------------------------------------------- éléments de liste chiffrables
+-- ------------------------------------------------------ encryptable list items
 
 alter table checklist_items add column is_encrypted boolean not null default false;
 alter table checklist_items add column ciphertext text;
 
--- `content` devient nul quand l'élément est chiffré. La contrainte de non-blanc
--- est reprise dans la contrainte d'ensemble ci-dessous, où elle ne s'applique
--- qu'au cas en clair.
+-- `content` becomes null when the item is encrypted. The not-blank constraint is
+-- folded into the overall constraint below, where it only applies to the
+-- plaintext case.
 alter table checklist_items alter column content drop not null;
 alter table checklist_items drop constraint content_not_blank;
 

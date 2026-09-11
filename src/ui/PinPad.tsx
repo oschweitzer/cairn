@@ -7,20 +7,19 @@ import { Txt } from './components'
 import { radius, space } from './theme'
 
 /**
- * Saisie du code du coffre.
+ * Entering the vault code.
  *
- * ── Pourquoi un pavé dessiné plutôt qu'un champ de texte ─────────────────────
- * Un `TextInput` en `secureTextEntry` avec clavier numérique ferait le même
- * travail avec dix fois moins de code. Il ferait aussi remonter le clavier
- * système par-dessus la moitié de l'écran, laisserait le gestionnaire de mots de
- * passe proposer de retenir le code, et sur Android afficherait brièvement
- * chaque chiffre tapé. Pour un secret à quatre chiffres saisi devant témoin,
- * c'est le mauvais compromis.
+ * ── Why a drawn keypad rather than a text field ──────────────────────────────
+ * A `TextInput` with `secureTextEntry` and a numeric keyboard would do the same
+ * job with ten times less code. It would also bring the system keyboard up over
+ * half the screen, let the password manager offer to remember the code, and on
+ * Android briefly show each digit typed. For a four-digit secret entered in
+ * front of witnesses, that is the wrong trade-off.
  *
- * ── Le retour visuel ne dit jamais combien il manque ─────────────────────────
- * Les points remplis suivent la frappe, mais le gabarit ne montre pas la
- * longueur attendue : afficher quatre emplacements vides annoncerait la longueur
- * du code à qui regarde. Les points s'ajoutent donc au fur et à mesure.
+ * ── The visual feedback never says how many are missing ──────────────────────
+ * The filled dots follow typing, but the layout does not show the expected
+ * length: showing four empty slots would announce the code's length to anyone
+ * watching. So the dots are added as you go.
  */
 
 const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
@@ -30,7 +29,7 @@ export function PinPad({
   onChange,
   onSubmit,
   disabled = false,
-  /** Confirmation d'un nouveau code : le libellé de validation change de sens. */
+  /** Confirming a new code: the submit label changes meaning. */
   submitLabel = 'Ouvrir',
 }: {
   value: string
@@ -80,7 +79,7 @@ export function PinPad({
   )
 }
 
-/** Un point par chiffre saisi. Aucun emplacement vide, voir l'en-tête. */
+/** One dot per digit entered. No empty slot, see the header. */
 function Dots({ count }: { count: number }) {
   const { theme } = useTheme()
   return (
@@ -127,7 +126,7 @@ function Key({
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({
-        // 72 points : une touche de pavé numérique se vise au pouce sans regarder.
+        // 72 points: a keypad key is aimed at with the thumb without looking.
         width: 72,
         height: 60,
         alignItems: 'center',
@@ -161,10 +160,10 @@ function Key({
 }
 
 /**
- * Compte à rebours de la temporisation, en texte lisible.
+ * Countdown of the cool-down, as readable text.
  *
- * Extrait ici parce que l'écran du coffre et l'écran des réglages l'affichent
- * tous les deux, et qu'une durée en millisecondes n'est lisible par personne.
+ * Pulled out here because the vault screen and the settings screen both show
+ * it, and a duration in milliseconds is readable by nobody.
  */
 export function useCooldownLabel(coolingMs: number): string | null {
   const [label, setLabel] = useState<string | null>(null)

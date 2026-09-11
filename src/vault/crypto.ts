@@ -4,64 +4,64 @@ import { hkdf } from '@noble/hashes/hkdf.js'
 import { sha256 } from '@noble/hashes/sha2.js'
 
 /**
- * Cœur cryptographique du coffre. Aucun accès à la plateforme, aucun état :
- * tout entre par les arguments, y compris l'aléa. C'est ce qui permet de le
- * tester sous Node par `npm run test:logic`, et c'est exactement là qu'il faut
- * l'être — une erreur ici ne se voit pas à l'écran, elle se voit le jour où des
- * notes sont illisibles.
+ * The vault's cryptographic core. No platform access, no state: everything
+ * comes in through the arguments, randomness included. That is what makes it
+ * testable under Node with `npm run test:logic`, and this is exactly where it
+ * has to be tested — a mistake here does not show on screen, it shows the day
+ * notes are unreadable.
  *
- * ── La hiérarchie de clés, et pourquoi le code n'y est pas ───────────────────
- * Le code du coffre fait quatre chiffres. Tout son espace se parcourt en une
- * fraction de seconde face à quelqu'un qui tient le chiffré : en dériver la clé
- * de chiffrement donnerait l'apparence d'une protection et pas la chose. Le code
- * ne chiffre donc rien. Il garde l'accès local, comme aujourd'hui.
+ * ── The key hierarchy, and why the code is not in it ─────────────────────────
+ * The vault code is four digits. Its whole space can be run through in a
+ * fraction of a second by someone holding the ciphertext: deriving the
+ * encryption key from it would give the appearance of protection and not the
+ * thing. So the code encrypts nothing. It guards local access, as it does today.
  *
- * Ce qui chiffre, c'est une clé de données tirée au sort, 256 bits, que
- * l'utilisateur ne voit jamais. Elle vit sur l'appareil dans le stockage
- * sécurisé, et elle est enveloppée par une clé de secours de 160 bits — le seul
- * secret que l'utilisateur détient vraiment, affiché une fois et à recopier.
+ * What encrypts is a randomly drawn 256-bit data key, which the user never sees.
+ * It lives on the device in secure storage, and it is wrapped by a 160-bit
+ * recovery key — the only secret the user truly holds, shown once and to be
+ * copied down.
  *
- *   clé de secours ──HKDF──▶ clé d'enveloppe ──chiffre──▶ clé de données
- *                                                             │
- *                                                             ▼
- *                                                    titre, corps, éléments
+ *   recovery key ──HKDF──▶ wrapping key ──encrypts──▶ data key
+ *                                                        │
+ *                                                        ▼
+ *                                                title, body, items
  *
- * Conséquence à assumer, et à dire à l'utilisateur avant qu'il ne s'engage :
- * qui perd l'appareil ET la clé de secours perd les notes. Personne ne peut les
- * rendre, ni nous, ni Supabase. C'est le prix de la seule promesse qui vaille.
+ * A consequence to own, and to tell the user before they commit: whoever loses
+ * the device AND the recovery key loses the notes. Nobody can give them back,
+ * not us, not Supabase. It is the price of the only promise worth making.
  *
  * ── XChaCha20-Poly1305 ───────────────────────────────────────────────────────
- * Chiffrement authentifié : un chiffré modifié d'un bit est refusé, il n'est pas
- * déchiffré de travers. Nonce de 24 octets, assez large pour être tiré au sort à
- * chaque écriture sans jamais craindre la collision — ce qui évite d'avoir à
- * tenir un compteur, et un compteur mal tenu casse ChaCha20.
+ * Authenticated encryption: a ciphertext changed by one bit is rejected, not
+ * decrypted wrongly. A 24-byte nonce, wide enough to be drawn at random on every
+ * write without ever fearing a collision — which avoids having to keep a
+ * counter, and a badly kept counter breaks ChaCha20.
  *
- * Implémentation en JavaScript pur, auditée, sans module natif : c'est la seule
- * famille qui tourne à la fois sous Hermes et dans un navigateur, donc la seule
- * qui laisse l'application rester une PWA sans build natif.
+ * A pure JavaScript implementation, audited, with no native module: it is the
+ * only family that runs both under Hermes and in a browser, so the only one that
+ * lets the app stay a PWA without a native build.
  */
 
-/** 256 bits. La clé qui chiffre réellement le contenu. */
+/** 256 bits. The key that actually encrypts the content. */
 export const DATA_KEY_BYTES = 32
 /**
- * 160 bits pour la clé de secours. Hors de portée de toute recherche
- * exhaustive, et cela tombe juste sur 32 caractères en base 32, donc huit
- * groupes de quatre : recopiable à la main sans compter les caractères.
+ * 160 bits for the recovery key. Out of reach of any exhaustive search, and it
+ * lands exactly on 32 characters in base 32, so eight groups of four: copyable
+ * by hand without counting characters.
  */
 export const RECOVERY_KEY_BYTES = 20
 const NONCE_BYTES = 24
 
-/** Source d'aléa, fournie par l'appelant. Voir l'en-tête. */
+/** Source of randomness, provided by the caller. See the header. */
 export type RandomBytes = (length: number) => Uint8Array
 
 /**
- * Base 32 de Crockford : ni I, ni L, ni O, ni U. Les trois premières parce
- * qu'elles se confondent avec 1 et 0 sur une feuille de papier, la dernière pour
- * qu'aucun mot malheureux ne se forme dans une clé tirée au sort.
+ * Crockford's base 32: no I, L, O or U. The first three because they get
+ * confused with 1 and 0 on a sheet of paper, the last so that no unfortunate
+ * word forms in a randomly drawn key.
  */
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
 
-/** Séparateur des groupes de quatre. Purement visuel, ignoré à la relecture. */
+/** Separator between groups of four. Purely visual, ignored when read back. */
 const GROUP = 4
 
 function toBase32(bytes: Uint8Array): string {
@@ -86,8 +86,8 @@ function fromBase32(input: string): Uint8Array | null {
   const out: number[] = []
 
   for (const raw of input) {
-    // Tolérance à la recopie : la casse, les séparateurs, et les trois
-    // confusions classiques de l'écriture manuscrite.
+    // Tolerance for copying: case, separators, and the three classic confusions
+    // of handwriting.
     const char = raw.toUpperCase()
     if (char === '-' || char === ' ') continue
     const normalized = char === 'O' ? '0' : char === 'I' || char === 'L' ? '1' : char
@@ -103,7 +103,7 @@ function fromBase32(input: string): Uint8Array | null {
   return new Uint8Array(out)
 }
 
-/** Met la clé de secours en forme pour être lue et recopiée. */
+/** Formats the recovery key to be read and copied down. */
 export function formatRecoveryKey(key: Uint8Array): string {
   const raw = toBase32(key)
   const groups: string[] = []
@@ -112,9 +112,9 @@ export function formatRecoveryKey(key: Uint8Array): string {
 }
 
 /**
- * Relit une clé de secours saisie à la main. Rend `null` si ce n'est pas une
- * clé de la bonne longueur — donc avant même d'essayer de déchiffrer, ce qui
- * permet de distinguer « mal recopiée » de « pas la bonne clé ».
+ * Reads back a recovery key typed in by hand. Returns `null` if it is not a key
+ * of the right length — so before even trying to decrypt, which makes it
+ * possible to tell "mistyped" from "not the right key".
  */
 export function parseRecoveryKey(input: string): Uint8Array | null {
   const bytes = fromBase32(input.trim())
@@ -131,12 +131,12 @@ export function createRecoveryKey(random: RandomBytes): Uint8Array {
 }
 
 /**
- * Clé d'enveloppe dérivée de la clé de secours.
+ * Wrapping key derived from the recovery key.
  *
- * HKDF sans sel aléatoire, et c'est correct ici : le sel sert à disperser une
- * entrée à faible entropie, or celle-ci en a 160 bits. L'étiquette, elle, est
- * indispensable — elle interdit qu'une clé dérivée pour un usage serve à un
- * autre le jour où il y en aura un second.
+ * HKDF with no random salt, and that is correct here: the salt serves to spread
+ * a low-entropy input, and this one has 160 bits. The label, though, is
+ * essential — it prevents a key derived for one use from serving another the
+ * day there is a second one.
  */
 const WRAP_LABEL = utf8ToBytes('cairn:coffre:enveloppe:v1')
 
@@ -144,7 +144,7 @@ function wrappingKey(recoveryKey: Uint8Array): Uint8Array {
   return hkdf(sha256, recoveryKey, undefined, WRAP_LABEL, DATA_KEY_BYTES)
 }
 
-/** Nonce en tête, chiffré ensuite : une seule chaîne à stocker en base. */
+/** Nonce first, ciphertext after: a single string to store in the database. */
 function seal(plain: Uint8Array, key: Uint8Array, random: RandomBytes): string {
   const nonce = random(NONCE_BYTES)
   return bytesToHex(nonce) + bytesToHex(xchacha20poly1305(key, nonce).encrypt(plain))
@@ -157,15 +157,15 @@ function open(sealed: string, key: Uint8Array): Uint8Array | null {
     const nonce = bytes.slice(0, NONCE_BYTES)
     return xchacha20poly1305(key, nonce).decrypt(bytes.slice(NONCE_BYTES))
   } catch {
-    // Mauvaise clé, chiffré altéré, chaîne tronquée : trois échecs qui se
-    // traitent pareil. Rendre `null` plutôt que propager, parce qu'aucun
-    // appelant ne peut faire quoi que ce soit de la différence, et qu'une
-    // exception ici ferait tomber un écran entier pour une note illisible.
+    // Wrong key, tampered ciphertext, truncated string: three failures handled
+    // the same way. Return `null` rather than propagate, because no caller can
+    // do anything with the difference, and an exception here would bring down
+    // a whole screen for one unreadable note.
     return null
   }
 }
 
-/** Enveloppe la clé de données. Le résultat va dans `notes.wrapped_key`. */
+/** Wraps the data key. The result goes into `notes.wrapped_key`. */
 export function wrapDataKey(
   dataKey: Uint8Array,
   recoveryKey: Uint8Array,
@@ -179,7 +179,7 @@ export function unwrapDataKey(wrapped: string, recoveryKey: Uint8Array): Uint8Ar
   return key && key.length === DATA_KEY_BYTES ? key : null
 }
 
-/** Chiffre un texte. Le résultat va dans `notes.ciphertext`. */
+/** Encrypts a text. The result goes into `notes.ciphertext`. */
 export function sealText(plain: string, dataKey: Uint8Array, random: RandomBytes): string {
   return seal(utf8ToBytes(plain), dataKey, random)
 }

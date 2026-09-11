@@ -5,33 +5,31 @@ import { Logotype, Screen, Txt } from '@/ui/components'
 import { space } from '@/ui/theme'
 
 /**
- * Retour du consentement Google Agenda, sur le web.
+ * Return from the Google Calendar consent, on the web.
  *
- * Cette page n'existe que pour être chargée puis se refermer, et elle n'est pas
- * facultative. Sur le web, `promptAsync` ouvre une fenêtre surgissante et
- * attend : c'est la page d'atterrissage qui doit rendre la main, en appelant
- * `maybeCompleteAuthSession`, laquelle poste l'URL complète — code
- * d'autorisation compris — à la fenêtre qui l'a ouverte, puis la ferme. Sans
- * cet appel, la fenêtre reste ouverte sur une page morte et la connexion
- * n'aboutit jamais.
+ * This page only exists to be loaded and then close itself, and it is not
+ * optional. On the web, `promptAsync` opens a popup and waits: the landing page
+ * is what has to hand control back, by calling `maybeCompleteAuthSession`,
+ * which posts the complete URL — authorisation code included — to the window
+ * that opened it, then closes it. Without that call, the popup stays open on a
+ * dead page and the connection never goes through.
  *
- * Sur Android, rien de tout cela ne sert : `openAuthSessionAsync` intercepte
- * lui-même la redirection `cairn://google` et rend le résultat à l'appelant,
- * sans qu'aucune route ne soit atteinte. La page ne coûte rien pour autant, et
- * l'avoir des deux côtés évite d'avoir à se rappeler laquelle des deux
- * plateformes en a besoin.
+ * On Android, none of this is used: `openAuthSessionAsync` intercepts the
+ * `cairn://google` redirect itself and returns the result to the caller, with
+ * no route reached. The page costs nothing all the same, and having it on both
+ * sides avoids having to remember which of the two platforms needs it.
  *
- * Dans le groupe (auth) pour la même raison que `callback.tsx` : l'aiguillage
- * du layout racine renvoie vers la connexion tout utilisateur sans session
- * rencontré hors de ce groupe. La fenêtre surgissante est un contexte neuf, où
- * la session peut n'être pas encore relue ; ailleurs, cette page rebondirait
- * vers /sign-in avant d'avoir rendu la main, en emportant le code.
+ * In the (auth) group for the same reason as `callback.tsx`: the root layout's
+ * routing sends to sign-in every user without a session found outside this
+ * group. The popup is a fresh context, where the session may not have been read
+ * yet; anywhere else, this page would bounce to /sign-in before handing control
+ * back, taking the code with it.
  */
 export default function GoogleCallback() {
   useEffect(() => {
-    // L'échec n'a pas à être traité ici : il signifie qu'aucune autorisation
-    // n'est en cours, c'est-à-dire que quelqu'un a ouvert cette adresse
-    // directement. Le texte ci-dessous suffit alors.
+    // Failure does not need handling here: it means no authorisation is in
+    // progress, that is, someone opened this address directly. The text below
+    // is then enough.
     void WebBrowser.maybeCompleteAuthSession()
   }, [])
 

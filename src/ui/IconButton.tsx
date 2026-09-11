@@ -7,28 +7,28 @@ import { Tooltip } from './Tooltip'
 import { radius, withAlpha } from './theme'
 
 /**
- * Bouton réduit à son glyphe, avec son nom en infobulle.
+ * A button reduced to its glyph, with its name in a tooltip.
  *
- * Un pictogramme seul se devine : `archive` et `inbox` ont le même carton, et
- * `bookmark` ne dit pas s'il épingle ou s'il met de côté. Le libellé n'est donc
- * pas une option, il est porté à la fois par l'accessibilité et par la bulle qui
- * s'ouvre au survol ou à l'appui maintenu. Les deux viennent de la même chaîne :
- * impossible qu'un bouton soit annoncé d'une façon et étiqueté d'une autre.
+ * A pictogram alone is guessed at: `archive` and `inbox` share the same box, and
+ * `bookmark` does not say whether it pins or sets aside. So the label is not
+ * optional, it is carried both by accessibility and by the tooltip that opens
+ * on hover or on press-and-hold. Both come from the same string: a button
+ * cannot be announced one way and labelled another.
  *
- * Toutes les barres d'actions de l'application passent par ici, pour que le
- * geste et la taille de cible ne dérivent pas d'un écran à l'autre.
+ * Every action bar in the app goes through here, so the gesture and the target
+ * size do not drift from one screen to another.
  */
 
 /**
- * Nom Feather, ou l'un des rares glyphes maison de src/ui/glyphs.tsx. Les deux
- * jeux ne se recoupent pas, l'appelant n'a donc pas à savoir d'où vient l'icône
- * qu'il demande.
+ * A Feather name, or one of the few home-made glyphs of src/ui/glyphs.tsx. The
+ * two sets do not overlap, so the caller does not have to know where the icon
+ * it asks for comes from.
  */
 export type IconName = React.ComponentProps<typeof Feather>['name'] | GlyphName
 
 /**
- * Trois gabarits, tous au-dessus du plancher tactile de 48 points une fois le
- * `hitSlop` compté. Seul le glyphe rétrécit, jamais la zone atteignable.
+ * Three sizes, all above the 48-point touch floor once the `hitSlop` is
+ * counted. Only the glyph shrinks, never the reachable area.
  */
 const SIZES = {
   sm: { box: 36, glyph: 16, slop: 6 },
@@ -49,16 +49,16 @@ export function IconButton({
   style,
 }: {
   icon: IconName
-  /** Annoncé par le lecteur d'écran et affiché dans la bulle. Un verbe, pas un nom d'icône. */
+  /** Announced by the screen reader and shown in the tooltip. A verb, not an icon name. */
   label: string
-  /** Texte de bulle, si l'annonce d'accessibilité gagne à être plus longue que l'étiquette. */
+  /** Tooltip text, when the accessibility announcement benefits from being longer than the label. */
   tooltip?: string
   onPress: () => void
   active?: boolean
   disabled?: boolean
   tone?: 'default' | 'danger'
   size?: keyof typeof SIZES
-  /** Côté d'ouverture de la bulle. À poser sur `top` pour une barre basse. */
+  /** The side the tooltip opens on. Set to `top` for a bottom bar. */
   placement?: 'top' | 'bottom'
   style?: StyleProp<ViewStyle>
 }) {
@@ -69,10 +69,9 @@ export function IconButton({
   const lit = hovered && !disabled
 
   /**
-   * Le glyphe au repos est passé du gris secondaire au gris de texte principal.
-   * Une barre d'actions entièrement composée d'icônes n'a aucun libellé pour
-   * rattraper un trait trop pâle : c'est le seul repère, il doit se lire du
-   * premier coup d'œil.
+   * The resting glyph moved from secondary grey to primary text grey. An action
+   * bar made entirely of icons has no label to make up for a stroke that is too
+   * pale: it is the only cue, and it has to read at first glance.
    */
   const color = disabled
     ? theme.text.muted
@@ -107,8 +106,8 @@ export function IconButton({
                   ? theme.surface.raised
                   : 'transparent',
           },
-          // Le halo n'apparaît qu'au survol : au repos, une barre d'outils
-          // entière qui rayonne ne met plus rien en avant.
+          // The glow only appears on hover: at rest, a whole toolbar glowing
+          // no longer highlights anything.
           lit ? glow(withAlpha(theme.accent.default, 0.3), box / 3) : null,
         ]}
       >

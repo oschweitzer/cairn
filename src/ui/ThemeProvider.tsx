@@ -14,12 +14,12 @@ function isPreference(value: string | null): value is ThemePreference {
 
 type ThemeContextValue = {
   theme: Theme
-  /** Ce que l'utilisateur a choisi, y compris « système ». */
+  /** What the user chose, "system" included. */
   preference: ThemePreference
   setPreference: (next: ThemePreference) => void
-  /** Résout une clé de palette de tag vers l'hexadécimal du thème actif. */
+  /** Resolves a tag palette key to the active theme's hexadecimal. */
   tagColor: (key: TagColorKey) => string
-  /** Faux jusqu'à la lecture du réglage stocké. Sert à retenir l'écran de démarrage. */
+  /** False until the stored setting has been read. Used to hold the splash screen. */
   ready: boolean
 }
 
@@ -28,8 +28,8 @@ const ThemeContext = createContext<ThemeContextValue | null>(null)
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useColorScheme()
 
-  // Sur le web, le réglage est lisible de façon synchrone, donc dès le premier
-  // rendu. Sur mobile il faut un aller-retour asynchrone, d'où `ready`.
+  // On the web, the setting can be read synchronously, so from the first render.
+  // On mobile it takes an asynchronous round trip, hence `ready`.
   const initial = kvGetSync(KEY_THEME)
   const [preference, setPreferenceState] = useState<ThemePreference>(
     isPreference(initial) ? initial : 'dark',
@@ -49,8 +49,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Le sombre est le défaut de Cairn, quoi que dise le système. Le réglage
-  // « système » est le seul cas où la préférence de l'OS est consultée.
+  // Dark is Cairn's default, whatever the system says. The "system" setting is
+  // the only case where the OS preference is consulted.
   const name: ThemeName =
     preference === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : preference
 
@@ -61,8 +61,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     void kvSet(KEY_THEME, next)
   }, [])
 
-  // Peint le fond au niveau natif, sous l'arbre React. Sans cela, un
-  // rebond de navigation ou un rechargement laisse apparaître le blanc par défaut.
+  // Paints the background at the native level, under the React tree. Otherwise a
+  // navigation bounce or a reload lets the default white show through.
   useEffect(() => {
     if (Platform.OS === 'web') {
       document.documentElement.dataset.theme = name

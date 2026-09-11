@@ -8,53 +8,52 @@ import type { ChecklistItem, Note, NoteKind, NoteTag, Profile, Tag } from './typ
 import type { TagColorKey } from '../ui/theme'
 
 /**
- * Requêtes et mutations. Un jeu de clés unique, des accès par table plutôt que
- * par jointure imbriquée, et des mises à jour optimistes sur les interactions
- * qui doivent paraître instantanées.
+ * Queries and mutations. One set of keys, per-table access rather than nested
+ * joins, and optimistic updates on the interactions that have to feel instant.
  *
- * Pourquoi pas de select imbriqué à la PostgREST, du type
- * `notes.select('*, checklist_items(*)')` : les tables filles pointent vers
- * `notes` par une clé étrangère composite `(note_id, user_id)`, et le
- * comportement de PostgREST sur les relations composites n'est pas vérifiable
- * hors d'un vrai projet. Quatre requêtes à plat sont un peu plus bavardes mais
- * garanties de fonctionner, se mettent en cache indépendamment les unes des
- * autres, et rendent les mises à jour optimistes beaucoup plus simples à écrire.
+ * Why no PostgREST-style nested select, like
+ * `notes.select('*, checklist_items(*)')`: the child tables point to `notes`
+ * through a composite foreign key `(note_id, user_id)`, and PostgREST's
+ * behaviour on composite relations cannot be checked outside a real project.
+ * Four flat queries are a little more verbose but guaranteed to work, are
+ * cached independently of each other, and make optimistic updates much simpler
+ * to write.
  */
 
 export const keys = {
   root: ROOT,
-  /** Notes visibles : ni supprimées, ni masquées. */
+  /** Visible notes: neither deleted nor hidden. */
   notes: [ROOT, PERSISTABLE_PREFIX, 'notes'] as const,
-  /** Éléments de liste des notes visibles. */
+  /** List items of the visible notes. */
   checklistItems: [ROOT, PERSISTABLE_PREFIX, 'checklist-items'] as const,
   noteTags: [ROOT, PERSISTABLE_PREFIX, 'note-tags'] as const,
   tags: [ROOT, PERSISTABLE_PREFIX, 'tags'] as const,
-  /** Hors persistance, volontairement. */
+  /** Kept out of persistence, on purpose. */
   trashed: [ROOT, 'volatile', 'trashed-notes'] as const,
   privateNotes: [ROOT, 'volatile', 'private-notes'] as const,
   /**
-   * Éléments de liste des notes du coffre, dans une clé volatile distincte.
+   * List items of the vault notes, under a separate volatile key.
    *
-   * Ce n'est pas une redite de `checklistItems` : cette clé-là est persistable,
-   * et y verser les identifiants des notes masquées enverrait leur contenu dans
-   * localStorage sur le web. La séparation des notes ne vaut rien si leurs
-   * cases à cocher, elles, descendent sur le disque.
+   * This is not a repeat of `checklistItems`: that key is persistable, and
+   * feeding it the ids of hidden notes would send their content to localStorage
+   * on the web. Keeping the notes apart is worth nothing if their checkboxes go
+   * down to the disk.
    */
   privateChecklistItems: [ROOT, 'volatile', 'private-checklist-items'] as const,
   /**
-   * État de la connexion à Google Agenda. Volatile, comme le coffre : la ligne
-   * porte l'adresse du compte Google, et l'écrire dans localStorage pour
-   * épargner une requête au démarrage serait un mauvais échange.
+   * State of the Google Calendar connection. Volatile, like the vault: the row
+   * carries the Google account's address, and writing it to localStorage to
+   * spare one request at startup would be a bad trade.
    */
   googleAccount: [ROOT, 'volatile', 'google-account'] as const,
   /**
-   * Préférences du compte. Volatile : ce sont des réglages, pas du contenu, et
-   * il n'y a rien à en montrer hors ligne qui vaille de descendre sur le disque.
+   * Account preferences. Volatile: they are settings, not content, and there is
+   * nothing to show offline that is worth putting on the disk.
    */
   profile: [ROOT, 'volatile', 'profile'] as const,
 }
 
-// -------------------------------------------------------------- lectures
+// ----------------------------------------------------------------- reads
 
 async function fetchNotes(): Promise<Note[]> {
   const { data, error } = await getSupabase()
@@ -63,8 +62,8 @@ async function fetchNotes(): Promise<Note[]> {
     .is('deleted_at', null)
     .eq('is_private', false)
     .order('is_pinned', { ascending: false })
-    // Le rang avant la date : c'est l'ordre choisi qui prime, et la date ne fait
-    // que départager les notes restées à égalité. Voir `byPinThenOrder`.
+    // Rank before date: the chosen order comes first, and the date only breaks
+    // ties between notes left level. See `byPinThenOrder`.
     .order('position', { ascending: true })
     .order('updated_at', { ascending: false })
   if (error) throw error
@@ -72,9 +71,9 @@ async function fetchNotes(): Promise<Note[]> {
 }
 
 /**
- * Notes du coffre. Jamais appelée tant que le coffre est fermé : le hook est
- * conditionné à l'état de déverrouillage, donc refermer le coffre ne masque pas
- * seulement une vue, cela laisse expirer les données du cache.
+ * Vault notes. Never called while the vault is closed: the hook depends on the
+ * unlock state, so closing the vault does not merely hide a view, it lets the
+ * data expire from the cache.
  */
 async function fetchPrivateNotes(): Promise<Note[]> {
   const { data, error } = await getSupabase()
@@ -100,10 +99,10 @@ async function fetchTrashedNotes(): Promise<Note[]> {
 }
 
 /**
- * Les éléments de liste sont filtrés sur les notes visibles, pas récupérés en
- * masse. C'est ce qui empêche le contenu d'une note du coffre de se retrouver
- * dans le cache persisté. Le filtre `in` limite en pratique à quelques centaines
- * d'identifiants, ce qui reste très au-dessus de l'usage d'une app personnelle.
+ * List items are filtered on the visible notes, not fetched wholesale. That is
+ * what keeps a vault note's content out of the persisted cache. The `in` filter
+ * is limited in practice to a few hundred ids, which stays well above what a
+ * personal app uses.
  */
 async function fetchChecklistItems(noteIds: string[]): Promise<ChecklistItem[]> {
   if (noteIds.length === 0) return []
@@ -116,7 +115,7 @@ async function fetchChecklistItems(noteIds: string[]): Promise<ChecklistItem[]> 
   return data ?? []
 }
 
-/** Table de liaison, deux identifiants par ligne. Aucun contenu, donc pas de filtre. */
+/** Join table, two ids per row. No content, so no filter. */
 async function fetchNoteTags(): Promise<NoteTag[]> {
   const { data, error } = await getSupabase().from('note_tags').select('*')
   if (error) throw error
@@ -135,8 +134,8 @@ async function fetchTags(): Promise<Tag[]> {
 
 // ----------------------------------------------------------------- hooks
 
-// `isSupabaseConfigured` conditionne chaque lecture : en mode démonstration on
-// affiche ce que contient le cache, sans empiler des requêtes qui échoueront.
+// `isSupabaseConfigured` gates every read: in demo mode we show what the cache
+// holds, without piling up requests that will fail.
 export function useNotes(enabled = true) {
   return useQuery({ queryKey: keys.notes, queryFn: fetchNotes, enabled: enabled && isSupabaseConfigured })
 }
@@ -150,9 +149,8 @@ export function useNoteTags(enabled = true) {
 }
 
 export function useChecklistItems(noteIds: string[], enabled = true) {
-  // La clé inclut les identifiants triés : deux jeux de notes différents ne
-  // doivent pas partager la même entrée de cache, et l'ordre ne doit pas créer
-  // de faux écarts.
+  // The key includes the sorted ids: two different sets of notes must not share
+  // the same cache entry, and order must not create false differences.
   const sorted = [...noteIds].sort()
   return useQuery({
     queryKey: [...keys.checklistItems, sorted.join(',')],
@@ -165,7 +163,7 @@ export function useTrashedNotes(enabled = true) {
   return useQuery({ queryKey: keys.trashed, queryFn: fetchTrashedNotes, enabled: enabled && isSupabaseConfigured })
 }
 
-/** `enabled` porte l'état du coffre : fermé, aucune requête n'est émise. */
+/** `enabled` carries the vault state: closed, no request is sent. */
 export function usePrivateNotes(enabled = true) {
   return useQuery({
     queryKey: keys.privateNotes,
@@ -185,7 +183,7 @@ export function usePrivateChecklistItems(noteIds: string[], enabled = true) {
 
 // ------------------------------------------------------------- mutations
 
-/** Invalide tout ce qui dépend des notes, y compris les vues non persistées. */
+/** Invalidates everything that depends on notes, non-persisted views included. */
 function invalidateNotes(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: keys.notes })
   void qc.invalidateQueries({ queryKey: keys.checklistItems })
@@ -195,14 +193,13 @@ function invalidateNotes(qc: QueryClient) {
 }
 
 /**
- * Les deux caches d'éléments de liste, jamais un seul.
+ * Both list-item caches, never just one.
  *
- * Une liste vit dans la grille OU dans le coffre, et la mutation ne sait pas
- * laquelle des deux elle vient de toucher : l'élément n'est identifié que par
- * son propre identifiant, pas par l'état de la note qui le porte. N'invalider
- * que le cache visible laissait donc les listes du coffre figées à l'écran —
- * l'ajout partait bien en base, mais rien n'apparaissait, ce qui se lit comme
- * un bouton mort.
+ * A list lives in the grid OR in the vault, and the mutation does not know
+ * which of the two it has just touched: the item is identified only by its own
+ * id, not by the state of the note that holds it. Invalidating only the visible
+ * cache therefore left vault lists frozen on screen — the insert did reach the
+ * database, but nothing appeared, which reads as a dead button.
  */
 function invalidateChecklistItems(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: keys.checklistItems })
@@ -210,11 +207,11 @@ function invalidateChecklistItems(qc: QueryClient) {
 }
 
 /**
- * Les entrées de cache des deux listes d'éléments, visible et coffre.
+ * The cache entries of both item lists, visible and vault.
  *
- * Les mises à jour optimistes ci-dessous écrivent dans le cache avant la
- * réponse du serveur. Lues sur le seul cache visible, elles laissaient les
- * listes du coffre inertes : cocher une case n'y cochait rien.
+ * The optimistic updates below write to the cache before the server answers.
+ * Read from the visible cache alone, they left vault lists inert: ticking a box
+ * there ticked nothing.
  */
 function checklistItemEntries(qc: QueryClient) {
   return [
@@ -231,17 +228,18 @@ export function useCreateNote() {
       title?: string
       colorKey?: TagColorKey | null
       /**
-       * Naître dans le coffre plutôt qu'y être déplacée ensuite.
+       * Born in the vault rather than moved there afterwards.
        *
-       * Ce n'est pas un raccourci de confort. Créer la note en clair puis la
-       * masquer la ferait exister, ne serait-ce qu'un instant, dans la liste
-       * visible et dans le cache persisté de tous les appareils connectés. Une
-       * note écrite depuis le coffre ne doit jamais avoir été ailleurs.
+       * This is not a convenience shortcut. Creating the note in the clear and
+       * then hiding it would make it exist, if only for an instant, in the
+       * visible list and in the persisted cache of every connected device. A note
+       * written from the vault must never have been anywhere else.
        */
       isPrivate?: boolean
     }) => {
-      // Une note du coffre naît chiffrée, y compris vide : son titre partirait
-      // sinon en clair dès la première frappe, et rien ne repasserait derrière.
+      // A vault note is born encrypted, even empty: otherwise its title would
+      // go out in the clear from the first keystroke, and nothing would come
+      // back to fix it.
       const encrypt = Boolean(input.isPrivate) && hasDataKey()
       const sealed = encrypt ? sealNote({ title: input.title ?? null, body: null }) : null
 
@@ -280,16 +278,16 @@ type NotePatch = Partial<
 >
 
 /**
- * Prépare un correctif pour une note chiffrée.
+ * Prepares a patch for an encrypted note.
  *
- * Le titre et le corps ne peuvent pas être écrits séparément : ils partagent un
- * seul scellé. Un correctif qui ne porte que sur l'un des deux doit donc
- * emporter l'autre tel qu'il est à l'écran, d'où `current` — sans lui, écrire
- * le titre effacerait le corps.
+ * The title and the body cannot be written separately: they share a single
+ * sealed blob. A patch touching only one of them must therefore carry the other
+ * as it is on screen, hence `current` — without it, writing the title would
+ * erase the body.
  *
- * Les autres champs — épingle, archive, couleur, nom de code — traversent sans
- * être touchés : ils ne sont pas chiffrés, et c'est assumé. Le nom de code est
- * précisément l'étiquette anodine qui remplace le titre dans la grille.
+ * The other fields — pin, archive, colour, code name — go through untouched:
+ * they are not encrypted, and that is deliberate. The code name is precisely
+ * the innocuous label that stands in for the title in the grid.
  */
 function sealPatch(patch: NotePatch, current: { title: string | null; body: string | null }) {
   const touchesText = patch.title !== undefined || patch.body !== undefined
@@ -316,9 +314,9 @@ export function useUpdateNote() {
     }: {
       id: string
       patch: NotePatch
-      /** Vrai quand la note vit dans le coffre chiffré. L'appelant le sait, la mutation non. */
+      /** True when the note lives in the encrypted vault. The caller knows, the mutation does not. */
       encrypted?: boolean
-      /** Texte affiché à l'instant de l'écriture, pour reconstituer le scellé complet. */
+      /** Text on screen at the time of the write, to rebuild the complete sealed blob. */
       current?: { title: string | null; body: string | null }
     }) => {
       const body =
@@ -326,16 +324,15 @@ export function useUpdateNote() {
       const { error } = await getSupabase().from('notes').update(body).eq('id', id)
       if (error) throw error
     },
-    // Épingler, archiver ou changer la couleur doit paraître instantané : on
-    // écrit dans le cache avant la réponse du serveur, et on revient en arrière
-    // si l'écriture échoue.
+    // Pinning, archiving or changing the colour has to feel instant: we write
+    // to the cache before the server answers, and roll back if the write fails.
     /**
-     * Épingler, archiver ou changer la couleur doit paraître instantané.
+     * Pinning, archiving or changing the colour has to feel instant.
      *
-     * Les deux caches sont touchés parce qu'une note vit dans l'un ou dans
-     * l'autre, jamais dans les deux, et que l'éditeur ne sait pas d'où vient
-     * celle qu'il modifie. Ne mettre à jour que la liste visible ferait
-     * clignoter chaque retouche faite depuis le coffre.
+     * Both caches are touched because a note lives in one or the other, never in
+     * both, and the editor does not know where the one it is changing comes
+     * from. Updating only the visible list would make every edit made from the
+     * vault flicker.
      */
     onMutate: async ({ id, patch }) => {
       await qc.cancelQueries({ queryKey: keys.notes })
@@ -356,19 +353,19 @@ export function useUpdateNote() {
 }
 
 /**
- * Entrée et sortie du coffre.
+ * Moving into and out of the vault.
  *
- * Mutation dédiée plutôt qu'un champ de plus dans `NotePatch`, parce que
- * `is_private` ne va pas seul : les contraintes `code_name_requires_private` et
- * `hide_content_requires_private` refusent l'un comme l'autre sur une note
- * visible. Les trois colonnes partent donc dans le même ordre SQL, et sortir du
- * coffre efface le nom de code et le masquage du contenu par construction plutôt
- * que par discipline de l'appelant.
+ * A dedicated mutation rather than one more field in `NotePatch`, because
+ * `is_private` does not travel alone: the `code_name_requires_private` and
+ * `hide_content_requires_private` constraints each reject their column on a
+ * visible note. So the three columns go out in the same SQL statement, and
+ * leaving the vault clears the code name and content masking by construction
+ * rather than by the caller's discipline.
  *
- * Aucune mise à jour optimiste ici, volontairement. La note change de liste, ce
- * qui la fait disparaître d'un écran pour apparaître dans un autre : la jouer
- * d'avance et devoir la remettre en cas d'échec donnerait un aller-retour
- * visible bien plus perturbant que l'attente d'une réponse.
+ * No optimistic update here, on purpose. The note changes lists, which makes it
+ * vanish from one screen to appear on another: playing that ahead of time and
+ * having to put it back on failure would give a visible round trip far more
+ * disturbing than waiting for an answer.
  */
 export function useSetNotePrivate() {
   const qc = useQueryClient()
@@ -383,13 +380,12 @@ export function useSetNotePrivate() {
       codeName?: string | null
     }) => {
       /**
-       * Franchir la porte du coffre change l'état du contenu, pas seulement un
-       * drapeau : on chiffre en entrant, on déchiffre en sortant.
+       * Crossing the vault's door changes the state of the content, not just a
+       * flag: we encrypt going in, we decrypt coming out.
        *
-       * D'où la lecture préalable. La mutation ne reçoit qu'un identifiant, et
-       * elle a besoin du texte pour le sceller — le demander à l'appelant
-       * marcherait pour l'éditeur, mais pas pour le coffre qui range une note
-       * qu'il n'a jamais affichée.
+       * Hence the read first. The mutation only receives an id, and it needs
+       * the text to seal it — asking the caller for it would work for the
+       * editor, but not for the vault filing a note it has never displayed.
        */
       const supabase = getSupabase()
       const { data: row, error: readError } = await supabase
@@ -411,9 +407,9 @@ export function useSetNotePrivate() {
           ...(sealed ? { is_encrypted: true, title: null, body: null, ciphertext: sealed } : {}),
         }
       } else {
-        // En sortant, le contenu redevient lisible en base : une note hors du
-        // coffre qui resterait chiffrée serait indéchiffrable le jour où la clé
-        // change, et elle n'a plus rien à cacher.
+        // On the way out, the content becomes readable in the database again: a
+        // note outside the vault that stayed encrypted would be undecryptable the
+        // day the key changes, and it has nothing left to hide.
         const opened = row.is_encrypted ? openNote(row.ciphertext) : null
         patch = {
           is_private: false,
@@ -432,7 +428,7 @@ export function useSetNotePrivate() {
   })
 }
 
-/** Suppression douce : la note part à la corbeille, rien n'est perdu. */
+/** Soft delete: the note goes to the trash, nothing is lost. */
 export function useTrashNote() {
   const qc = useQueryClient()
   return useMutation({
@@ -475,7 +471,7 @@ export function useRestoreNote() {
   })
 }
 
-/** Suppression définitive. Les tables filles suivent par cascade. */
+/** Permanent deletion. Child tables follow by cascade. */
 export function usePurgeNote() {
   const qc = useQueryClient()
   return useMutation({
@@ -487,19 +483,19 @@ export function usePurgeNote() {
   })
 }
 
-// ------------------------------------------------------- actions en masse
+// ----------------------------------------------------------- bulk actions
 
 /**
- * Actions sur une sélection. Chacune tient dans une seule requête grâce au filtre
- * `in`, plutôt qu'une boucle d'appels : sur vingt notes cela fait la différence
- * entre une action instantanée et vingt allers-retours réseau.
+ * Actions on a selection. Each fits in a single request thanks to the `in`
+ * filter, rather than a loop of calls: on twenty notes that is the difference
+ * between an instant action and twenty network round trips.
  *
- * Les mises à jour optimistes sont indispensables ici, pas décoratives : après
- * une suppression multiple la grille doit se réorganiser tout de suite, sinon on
- * voit les cartes disparaître une par une au rythme de la revalidation.
+ * The optimistic updates are essential here, not decorative: after a multiple
+ * deletion the grid has to rearrange at once, otherwise you watch the cards
+ * disappear one by one at the pace of revalidation.
  */
 
-/** Retire les notes de toute liste locale, avant confirmation du serveur. */
+/** Removes the notes from any local list, before the server confirms. */
 function optimisticallyRemove(qc: QueryClient, ids: string[]) {
   const set = new Set(ids)
   const previous = qc.getQueryData<Note[]>(keys.notes)
@@ -588,15 +584,15 @@ export function useSetNotesPinned() {
 }
 
 /**
- * Fixe l'ordre de la grille, en un seul appel atomique.
+ * Sets the grid order, in a single atomic call.
  *
- * Voir supabase/migrations/20260809100000_ordre_des_notes.sql pour la raison de
- * passer par une fonction SQL plutôt que par un upsert.
+ * See supabase/migrations/20260809100000_ordre_des_notes.sql for why this goes
+ * through an SQL function rather than an upsert.
  *
- * La mise à jour optimiste n'est pas décorative : le glissement doit suivre le
- * doigt, et attendre la réponse du serveur ferait revenir la carte à sa place
- * d'origine le temps d'un aller-retour. On écrit donc le rang localement tout de
- * suite, la requête ne fait que confirmer.
+ * The optimistic update is not decorative: dragging has to follow the finger,
+ * and waiting for the server's answer would send the card back to its original
+ * place for the length of a round trip. So the rank is written locally right
+ * away, and the request only confirms it.
  */
 export function useReorderNotes() {
   const qc = useQueryClient()
@@ -625,7 +621,7 @@ export function useReorderNotes() {
   })
 }
 
-/** Suppression définitive d'un lot. Sert au vidage de la corbeille. */
+/** Permanent deletion of a batch. Used to empty the trash. */
 export function usePurgeNotes() {
   const qc = useQueryClient()
   return useMutation({
@@ -652,7 +648,7 @@ export function usePurgeNotes() {
   })
 }
 
-// ------------------------------------------------- éléments de liste
+// ------------------------------------------------------------ list items
 
 export function useAddChecklistItem() {
   const qc = useQueryClient()
@@ -661,7 +657,7 @@ export function useAddChecklistItem() {
       noteId: string
       content: string
       position: number
-      /** Vrai quand la note porteuse vit dans le coffre chiffré. */
+      /** True when the note holding the item lives in the encrypted vault. */
       encrypted?: boolean
     }) => {
       const sealed = input.encrypted && hasDataKey() ? sealItem(input.content) : null
@@ -695,8 +691,8 @@ export function useUpdateChecklistItem() {
       patch: Partial<Pick<ChecklistItem, 'content' | 'is_done' | 'position' | 'due_at'>>
       encrypted?: boolean
     }) => {
-      // Cocher une case ne touche pas au texte : seul un contenu réécrit doit
-      // repasser par le scellé.
+      // Ticking a box does not touch the text: only rewritten content has to go
+      // through sealing again.
       const sealed =
         encrypted && hasDataKey() && typeof patch.content === 'string'
           ? sealItem(patch.content)
@@ -707,8 +703,8 @@ export function useUpdateChecklistItem() {
       const { error } = await getSupabase().from('checklist_items').update(body).eq('id', id)
       if (error) throw error
     },
-    // Cocher une case est l'interaction la plus fréquente de l'application, elle
-    // ne doit jamais attendre le réseau.
+    // Ticking a box is the most frequent interaction in the app, it must never
+    // wait on the network.
     onMutate: async ({ id, patch }) => {
       const entries = checklistItemEntries(qc)
       for (const [key, items] of entries) {
@@ -753,9 +749,9 @@ export function useDeleteChecklistItem() {
 }
 
 /**
- * Réordonnancement en un seul appel atomique, via la fonction SQL dédiée.
- * Voir supabase/migrations/20260805130000_reorder_checklist_items.sql pour la
- * raison de ne pas passer par un upsert.
+ * Reordering in a single atomic call, through the dedicated SQL function.
+ * See supabase/migrations/20260805130000_reorder_checklist_items.sql for why
+ * this does not go through an upsert.
  */
 export function useReorderChecklistItems() {
   const qc = useQueryClient()
@@ -767,8 +763,8 @@ export function useReorderChecklistItems() {
       })
       if (error) throw error
     },
-    // Le glissement doit suivre le doigt : on écrit l'ordre localement tout de
-    // suite, la requête ne fait que confirmer.
+    // Dragging has to follow the finger: the order is written locally right
+    // away, and the request only confirms it.
     onMutate: async ({ noteId, orderedIds }) => {
       const entries = checklistItemEntries(qc)
       const rank = new Map(orderedIds.map((id, index) => [id, index]))
@@ -790,18 +786,18 @@ export function useReorderChecklistItems() {
   })
 }
 
-// ------------------------------------------------------------------ profil
+// ----------------------------------------------------------------- profile
 
 /**
- * Réglages qui vivent en base plutôt que sur l'appareil.
+ * Settings that live in the database rather than on the device.
  *
- * Le thème, lui, est lu depuis le stockage local avant le premier rendu — un
- * aller-retour réseau y donnerait un éclair de thème inversé. Les réglages du
- * widget n'ont pas cette contrainte : ils sont lus par le widget dans
- * l'instantané, jamais pendant un rendu.
+ * The theme, for its part, is read from local storage before the first render
+ * — a network round trip there would give a flash of the inverted theme. The
+ * widget settings do not have that constraint: the widget reads them from the
+ * snapshot, never during a render.
  *
- * La clé est volatile : le profil porte des préférences, pas du contenu, et il
- * n'y a rien à afficher hors ligne qui vaille de le poser sur le disque.
+ * The key is volatile: the profile holds preferences, not content, and there is
+ * nothing to show offline that is worth putting it on the disk.
  */
 async function fetchProfile(): Promise<Profile | null> {
   const { data, error } = await getSupabase().from('profiles').select('*').maybeSingle()
@@ -824,8 +820,8 @@ export function useUpdateProfile() {
       const { error } = await getSupabase().from('profiles').update(patch).eq('id', id)
       if (error) throw error
     },
-    // Une case à cocher doit basculer sous le doigt : attendre le réseau pour
-    // la voir changer d'état donne l'impression qu'elle ne marche pas.
+    // A checkbox has to flip under the finger: waiting on the network to see it
+    // change state makes it feel broken.
     onMutate: async ({ patch }) => {
       await qc.cancelQueries({ queryKey: keys.profile })
       const previous = qc.getQueryData<Profile | null>(keys.profile)
@@ -893,7 +889,7 @@ export function useUpdateTag() {
   })
 }
 
-/** Supprimer un tag retire aussi ses associations, par cascade. */
+/** Deleting a tag also removes its links, by cascade. */
 export function useDeleteTag() {
   const qc = useQueryClient()
   return useMutation({
@@ -909,44 +905,44 @@ export function useDeleteTag() {
 }
 
 /**
- * Pose ou retire **un** tag sur une note.
+ * Adds or removes **one** tag on a note.
  *
- * ── Pourquoi un delta, et non le remplacement de l'ensemble ──────────────────
- * La version précédente recevait la liste complète des tags voulus et
- * l'appliquait par un `delete` de tous les liens de la note suivi d'un `insert`.
- * C'est simple à lire, et faux dès qu'il y a deux gestes rapprochés — ce qui est
- * précisément le cas du geste le plus courant : changer de tag, qui en retire un
- * et en pose un autre.
+ * ── Why a delta, and not replacing the whole set ─────────────────────────────
+ * The previous version received the complete list of wanted tags and applied
+ * it with a `delete` of all the note's links followed by an `insert`. That is
+ * simple to read, and wrong as soon as two gestures come close together — which
+ * is precisely the case of the most common gesture: switching tags, which
+ * removes one and adds another.
  *
- * Rien ne sérialise deux appels à une même mutation dans React Query. Les deux
- * `delete` et les deux `insert` s'entrelaçaient donc, et l'ordre d'arrivée
- * décidait du résultat :
+ * Nothing serialises two calls to the same mutation in React Query. So the two
+ * `delete`s and the two `insert`s interleaved, and the order of arrival decided
+ * the outcome:
  *
- *   retirer A → delete(tous)  ────────────────▶ insert(rien)
- *   poser   B →      delete(tous) ─▶ insert(A, B)
- *                                    ▲ la liste du premier geste, lue avant
- *                                      qu'il ne soit parti
+ *   remove A → delete(all)  ─────────────────▶ insert(none)
+ *   add    B →      delete(all) ─▶ insert(A, B)
+ *                                  ▲ the first gesture's list, read before
+ *                                    it had gone out
  *
- * A revenait, et changer de tag « ne marchait pas ». Sérialiser les mutations
- * (`scope`) refermerait la fenêtre, mais au prix du retour visuel : la mise à
- * jour optimiste du second geste n'aurait lieu qu'à la fin du premier, et la
- * seconde pastille resterait éteinte le temps d'un aller-retour réseau.
+ * A came back, and switching tags "did not work". Serialising the mutations
+ * (`scope`) would close the window, but at the cost of visual feedback: the
+ * second gesture's optimistic update would only happen once the first had
+ * finished, and the second chip would stay dark for a network round trip.
  *
- * Un delta n'a pas ce problème : deux gestes sur deux tags différents touchent
- * deux lignes différentes, donc ils commutent. L'ordre d'arrivée n'a plus
- * d'importance, et il n'y a rien à sérialiser.
+ * A delta does not have that problem: two gestures on two different tags touch
+ * two different rows, so they commute. Order of arrival no longer matters, and
+ * there is nothing to serialise.
  *
- * `upsert` plutôt qu'`insert` : reposer un tag déjà posé — deux appuis, une
- * revalidation en retard — ne doit pas remonter une violation de clé primaire.
+ * `upsert` rather than `insert`: adding a tag that is already on — two taps, a
+ * late revalidation — must not surface a primary key violation.
  */
 export function useSetNoteTag() {
   const qc = useQueryClient()
 
-  /** Applique le delta à une liste de liens, sans doublon possible. */
+  /** Applies the delta to a list of links, with no possible duplicate. */
   const apply = (links: NoteTag[], noteId: string, tagId: string, on: boolean) => {
     const without = links.filter((nt) => !(nt.note_id === noteId && nt.tag_id === tagId))
-    // user_id est rempli par le défaut auth.uid() côté base ; la valeur
-    // optimiste locale n'est jamais relue, seule la paire compte.
+    // user_id is filled by the auth.uid() default on the database side; the
+    // local optimistic value is never read back, only the pair matters.
     return on ? [...without, { note_id: noteId, tag_id: tagId, user_id: '' }] : without
   }
 
@@ -958,7 +954,7 @@ export function useSetNoteTag() {
     }: {
       noteId: string
       tagId: string
-      /** Vrai pour poser le tag, faux pour le retirer. */
+      /** True to add the tag, false to remove it. */
       on: boolean
     }) => {
       const supabase = getSupabase()
@@ -977,19 +973,19 @@ export function useSetNoteTag() {
       if (error) throw error
     },
     onMutate: async ({ noteId, tagId, on }) => {
-      // Sans cette annulation, une lecture partie avant le geste peut revenir
-      // après et réécrire la liste telle qu'elle était : la pastille se
-      // rallumait toute seule une fraction de seconde plus tard.
+      // Without this cancellation, a read sent before the gesture can come back
+      // after it and rewrite the list as it was: the chip lit up again by
+      // itself a fraction of a second later.
       await qc.cancelQueries({ queryKey: keys.noteTags })
       const previous = qc.getQueryData<NoteTag[]>(keys.noteTags)
       if (previous) qc.setQueryData<NoteTag[]>(keys.noteTags, apply(previous, noteId, tagId, on))
     },
     /**
-     * On défait ce geste-ci, et rien d'autre.
+     * We undo this gesture, and nothing else.
      *
-     * Restaurer l'instantané pris avant la mutation annulerait au passage les
-     * gestes voisins encore en vol — ce qui reproduirait, par une autre porte,
-     * le bug que ce delta corrige.
+     * Restoring the snapshot taken before the mutation would also cancel the
+     * neighbouring gestures still in flight — which would bring back, through
+     * another door, the bug this delta fixes.
      */
     onError: (_err, { noteId, tagId, on }) => {
       const current = qc.getQueryData<NoteTag[]>(keys.noteTags)

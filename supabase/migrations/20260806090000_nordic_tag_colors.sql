@@ -1,31 +1,30 @@
--- Passage de la palette de tags au registre nordique.
+-- Moving the tag palette to the Nordic register.
 --
--- Les dix teintes changent de nom en même temps qu'elles changent de valeur
--- dans src/ui/theme.ts. La base ne stocke que la clé, jamais l'hexadécimal :
--- c'est donc ici, et seulement ici, qu'il y a quelque chose à faire côté données.
+-- The ten hues change name at the same time as they change value in
+-- src/ui/theme.ts. The database only stores the key, never the hexadecimal: so
+-- it is here, and only here, that there is anything to do on the data side.
 --
--- `alter type ... rename value` renomme l'étiquette d'une valeur d'énumération
--- sans toucher aux lignes. Aucune table n'est réécrite, aucun index n'est
--- reconstruit, et les valeurs déjà stockées suivent le nouveau nom : un tag
--- créé en « ocre » se lit désormais « ambre », c'est la même entrée. Une
--- migration en deux temps (ajouter les nouvelles valeurs, mettre à jour les
--- lignes, retirer les anciennes) serait plus longue, plus risquée, et
--- inutilisable ici puisque PostgreSQL ne sait pas supprimer une valeur d'enum.
+-- `alter type ... rename value` renames an enum value's label without touching
+-- the rows. No table is rewritten, no index is rebuilt, and the values already
+-- stored follow the new name: a tag created as 'ocre' now reads 'ambre', it is
+-- the same entry. A two-step migration (add the new values, update the rows,
+-- remove the old ones) would be longer, riskier, and unusable here since
+-- PostgreSQL cannot drop an enum value.
 --
--- Le défaut de tags.color_key suit automatiquement : il pointe sur l'entrée
--- d'énumération, pas sur son texte. 'silex' devenu 'fer', le défaut est 'fer'.
+-- The default of tags.color_key follows automatically: it points to the enum
+-- entry, not to its text. With 'silex' turned into 'fer', the default is 'fer'.
 --
--- Correspondance, dans l'ordre de déclaration du type :
---   ocre       -> ambre      l'ambre de la Baltique
---   oxyde      -> braise     la forge
---   grenat     -> airelle    la baie rouge des sous-bois du Nord
---   amethyste  -> bruyere    la lande
---   ardoise    -> fjord      l'eau froide
---   malachite  -> aurore     l'aurore boréale, teinte de l'accent
---   mousse     -> lichen     ce qui pousse sur la pierre
---   silex      -> fer        le métal, teinte neutre et défaut
---   craie      -> bouleau    l'écorce claire
---   basalte    -> granit     la roche du socle
+-- Mapping, in the type's declaration order:
+--   ocre       -> ambre      Baltic amber
+--   oxyde      -> braise     the forge's ember
+--   grenat     -> airelle    the red lingonberry of northern undergrowth
+--   amethyste  -> bruyere    the heath's heather
+--   ardoise    -> fjord      cold water
+--   malachite  -> aurore     the northern lights, the accent's hue
+--   mousse     -> lichen     what grows on stone
+--   silex      -> fer        iron, the neutral hue and the default
+--   craie      -> bouleau    the pale birch bark
+--   basalte    -> granit     the bedrock's granite
 
 alter type tag_color rename value 'ocre' to 'ambre';
 alter type tag_color rename value 'oxyde' to 'braise';

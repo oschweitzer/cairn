@@ -10,17 +10,17 @@ import { Tooltip } from './Tooltip'
 import { radius, space } from './theme'
 
 /**
- * Carte de note ou de liste dans la grille.
+ * A note or list card in the grid.
  *
- * Sur la couleur de note, écart assumé par rapport à Google Keep. Keep peint tout
- * le fond de la carte. Impossible ici : la palette de tags est faite de teintes
- * de valeur moyenne, calibrées pour des puces et des bordures à 3:1, pas pour
- * porter du texte par-dessus. Les utiliser en fond ferait tomber le contraste du
- * texte sous les seuils que le reste du thème respecte.
+ * On note colour, a deliberate departure from Google Keep. Keep paints the whole
+ * card background. Impossible here: the tag palette is made of mid-value hues,
+ * calibrated for chips and borders at 3:1, not for carrying text on top. Using
+ * them as a background would drop text contrast below the thresholds the rest
+ * of the theme meets.
  *
- * La couleur passe donc par la bordure et par une veine verticale sur le bord
- * gauche. C'est aussi plus juste dans le langage de la pierre, un filon dans la
- * roche plutôt qu'un bloc teinté, et le texte reste sur la strate neutre.
+ * So the colour goes through the border and a vertical vein on the left edge.
+ * It is also truer to the language of stone, a seam in the rock rather than a
+ * tinted block, and the text stays on the neutral stratum.
  */
 
 const PREVIEW_ITEMS = 5
@@ -35,29 +35,28 @@ export function NoteCard({
   reserveHandle = false,
 }: {
   note: NoteWithRelations
-  /** Ouvre la note, ou bascule sa sélection si le mode sélection est actif. */
+  /** Opens the note, or toggles its selection if selection mode is on. */
   onPress: () => void
   onTogglePin: () => void
-  /** Entrée dans le mode sélection. */
+  /** Entering selection mode. */
   onLongPress?: () => void
   selectionMode?: boolean
   selected?: boolean
   /**
-   * Laisse la place d'une poignée de déplacement en haut à gauche.
+   * Leaves room for a drag handle at the top left.
    *
-   * La poignée est posée par la grille, qui ne connaît pas le contenu des
-   * cartes : sans cette réserve, elle se poserait sur le titre. C'est donc la
-   * carte qui creuse la marge, comme elle le fait déjà à droite pour le bouton
-   * d'épinglage.
+   * The handle is placed by the grid, which does not know the cards' content:
+   * without this reserve, it would sit on the title. So the card is what makes
+   * the margin, as it already does on the right for the pin button.
    */
   reserveHandle?: boolean
 }) {
   const { theme, tagColor } = useTheme()
   const vein = note.color_key ? tagColor(note.color_key) : null
 
-  // Une note du coffre montre son nom de code, jamais son titre. Une note du
-  // coffre sans nom de code ne montre rien : c'est le seul repli qui ne laisse
-  // pas fuir ce que le coffre est censé cacher.
+  // A vault note shows its code name, never its title. A vault note without a
+  // code name shows nothing: it is the only fallback that does not leak what
+  // the vault is meant to hide.
   const heading = displayTitle(note)
   const empty = isEmptyNote(note)
 
@@ -94,30 +93,30 @@ export function NoteCard({
   const doneCount = note.items.filter((i) => i.is_done).length
 
   /**
-   * Le conteneur est une View, pas un Pressable, et le bouton d'épinglage est un
-   * frère du corps cliquable plutôt que son enfant.
+   * The container is a View, not a Pressable, and the pin button is a sibling
+   * of the clickable body rather than its child.
    *
-   * Ce n'est pas un détail de style : react-native-web rend chaque Pressable en
-   * `<button>`, et un bouton imbriqué dans un bouton est du HTML invalide qui
-   * casse l'hydratation de la PWA. Deux frères superposés donnent le même geste
-   * sans le défaut.
+   * It is not a styling detail: react-native-web renders every Pressable as a
+   * `<button>`, and a button nested inside a button is invalid HTML that breaks
+   * the PWA's hydration. Two overlapping siblings give the same gesture without
+   * the defect.
    */
   return (
     <View
       style={{
         borderRadius: radius.lg,
-        // Une carte sélectionnée prend l'accent, y compris quand elle porte déjà
-        // une veine colorée : l'état de sélection doit primer sur la décoration.
+        // A selected card takes the accent, even when it already carries a
+        // coloured vein: the selection state must win over decoration.
         borderWidth: selected ? 2 : 1,
         borderColor: selected ? theme.accent.default : (vein ?? theme.line.hairline),
-        // overflow caché pour que la veine soit rognée par le rayon d'angle.
+        // Overflow hidden so the vein is clipped by the corner radius.
         overflow: 'hidden',
       }}
     >
       {vein ? (
         <View
-          // Décorative : la couleur est déjà portée par la bordure, et un
-          // lecteur d'écran n'a rien à annoncer ici.
+          // Decorative: the colour is already carried by the border, and a
+          // screen reader has nothing to announce here.
           accessibilityElementsHidden
           importantForAccessibility="no"
           style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: vein, zIndex: 1 }}
@@ -130,8 +129,8 @@ export function NoteCard({
         accessibilityState={selectionMode ? { checked: selected } : undefined}
         onPress={onPress}
         onLongPress={onLongPress}
-        // Assez long pour ne pas se déclencher sur un défilement, assez court pour
-        // ne pas donner l'impression que rien ne se passe.
+        // Long enough not to fire on a scroll, short enough not to feel like
+        // nothing is happening.
         delayLongPress={350}
         style={({ pressed }) => ({
           backgroundColor: selected
@@ -140,8 +139,8 @@ export function NoteCard({
               ? theme.surface.raised
               : theme.surface.card,
           padding: space.md,
-          // Réserve la place des deux commandes qui flottent par-dessus la
-          // carte : la poignée de déplacement à gauche, l'épingle à droite.
+          // Reserves room for the two controls floating over the card: the drag
+          // handle on the left, the pin on the right.
           paddingLeft: (vein ? space.md + 4 : space.md) + (reserveHandle ? 26 : 0),
           paddingRight: space.md + 28,
           gap: space.sm,
@@ -154,11 +153,11 @@ export function NoteCard({
             </Txt>
           ) : placeholder ? (
             /**
-             * Sans ce repère, une note sans aucun contenu se réduit à une lamelle
-             * de la hauteur de son padding, où l'icône d'épinglage dépasse même
-             * du bord. L'éditeur écarte normalement les notes restées vides en
-             * sortant, mais une note vide peut arriver d'un autre appareil ou
-             * d'une session interrompue : elle doit rester lisible et cliquable.
+             * Without this marker, a note with no content at all shrinks to a
+             * sliver the height of its padding, where the pin icon even sticks
+             * out past the edge. The editor normally discards notes left empty
+             * on the way out, but an empty note can arrive from another device
+             * or an interrupted session: it must stay readable and clickable.
              */
             <Txt variant="title" tone="muted">
               {placeholder}
@@ -172,13 +171,13 @@ export function NoteCard({
         </View>
 
         {/**
-         * L'aperçu est rendu mis en forme, mais ses liens ne s'ouvrent pas.
+         * The preview is rendered formatted, but its links do not open.
          *
-         * Ce n'est pas un oubli : la carte est elle-même un `Pressable`, que
-         * react-native-web rend en `<button>`. Un lien cliquable dedans serait
-         * une ancre dans un bouton, du HTML invalide qui casse l'hydratation de
-         * la PWA — exactement l'écueil documenté plus haut sur le bouton
-         * d'épinglage. Toucher la carte ouvre la note, où le lien s'ouvre.
+         * It is not an oversight: the card is itself a `Pressable`, which
+         * react-native-web renders as a `<button>`. A clickable link inside
+         * would be an anchor in a button, invalid HTML that breaks the PWA's
+         * hydration — exactly the pitfall documented above on the pin button.
+         * Touching the card opens the note, where the link opens.
          */}
         {!hidden && note.kind === 'note' && note.body ? (
           <RichText source={note.body} numberOfLines={8} tone="secondary" />
@@ -188,8 +187,8 @@ export function NoteCard({
           <View style={{ gap: space.xs }}>
             {shown.map((item) => (
               <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-                {/* Non interactif dans la grille, volontairement : cocher ici
-                    se confondrait avec l'ouverture de la note. */}
+                {/* Not interactive in the grid, on purpose: ticking here would
+                    be confused with opening the note. */}
                 <View
                   style={{
                     width: 13,
@@ -244,11 +243,11 @@ export function NoteCard({
       </Pressable>
 
       {/**
-       * En mode sélection, la pastille de sélection remplace le bouton
-       * d'épinglage. Deux raisons : l'épinglage se fait alors depuis la barre
-       * d'actions sur toute la sélection, et un bouton actif au milieu de cartes
-       * devenues des cases à cocher serait ambigu. C'est un simple repère, pas un
-       * Pressable, la carte entière étant déjà la cible.
+       * In selection mode, the selection dot replaces the pin button. Two
+       * reasons: pinning is then done from the action bar on the whole
+       * selection, and an active button in the middle of cards turned into
+       * checkboxes would be ambiguous. It is a mere marker, not a Pressable, the
+       * whole card already being the target.
        */}
       {selectionMode ? (
         <View
@@ -272,9 +271,9 @@ export function NoteCard({
           {selected ? <Feather name="check" size={14} color={theme.text.onAccent} /> : null}
         </View>
       ) : (
-        /* Frère du corps, pas enfant : voir le commentaire sur le conteneur.
-           C'est l'enveloppe d'infobulle qui porte le placement, le bouton se
-           contentant de remplir la case qu'elle lui donne. */
+        /* A sibling of the body, not a child: see the comment on the container.
+           The tooltip wrapper is what carries the placement, the button merely
+           filling the cell it is given. */
         <Tooltip
           label={note.is_pinned ? 'Désépingler' : 'Épingler'}
           style={{ position: 'absolute', top: space.sm, right: space.sm, zIndex: 2 }}
@@ -284,8 +283,8 @@ export function NoteCard({
             accessibilityLabel={note.is_pinned ? 'Désépingler' : 'Épingler'}
             accessibilityState={{ selected: note.is_pinned }}
             onPress={onTogglePin}
-            // Glyphe discret, zone tactile élargie par hitSlop : le geste reste
-            // confortable sans alourdir la carte visuellement.
+            // A discreet glyph, a touch area widened by hitSlop: the gesture
+            // stays comfortable without weighing the card down visually.
             hitSlop={space.md}
             style={{
               width: 32,
@@ -307,27 +306,27 @@ export function NoteCard({
 }
 
 /**
- * Hauteur approximative d'une carte, en unités arbitraires. Sert uniquement à
- * répartir les cartes entre les colonnes de la grille.
+ * Approximate height of a card, in arbitrary units. Only used to distribute the
+ * cards across the grid's columns.
  *
- * Une vraie mesure demanderait un rendu en deux passes et ferait scintiller la
- * grille au chargement. Une estimation suffit : l'erreur se traduit par des
- * colonnes légèrement inégales, ce qui est sans conséquence.
+ * A real measurement would take a two-pass render and make the grid flicker on
+ * load. An estimate is enough: the error shows up as slightly uneven columns,
+ * which is of no consequence.
  */
 export function estimateCardHeight(note: NoteWithRelations): number {
   const heading = displayTitle(note)
   let height = 40
-  // Le repère « Note vide » — ou « Contenu masqué » — occupe la place d'un titre
-  // d'une ligne.
+  // The « Note vide » — or « Contenu masqué » — marker takes the room of a
+  // one-line title.
   if (!heading && (isEmptyNote(note) || note.hide_content)) height += 24
   if (heading) height += Math.min(2, Math.ceil(heading.length / 24)) * 24
-  // Un contenu masqué n'est pas dessiné : le compter donnerait à la grille une
-  // colonne de trous, la carte occupant la place d'un texte qu'elle ne montre pas.
+  // Masked content is not drawn: counting it would give the grid a column of
+  // holes, the card taking the room of text it does not show.
   if (!note.hide_content) {
     if (note.kind === 'note' && note.body) {
-      // Sur le texte sans son balisage : `**gras**` compte quatre caractères de
-      // trop, et une note très marquée se croyait deux fois plus haute qu'elle
-      // n'est, ce qui déséquilibrait les colonnes de la grille.
+      // On the text without its markup: `**bold**` counts four characters too
+      // many, and a heavily marked-up note thought itself twice as tall as it
+      // is, which unbalanced the grid's columns.
       height += Math.min(8, Math.ceil(plainText(note.body).length / 32)) * 24
     }
     if (note.kind === 'checklist') {

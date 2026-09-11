@@ -2,29 +2,29 @@ import * as Crypto from 'expo-crypto'
 import { countInRange, splitHash } from './pwnedLogic'
 
 /**
- * Contrôle d'un mot de passe contre les fuites publiques connues.
+ * Checking a password against known public leaks.
  *
- * Supabase propose la même chose derrière un interrupteur, mais réservé au plan
- * payant. Le service qu'il interroge — l'API Pwned Passwords de
- * HaveIBeenPwned — est lui gratuit et sans clé : on l'appelle donc directement,
- * avec le même protocole de k-anonymat. Voir pwnedLogic.ts pour ce qui sort
- * réellement de l'appareil, c'est-à-dire cinq caractères d'empreinte.
+ * Supabase offers the same thing behind a switch, but reserved for the paid
+ * plan. The service it queries — HaveIBeenPwned's Pwned Passwords API — is free
+ * and keyless: so we call it directly, with the same k-anonymity protocol. See
+ * pwnedLogic.ts for what actually leaves the device, that is five characters of
+ * a hash.
  *
- * ── L'échec est ouvert, délibérément ────────────────────────────────────────
- * Service injoignable, hors ligne, réponse illisible : on rend zéro, donc on
- * accepte. Refuser une inscription parce qu'un tiers ne répond pas serait plus
- * nuisible que le risque couvert — on empêcherait quelqu'un de créer son compte
- * pour un mot de passe qui n'a peut-être jamais fuité.
+ * ── Failure is open, deliberately ────────────────────────────────────────────
+ * Service unreachable, offline, unreadable response: we return zero, so we
+ * accept. Refusing a sign-up because a third party does not answer would do more
+ * harm than the risk covered — it would stop someone from creating their account
+ * over a password that may never have leaked.
  */
 
 const ENDPOINT = 'https://api.pwnedpasswords.com/range/'
 
-/** Au-delà, on considère que le service ne répondra pas et on passe outre. */
+/** Beyond this, we assume the service will not answer and move on. */
 const TIMEOUT_MS = 4000
 
 /**
- * Nombre de fuites connues pour ce mot de passe. Zéro s'il est inconnu des
- * listes, ou si le contrôle n'a pas pu aboutir.
+ * Number of known leaks for this password. Zero if the lists do not know it, or
+ * if the check could not complete.
  */
 export async function pwnedCount(password: string): Promise<number> {
   if (!password) return 0
@@ -34,17 +34,17 @@ export async function pwnedCount(password: string): Promise<number> {
     const parts = splitHash(digest)
     if (!parts) return 0
 
-    // Le minuteur est indispensable : `fetch` n'abandonne pas de lui-même, et
-    // une requête suspendue retiendrait le formulaire d'inscription.
+    // The timer is essential: `fetch` does not give up by itself, and a hanging
+    // request would hold the sign-up form back.
     const abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), TIMEOUT_MS)
 
     try {
       const response = await fetch(`${ENDPOINT}${parts.prefix}`, {
         signal: abort.signal,
-        // Le rembourrage uniformise la taille des réponses, pour qu'un
-        // observateur du trafic ne puisse rien déduire de leur poids. Il ajoute
-        // des lignes à compte nul, que `countInRange` écarte.
+        // Padding evens out the size of responses, so a traffic observer can
+        // infer nothing from their weight. It adds zero-count lines, which
+        // `countInRange` discards.
         headers: { 'Add-Padding': 'true' },
       })
       if (!response.ok) return 0
@@ -58,9 +58,9 @@ export async function pwnedCount(password: string): Promise<number> {
 }
 
 /**
- * Formule le refus. Le nombre est donné parce qu'il fait la différence entre
- * « c'est théorique » et « ce mot de passe circule » : à des millions
- * d'occurrences, il est dans le premier dictionnaire venu.
+ * Words the refusal. The number is given because it makes the difference
+ * between "it is theoretical" and "this password is out there": at millions of
+ * occurrences, it is in the first dictionary that comes along.
  */
 export function pwnedMessage(count: number): string {
   const fois = count.toLocaleString('fr-FR')

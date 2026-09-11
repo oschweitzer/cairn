@@ -1,16 +1,15 @@
 /**
- * Panneau d'envoi d'une note vers Google Agenda.
+ * Panel for sending a note to Google Calendar.
  *
- * Il ne s'ouvre que sur une note exportable : ni chiffrée, ni rangée dans le
- * coffre. L'écran de note masque déjà le bouton dans ces cas, mais ce composant
- * ne s'en remet pas à son appelant — voir `raisonIndisponible`.
+ * It only opens on an exportable note: neither encrypted nor filed in the
+ * vault. The note screen already hides the button in those cases, but this
+ * component does not rely on its caller — see `raisonIndisponible`.
  *
- * Aucun sélecteur natif : des champs de chiffres et des pastilles. Ajouter un
- * module natif de date obligerait à reconstruire l'APK pour une saisie que ces
- * champs couvrent, et ferait entrer dans le projet une dépendance native de
- * plus. La date et l'heure ont en revanche leur propre composant, parce qu'un
- * champ libre y demandait un « / » et un « : » que le clavier numérique ne
- * donne pas.
+ * No native picker: digit fields and chips. Adding a native date module would
+ * mean rebuilding the APK for an input these fields already cover, and would
+ * bring one more native dependency into the project. The date and the time do
+ * get their own component, though, because a free field there asked for a "/"
+ * and a ":" the numeric keypad does not provide.
  */
 
 import { useMemo, useState } from 'react'
@@ -36,7 +35,7 @@ import {
   prochainCreneau,
 } from '../google/creneau'
 
-/** Étiquette lisible d'une durée en minutes. */
+/** Readable label for a duration in minutes. */
 function libelleDuree(minutes: number): string {
   if (minutes < 60) return `${minutes} min`
   const heures = minutes / 60
@@ -49,7 +48,7 @@ export function AgendaPanel({
   onFerme,
 }: {
   noteId: string
-  /** Vraie si la note est chiffrée ou rangée dans le coffre. */
+  /** True if the note is encrypted or filed in the vault. */
   noteProtegee: boolean
   onFerme: () => void
 }) {
@@ -68,11 +67,11 @@ export function AgendaPanel({
   const lecture = lireCreneau(date, heure, duree)
 
   /**
-   * Pourquoi l'envoi est impossible, ou null s'il ne l'est pas.
+   * Why sending is impossible, or null if it is not.
    *
-   * Une seule raison affichée, la plus en amont : proposer de se connecter à
-   * Google alors que la note ne partira de toute façon pas ferait faire une
-   * autorisation pour rien.
+   * A single reason shown, the furthest upstream: offering to connect to Google
+   * when the note will not be sent anyway would make people grant an
+   * authorisation for nothing.
    */
   const raisonIndisponible = noteProtegee
     ? 'Une note chiffrée ou rangée dans le coffre ne part pas vers Google. C’est ce que le chiffrement promet.'
@@ -118,9 +117,9 @@ export function AgendaPanel({
 
   return (
     <View style={{ gap: space.sm }}>
-      {/* Raccourcis de jour. Ils écrivent dans le champ plutôt que de le
-          remplacer par un état séparé : ce qui est affiché reste modifiable
-          à la main, et il n'y a qu'une source de vérité. */}
+      {/* Day shortcuts. They write into the field rather than replacing it with
+          separate state: what is displayed stays editable by hand, and there is
+          a single source of truth. */}
       <View style={{ flexDirection: 'row', gap: space.xs, flexWrap: 'wrap' }}>
         {[
           { label: 'Aujourd’hui', jours: 0 },
@@ -180,9 +179,9 @@ export function AgendaPanel({
         </View>
       </View>
 
-      {/* Ce qui partira, écrit en toutes lettres. « 12/08 14:00 » se relit mal
-          quand on vient de taper des chiffres ; « mardi 12 août » se vérifie
-          d'un coup d'œil, et c'est là qu'on voit qu'on s'est trompé de jour. */}
+      {/* What will be sent, spelled out. « 12/08 14:00 » is hard to reread
+          right after typing digits; « mardi 12 août » is checked at a glance,
+          and that is where you notice you picked the wrong day. */}
       <Txt variant="caption" tone={lecture.ok ? 'muted' : 'danger'}>
         {lecture.ok ? decrireCreneau(lecture.creneau) : lecture.erreur}
       </Txt>
@@ -217,11 +216,11 @@ export function AgendaPanel({
 }
 
 /**
- * Bouton d'ouverture du panneau, pour la barre basse de l'écran de note.
+ * Button opening the panel, for the note screen's bottom bar.
  *
- * Exporté d'ici plutôt que déclaré dans l'écran : la règle qui décide de sa
- * présence est la même que celle du panneau, et deux endroits la rendraient
- * divergente au premier changement.
+ * Exported from here rather than declared in the screen: the rule deciding
+ * whether it shows is the same as the panel's, and two places would make it
+ * diverge at the first change.
  */
 export function AgendaBouton({
   actif,
@@ -232,8 +231,9 @@ export function AgendaBouton({
   noteProtegee: boolean
   onPress: () => void
 }) {
-  // Masqué, pas grisé. Un bouton grisé invite à chercher comment l'activer ;
-  // ici il n'y a rien à activer, la note ne partira jamais par construction.
+  // Hidden, not greyed out. A greyed-out button invites people to look for how
+  // to enable it; here there is nothing to enable, the note will never be sent
+  // by construction.
   if (noteProtegee) return null
 
   return (

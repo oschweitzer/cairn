@@ -12,11 +12,11 @@ import { RuneLoader } from '@/ui/RuneLoader'
 import { radius, space } from '@/ui/theme'
 
 /**
- * Corbeille. Volontairement une liste plate et non la grille : ici on ne
- * parcourt pas du contenu, on décide de restaurer ou de détruire. Les actions
- * comptent plus que l'aperçu.
+ * Trash. Deliberately a flat list and not the grid: here you do not browse
+ * content, you decide to restore or to destroy. The actions matter more than
+ * the preview.
  *
- * Cette vue n'est pas persistée dans le cache disque, comme le coffre.
+ * This view is not persisted in the disk cache, like the vault.
  */
 export default function Trash() {
   const { theme } = useTheme()
@@ -147,7 +147,7 @@ function Action({
   label: string
   onPress: () => void
   tone?: 'default' | 'danger'
-  /** Sans flex, pour un bouton posé dans une ligne d'en-tête. */
+  /** Without flex, for a button set in a header row. */
   compact?: boolean
 }) {
   const { theme } = useTheme()

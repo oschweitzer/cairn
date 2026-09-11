@@ -2,18 +2,18 @@ import { ScrollViewStyleReset } from 'expo-router/html'
 import type { PropsWithChildren } from 'react'
 
 /**
- * Document HTML de la PWA. Rendu à la compilation lors de l'export statique,
- * jamais côté client.
+ * The PWA's HTML document. Rendered at build time during the static export,
+ * never on the client.
  *
- * Son rôle principal ici est d'éliminer le flash de thème inversé. Le bundle
- * React met plusieurs centaines de millisecondes à s'exécuter, et pendant ce
- * temps le navigateur peint le fond par défaut, soit du blanc. Un rechargement
- * en thème sombre donnerait donc un éclair blanc à chaque fois.
+ * Its main role here is to get rid of the inverted-theme flash. The React bundle
+ * takes several hundred milliseconds to run, and meanwhile the browser paints
+ * the default background, which is white. A reload in the dark theme would
+ * therefore flash white every time.
  *
- * Le petit script ci-dessous lit la préférence dans localStorage et pose la
- * couleur de fond avant même le premier octet de bundle. Il doit lire la même clé
- * que src/db/kv.ts, d'où l'accès direct à localStorage plutôt qu'AsyncStorage,
- * qui préfixe ses clés.
+ * The small script below reads the preference from localStorage and sets the
+ * background colour before the first byte of the bundle. It has to read the same
+ * key as src/db/kv.ts, hence direct localStorage access rather than AsyncStorage,
+ * which prefixes its keys.
  */
 
 const theme = require('../generated/theme.json') as {
@@ -48,8 +48,8 @@ html, body {
   margin: 0;
   padding: 0;
 }
-/* Le fond doit couvrir toute la fenêtre même quand le contenu est plus court,
-   sinon un rebond de défilement révèle le blanc du navigateur. */
+/* The background must cover the whole window even when the content is shorter,
+   otherwise a scroll bounce reveals the browser's white. */
 body { min-height: 100%; overscroll-behavior-y: none; }
 #root { display: flex; flex-direction: column; min-height: 100%; }
 `.trim()
@@ -65,11 +65,11 @@ export default function Document({ children }: PropsWithChildren) {
           content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
         />
         <meta name="description" content="Notes et listes, réunies." />
-        {/* Teinte de la barre d'adresse mobile, par thème système. */}
+        {/* Tint of the mobile address bar, per system theme. */}
         <meta name="theme-color" content={DARK_PAGE} media="(prefers-color-scheme: dark)" />
         <meta name="theme-color" content={LIGHT_PAGE} media="(prefers-color-scheme: light)" />
 
-        {/* Neutralise le défilement du body imposé par react-native-web. */}
+        {/* Neutralises the body scrolling imposed by react-native-web. */}
         <ScrollViewStyleReset />
 
         <style dangerouslySetInnerHTML={{ __html: theme.css }} />

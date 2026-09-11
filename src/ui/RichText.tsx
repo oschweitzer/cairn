@@ -5,29 +5,29 @@ import { useTheme } from './ThemeProvider'
 import { fonts, space, type } from './theme'
 
 /**
- * Affiche le texte d'une note, mis en forme, liens compris.
+ * Displays a note's text, formatted, links included.
  *
- * Le découpage vit dans src/text/markup.ts, où il est testé sous Node. Ce
- * composant ne fait que traduire des fragments en styles — c'est délibéré : la
- * partie fragile est l'analyse, pas le rendu, et elle n'a aucune raison
- * d'exiger un arbre React pour être vérifiée.
+ * The parsing lives in src/text/markup.ts, where it is tested under Node. This
+ * component only translates fragments into styles — on purpose: the fragile
+ * part is the parsing, not the rendering, and it has no reason to require a
+ * React tree to be checked.
  *
- * ── Deux modes, et la différence n'est pas cosmétique ────────────────────────
- * En aperçu — sur une carte de la grille — tout est rendu dans un seul `Text`
- * tronqué à N lignes. Les liens y sont teintés mais **pas cliquables**, et c'est
- * une contrainte, pas un oubli : la carte est déjà un `Pressable`, que
- * react-native-web rend en `<button>`. Un lien cliquable à l'intérieur serait un
- * bouton dans un bouton, du HTML invalide qui casse l'hydratation de la PWA —
- * le même écueil que celui documenté sur le bouton d'épinglage de la carte.
- * Toucher la carte ouvre la note, où le lien est cliquable.
+ * ── Two modes, and the difference is not cosmetic ────────────────────────────
+ * In preview — on a grid card — everything is rendered in a single `Text`
+ * truncated to N lines. Links are tinted there but **not clickable**, and that
+ * is a constraint, not an oversight: the card is already a `Pressable`, which
+ * react-native-web renders as a `<button>`. A clickable link inside would be a
+ * button within a button, invalid HTML that breaks the PWA's hydration — the
+ * same pitfall as the one documented on the card's pin button. Touching the
+ * card opens the note, where the link is clickable.
  *
- * En lecture pleine — dans l'éditeur — chaque bloc est rendu à part, les titres
- * prennent leur taille, les puces leur retrait, et les liens s'ouvrent.
+ * In full reading — in the editor — each block is rendered separately, headings
+ * take their size, bullets their indent, and links open.
  */
 
 export function RichText({
   source,
-  /** Tronque à ce nombre de lignes et rend tout d'un bloc. Mode aperçu. */
+  /** Truncates to this number of lines and renders everything as one block. Preview mode. */
   numberOfLines,
   tone = 'primary',
   style,
@@ -59,9 +59,9 @@ export function RichText({
               <Text
                 key={i}
                 style={[
-                  // Un titre garde sa graisse mais pas sa taille : dans un aperçu
-                  // tronqué à huit lignes, une ligne deux fois plus haute coûte
-                  // deux lignes de contenu, et la carte dit moins de la note.
+                  // A heading keeps its weight but not its size: in a preview
+                  // truncated to eight lines, a line twice as tall costs two
+                  // lines of content, and the card says less about the note.
                   block.level > 0 ? { fontFamily: fonts.serifMedium } : null,
                   spanStyle(span, theme.accent.default),
                 ]}
@@ -105,8 +105,8 @@ function BlockLine({
       {block.spans.map((span, i) => (
         <Inline key={i} span={span} accent={accent} />
       ))}
-      {/* Une ligne vide doit occuper une ligne. Sans cette espace insécable,
-          `Text` vide se réduit à zéro et l'aération de la note disparaît. */}
+      {/* An empty line must take up a line. Without this non-breaking space, an
+          empty `Text` shrinks to zero and the note's breathing room disappears. */}
       {block.spans.length === 0 ? ' ' : null}
     </Text>
   )
@@ -128,18 +128,18 @@ function Inline({ span, accent }: { span: Span; accent: string }) {
   return (
     <Text
       accessibilityRole="link"
-      // `href` en plus de `onPress` : sur le web, react-native-web en fait une
-      // vraie ancre, donc l'adresse s'affiche au survol, le clic du milieu
-      // ouvre un onglet, et le lien se copie par le menu contextuel. Un simple
-      // gestionnaire de pression donnerait un texte qui réagit au clic, ce qui
-      // n'est pas la même chose qu'un lien.
+      // `href` on top of `onPress`: on the web, react-native-web turns it into
+      // a real anchor, so the address shows on hover, middle-click opens a tab,
+      // and the link can be copied from the context menu. A mere press handler
+      // would give text that reacts to clicks, which is not the same thing as a
+      // link.
       //
-      // `hrefAttrs` et non `target` posé à plat : react-native-web ne recopie
-      // dans l'ancre que ce qui passe par là, un `target` en propriété directe
-      // est ignoré sans bruit. `noreferrer` va avec l'ouverture dans un onglet :
-      // sans lui, la page ouverte garde une poignée sur celle qui l'a ouverte.
-      // Ces propriétés n'existent pas dans les types de React Native, d'où la
-      // conversion — elles sont propres au rendu web.
+      // `hrefAttrs` and not a flat `target`: react-native-web only copies into
+      // the anchor what goes through there, a `target` as a direct prop is
+      // silently ignored. `noreferrer` goes with opening in a tab: without it,
+      // the opened page keeps a handle on the one that opened it. These props do
+      // not exist in the React Native types, hence the cast — they are specific
+      // to web rendering.
       {...(Platform.OS === 'web'
         ? ({
             href,
@@ -157,19 +157,19 @@ function Inline({ span, accent }: { span: Span; accent: string }) {
 }
 
 /**
- * Style d'un fragment.
+ * A fragment's style.
  *
- * Le gras passe par la police et non par `fontWeight` : Junicode est chargée en
- * deux fichiers, et demander une graisse que la famille n'expose pas donne un
- * gras synthétique, plus épais et moins net que le vrai.
+ * Bold goes through the font and not through `fontWeight`: Junicode is loaded
+ * as two files, and asking for a weight the family does not expose gives a
+ * synthetic bold, thicker and less crisp than the real one.
  *
- * L'italique, lui, est bien synthétique — il n'y a pas de fichier pour. C'est
- * assumé : une oblique calculée reste lisible comme de l'italique, alors qu'un
- * gras calculé sur un serif à empattements fins bave.
+ * Italic, on the other hand, is synthetic — there is no file for it. That is
+ * deliberate: a computed oblique still reads as italic, whereas a computed bold
+ * on a serif with fine serifs smears.
  */
 function spanStyle(span: Span, accent: string): TextStyle {
-  // Une seule propriété porte toutes les décorations : les cumuler dans la même
-  // chaîne est la seule façon d'avoir un lien barré qui reste souligné.
+  // A single property carries every decoration: combining them in the same
+  // string is the only way to get a struck-through link that stays underlined.
   const decorations = [
     span.underline || span.href ? 'underline' : null,
     span.strike ? 'line-through' : null,

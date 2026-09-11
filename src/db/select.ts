@@ -24,29 +24,29 @@ import {
 } from './noteLogic'
 
 /**
- * Hooks de lecture. Ils ne font que brancher les quatre requêtes à plat sur la
- * logique pure de src/db/noteLogic.ts, laquelle est testée sous Node par
- * `npm run test:logic`.
+ * Read hooks. All they do is plug the four flat queries into the pure logic of
+ * src/db/noteLogic.ts, which is tested under Node by `npm run test:logic`.
  *
- * Le filtrage vit côté client et pas dans les requêtes parce qu'une note archivée
- * et une note active partagent la même entrée de cache : basculer entre les vues
- * ne doit provoquer aucun aller-retour réseau.
+ * Filtering lives on the client and not in the queries because an archived note
+ * and an active note share the same cache entry: switching between views must
+ * not cause any network round trip.
  */
 
 export type { NoteView, NoteWithRelations }
 
 /**
- * Ouvre ce qui est chiffré, à la frontière entre la base et l'interface.
+ * Opens what is encrypted, at the border between the database and the
+ * interface.
  *
- * Un seul endroit pour tout le déchiffrement en lecture, et c'est délibéré :
- * dispersé dans les écrans, il suffirait d'un oubli pour afficher un chiffré
- * hexadécimal à la place d'un titre. En amont de `composeNotes`, tout ce qui
- * vit au-dessus manipule du texte lisible et n'a plus rien à savoir du coffre.
+ * A single place for all decryption on read, and that is deliberate: spread
+ * across screens, one oversight would be enough to display hexadecimal
+ * ciphertext in place of a title. Upstream of `composeNotes`, everything living
+ * above handles readable text and needs to know nothing more about the vault.
  *
- * Une note dont le chiffré ne s'ouvre pas — clé absente, contenu altéré — rend
- * un titre et un corps nuls plutôt que de disparaître. Elle reste listée, ce
- * qui est la seule conduite honnête : la faire disparaître laisserait croire
- * qu'elle a été perdue.
+ * A note whose ciphertext does not open — missing key, tampered content —
+ * yields a null title and body rather than disappearing. It stays listed, which
+ * is the only honest course: making it disappear would suggest it had been
+ * lost.
  *
  * ── The key is an input, and it is an invisible one ──────────────────────────
  * This reads more than its argument: `openNote` also reads the data key, which
@@ -83,29 +83,30 @@ function decryptItems(items: ChecklistItem[]): PlainChecklistItem[] {
 }
 
 /**
- * Vrai tant que l'écran n'a rien à montrer et qu'il reste une raison d'attendre.
+ * True as long as the screen has nothing to show and there is still a reason to
+ * wait.
  *
- * `isLoading` de React Query ne suffit pas, et l'écart est piégeux : il vaut
- * `isPending && isFetching`, or pendant la restauration du cache disque les
- * requêtes sont retenues, donc `isFetching` est faux. L'écran se croyait alors
- * chargé alors qu'il n'avait encore rien, et affichait son état vide — « rien
- * d'empilé pour l'instant » — une fraction de seconde avant que les notes
- * n'arrivent. Sur le web, un rechargement de page tombait systématiquement
- * dedans, l'application ouvrant toujours sur un cache à restaurer.
+ * React Query's `isLoading` is not enough, and the gap is a trap: it means
+ * `isPending && isFetching`, and while the disk cache is being restored queries
+ * are held back, so `isFetching` is false. The screen then believed it had
+ * loaded while it had nothing yet, and showed its empty state — « rien
+ * d'empilé pour l'instant » — a fraction of a second before the notes arrived.
+ * On the web, a page reload fell into it every time, the app always opening on a
+ * cache to restore.
  *
- * La condition sur le vide est ce qui garde une revalidation en arrière-plan
- * silencieuse : tant qu'il y a quelque chose à lire, on le laisse à l'écran.
+ * The condition on emptiness is what keeps a background revalidation silent: as
+ * long as there is something to read, it is left on screen.
  *
- * Une requête désactivée — mode démonstration sans projet Supabase — reste
- * `pending` pour toujours sans jamais être en vol : elle n'entre donc dans
- * aucune des deux branches, et l'état vide s'affiche comme il se doit.
+ * A disabled query — demo mode without a Supabase project — stays `pending`
+ * forever without ever being in flight: so it enters neither branch, and the
+ * empty state shows as it should.
  */
 function useAwaitingContent(isLoading: boolean, isEmpty: boolean): boolean {
   const isRestoring = useIsRestoring()
   const { loading: authLoading } = useAuth()
-  // La session compte autant que le cache : une requête partie avant que le
-  // jeton ne soit posé revient avec zéro ligne — RLS fait son travail — et sa
-  // liste vide n'est pas une réponse, c'est une question mal posée.
+  // The session counts as much as the cache: a query sent before the token is
+  // set comes back with zero rows — RLS doing its job — and its empty list is
+  // not an answer, it is a badly asked question.
   return isEmpty && (isRestoring || authLoading || isLoading)
 }
 
@@ -136,21 +137,21 @@ export function useNoteList(options?: { view?: NoteView; tagIds?: string[]; sear
     [notes, itemsQuery.data, linksQuery.data, tagsQuery.data, keyStatus],
   )
 
-  // tagIds arrive souvent comme un littéral recréé à chaque rendu : on le
-  // sérialise pour que le mémo ne se recalcule que sur un vrai changement.
+  // tagIds often arrives as a literal recreated on every render: it is
+  // serialised so the memo only recomputes on a real change.
   const tagKey = tagIds.join(',')
   const visible = useMemo(
     () => filterNotes(all, { view, tagIds: tagKey ? tagKey.split(',') : [], search }),
     [all, view, tagKey, search],
   )
 
-  // La grille n'est vraiment en chargement que si l'on n'a encore rien à
-  // afficher. Une revalidation en arrière-plan ne doit pas vider l'écran.
+  // The grid is only really loading if there is nothing to display yet. A
+  // background revalidation must not empty the screen.
   const isLoading = useAwaitingContent(notesQuery.isLoading, notes.length === 0)
 
   return {
     notes: visible,
-    /** Toutes les notes composées, tous états confondus. Utile aux compteurs. */
+    /** All composed notes, whatever their state. Useful for counters. */
     all,
     isLoading,
     isError: notesQuery.isError,
@@ -161,16 +162,16 @@ export function useNoteList(options?: { view?: NoteView; tagIds?: string[]; sear
 }
 
 /**
- * Notes du coffre, recomposées.
+ * Vault notes, recomposed.
  *
- * Tout est conditionné à `unlocked` : coffre fermé, aucune requête n'est émise
- * et la liste est vide, pas seulement masquée. Les éléments de liste passent par
- * une clé volatile distincte, sans quoi le contenu des notes masquées finirait
- * dans le cache persisté par la bande.
+ * Everything depends on `unlocked`: with the vault closed, no request is sent
+ * and the list is empty, not merely hidden. List items go through a separate
+ * volatile key, otherwise the content of hidden notes would end up in the
+ * persisted cache by the back door.
  *
- * Contrairement à la grille, l'archivage ne filtre pas ici. Le coffre est la
- * réponse à « où sont mes notes cachées », et en écarter une partie selon un
- * état posé ailleurs rendrait la question sans réponse fiable.
+ * Unlike the grid, archiving does not filter here. The vault is the answer to
+ * "where are my hidden notes", and leaving some out based on a state set
+ * elsewhere would leave that question without a reliable answer.
  */
 export function usePrivateNoteList(options?: { search?: string }) {
   const { unlocked, keyStatus } = useVault()
@@ -202,8 +203,8 @@ export function usePrivateNoteList(options?: { search?: string }) {
     return all.filter((note) => matchesSearch(note, needle)).sort(byPinThenOrder)
   }, [all, search])
 
-  // Appelé sans condition : `unlocked &&` en amont court-circuiterait l'appel du
-  // hook, et le nombre de hooks rendus doit être le même à chaque rendu.
+  // Called unconditionally: `unlocked &&` upstream would short-circuit the hook
+  // call, and the number of hooks rendered must be the same on every render.
   const awaiting = useAwaitingContent(notesQuery.isLoading, notes.length === 0)
 
   return {
@@ -218,9 +219,9 @@ export function usePrivateNoteList(options?: { search?: string }) {
 }
 
 /**
- * Corbeille. Pas de recomposition ici : on n'y montre ni cases à cocher ni tags,
- * seulement de quoi décider. Ce hook n'existe que pour que l'écran hérite de la
- * même définition du chargement que les autres, restauration comprise.
+ * Trash. No recomposition here: it shows neither checkboxes nor tags, only
+ * enough to decide. This hook only exists so the screen inherits the same
+ * definition of loading as the others, restoration included.
  */
 export function useTrashedNoteList() {
   const query = useTrashedNotes()
@@ -230,12 +231,12 @@ export function useTrashedNoteList() {
 }
 
 /**
- * Un seul enregistrement, recomposé. Sert à l'éditeur.
+ * A single record, recomposed. Used by the editor.
  *
- * Les deux listes sont consultées, la visible d'abord. L'éditeur n'a pas à
- * savoir d'où vient la note qu'on lui demande, et la liste masquée est de toute
- * façon vide tant que le coffre est fermé : le contrôle d'accès reste au même
- * endroit plutôt que d'être répété dans chaque écran.
+ * Both lists are consulted, the visible one first. The editor does not need to
+ * know where the note it is asked for comes from, and the hidden list is empty
+ * anyway as long as the vault is closed: access control stays in one place
+ * rather than being repeated in every screen.
  */
 export function useNote(id: string | undefined) {
   const { all, isLoading } = useNoteList()
@@ -249,16 +250,16 @@ export function useNote(id: string | undefined) {
   return {
     note,
     /**
-     * L'absence de note ne veut pas dire la même chose selon qu'on a fini de
-     * chercher ou non. Sans cette distinction, l'éditeur ouvert à froid
-     * annonçait « Note introuvable » pendant que la requête était encore en vol,
-     * accusant l'application d'avoir perdu ce qu'elle allait trouver.
+     * A missing note does not mean the same thing depending on whether the
+     * search has finished. Without this distinction, the editor opened cold
+     * announced « Note introuvable » while the query was still in flight,
+     * accusing the app of losing what it was about to find.
      */
     isLoading: !note && (isLoading || hiddenLoading),
   }
 }
 
-/** Nombre de notes par tag, pour la gestion des tags. */
+/** Number of notes per tag, for tag management. */
 export function useTagUsage(): Map<string, number> {
   const { all } = useNoteList()
   return useMemo(() => {

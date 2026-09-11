@@ -44,18 +44,18 @@ import { useToast } from '@/ui/Toast'
 import { appear, reflow, useRise, vanish } from '@/ui/transitions'
 import { radius, space, tagColorKeys, type, type TagColorKey } from '@/ui/theme'
 
-/** Délai avant enregistrement, pour ne pas écrire à chaque frappe. */
+/** Delay before saving, so as not to write on every keystroke. */
 const AUTOSAVE_MS = 600
 
 type Panel = 'none' | 'color' | 'tags' | 'agenda' | 'format'
 
 /**
- * Champ auquel s'applique la mise en forme.
+ * The field the formatting applies to.
  *
- * La barre ne connaît aucun champ : elle nomme un geste, l'écran sait où le
- * porter. Sans cette cible, le même bouton devrait exister deux fois — une pour
- * le corps, une pour l'élément de liste en cours — et se désactiver tout seul
- * selon le focus, ce qui ferait clignoter la barre à chaque changement de champ.
+ * The bar knows no field: it names a gesture, and the screen knows where to
+ * carry it. Without this target, the same button would have to exist twice — one
+ * for the body, one for the list item being edited — and disable itself
+ * depending on focus, which would make the bar flicker at every change of field.
  */
 type Cible = { kind: 'body' } | { kind: 'item'; id: string }
 
@@ -64,12 +64,12 @@ function memeChamp(a: Cible | null, b: Cible): boolean {
   return a.kind === 'body' || a.id === (b as { id: string }).id
 }
 
-/** Un champ de saisie vu depuis le web, où la référence est le nœud DOM. */
+/** A text field seen from the web, where the ref is the DOM node. */
 type ChampWeb = HTMLTextAreaElement | HTMLInputElement
 
 const ECOUTEURS = new WeakMap<ChampWeb, EventListener>()
 
-/** Le nœud DOM derrière un champ, sur le web uniquement. */
+/** The DOM node behind a field, on the web only. */
 function champWeb(champ: TextInput | null): ChampWeb | null {
   if (Platform.OS !== 'web' || !champ) return null
   const noeud = champ as unknown as ChampWeb
@@ -77,36 +77,36 @@ function champWeb(champ: TextInput | null): ChampWeb | null {
 }
 
 /**
- * Fait qu'un Cmd ou Ctrl + clic sur une adresse, dans le champ, l'ouvre.
+ * Makes Cmd or Ctrl + click on an address, inside the field, open it.
  *
- * Le web seulement, et par un écouteur DOM plutôt que par une propriété de
- * `TextInput`, qui n'expose pas le clic. Il n'y a pas de voie plus propre : un
- * champ multiligne devient un `textarea`, et un `textarea` ne contient que du
- * texte nu — ni ancre, ni fragment stylé. On lit donc où le navigateur vient de
- * poser le curseur, et on cherche l'adresse à cet endroit.
+ * Web only, and through a DOM listener rather than a `TextInput` prop, which
+ * does not expose the click. There is no cleaner way: a multiline field becomes
+ * a `textarea`, and a `textarea` holds nothing but plain text — no anchor, no
+ * styled fragment. So we read where the browser has just put the caret, and look
+ * for an address at that spot.
  *
- * Aucun équivalent par appui long sur Android : ce geste appartient au menu de
- * sélection du système dans un champ de texte, et le lui reprendre coûterait le
- * copier-coller. La barre « Ouvrir » sert là, et sert partout.
+ * No long-press equivalent on Android: that gesture belongs to the system's
+ * selection menu in a text field, and taking it back would cost copy and paste.
+ * The « Ouvrir » bar covers it there, and everywhere else.
  */
 function poseOuvreLien(champ: TextInput | null) {
   const el = champWeb(champ)
   if (!el || ECOUTEURS.has(el)) return
-  // `EventListener` et non `(e: MouseEvent) => void` : sur une union de
-  // types d'éléments, TypeScript ne choisit plus la surcharge typée de
-  // `addEventListener`. Le rétrécissement se fait donc ici, une fois.
+  // `EventListener` and not `(e: MouseEvent) => void`: on a union of element
+  // types, TypeScript no longer picks the typed overload of
+  // `addEventListener`. So the narrowing happens here, once.
   const surClic: EventListener = (evenement) => {
     const e = evenement as MouseEvent
-    // Cmd sur macOS, Ctrl ailleurs. Les deux sont acceptés parce qu'ils ne se
-    // marchent pas dessus : sur macOS, Ctrl + clic *est* un clic droit, qui émet
-    // `mousedown` puis `contextmenu` sans jamais émettre `click`. La branche
-    // `ctrlKey` n'y est donc jamais atteinte, et n'y vole aucun menu. Constaté
-    // dans un navigateur, pas supposé.
+    // Cmd on macOS, Ctrl elsewhere. Both are accepted because they do not step
+    // on each other: on macOS, Ctrl + click *is* a right click, which fires
+    // `mousedown` then `contextmenu` without ever firing `click`. The `ctrlKey`
+    // branch is therefore never reached there, and steals no menu. Observed in
+    // a browser, not assumed.
     if (!e.metaKey && !e.ctrlKey) return
     const lien = linkAt(el.value ?? '', el.selectionStart ?? 0)
     if (!lien) return
-    // Le clic a déjà posé le curseur, ce qui est bien ce qu'on veut ; on lui
-    // retire seulement la suite, pour que rien d'autre ne réagisse.
+    // The click has already placed the caret, which is what we want; we only
+    // cancel what follows, so that nothing else reacts.
     e.preventDefault()
     void Linking.openURL(lien.href)
   }
@@ -178,9 +178,9 @@ export default function NoteEditor() {
   const reorder = useReorderChecklistItems()
 
   /**
-   * La note vit-elle dans le coffre chiffré ? Les mutations ne peuvent pas le
-   * deviner : elles ne reçoivent qu'un identifiant. C'est donc l'éditeur qui le
-   * dit, à chaque écriture qui touche au texte.
+   * Does the note live in the encrypted vault? The mutations cannot guess: all
+   * they receive is an id. So the editor says it, on every write that touches
+   * the text.
    */
   const encrypted = Boolean(note?.is_private)
 
@@ -190,51 +190,51 @@ export default function NoteEditor() {
   const rising = useRise()
 
   /**
-   * Lecture ou écriture.
+   * Reading or writing.
    *
-   * Un champ de saisie ne sait pas afficher du texte mis en forme : sur le web
-   * il devient un `textarea`, qui n'accepte que du texte nu. Il faut donc deux
-   * vues du même contenu, et un bouton pour passer de l'une à l'autre — c'est le
-   * marché habituel des éditeurs à balisage, et il est franc : on voit le
-   * balisage quand on écrit, le résultat quand on lit.
+   * A text field cannot display formatted text: on the web it becomes a
+   * `textarea`, which accepts plain text only. So there have to be two views of
+   * the same content, and a button to switch between them — the usual bargain of
+   * markup editors, and an honest one: you see the markup while writing, the
+   * result while reading.
    *
-   * La lecture est aussi la seule vue où un lien peut être cliqué : dans un
-   * champ de saisie, un appui pose un curseur.
+   * Reading is also the only view where a link can be clicked: in a text field,
+   * a tap places a caret.
    */
   const [reading, setReading] = useState(false)
 
   /**
-   * Champ visé par la barre de mise en forme, et l'étendue qui y est
-   * sélectionnée. Les deux vivent ici et non dans les champs : la barre est
-   * ailleurs dans l'arbre, et c'est l'écran qui fait le lien.
+   * The field targeted by the format bar, and the range selected in it. Both
+   * live here and not in the fields: the bar is elsewhere in the tree, and the
+   * screen is what connects them.
    */
   const [cible, setCible] = useState<Cible | null>(null)
   const [selection, setSelection] = useState<Selection>({ start: 0, end: 0 })
 
   /**
-   * Sélection à imposer au prochain rendu, puis plus jamais.
+   * Selection to force on the next render, and never again.
    *
-   * Après une mise en forme, le curseur doit se retrouver entre les marques que
-   * l'on vient de poser, sinon il repart en fin de champ et il faut recliquer
-   * pour continuer à écrire. La seule façon de le déplacer est la propriété
-   * `selection`, mais la laisser en place figerait le curseur à chaque frappe :
-   * on la retire donc dès que le champ a signalé où il en est.
+   * After formatting, the caret has to land between the marks just added,
+   * otherwise it jumps to the end of the field and you have to click again to
+   * keep writing. The only way to move it is the `selection` prop, but leaving
+   * it set would freeze the caret on every keystroke: so it is dropped as soon as
+   * the field has reported where it stands.
    */
   const [selectionImposee, setSelectionImposee] = useState<Selection | null>(null)
 
   /**
-   * Texte des éléments de liste en cours de modification.
+   * Text of the list items being edited.
    *
-   * Les champs étaient non contrôlés — `defaultValue` et écriture à la sortie —
-   * ce qui suffisait tant que rien d'autre que la frappe ne les modifiait. La
-   * barre de mise en forme, elle, réécrit le contenu depuis l'extérieur : sans
-   * valeur contrôlée, le champ garderait à l'écran le texte d'avant.
+   * The fields used to be uncontrolled — `defaultValue` and a write on leaving —
+   * which was enough as long as nothing but typing changed them. The format bar,
+   * though, rewrites the content from outside: without a controlled value, the
+   * field would keep the previous text on screen.
    */
   const [itemDrafts, setItemDrafts] = useState<Record<string, string>>({})
 
-  // État local du texte, pour que la frappe reste fluide sans attendre le
-  // réseau. Il n'est réamorcé que si l'on change de note : sans cette garde, une
-  // revalidation en arrière-plan écraserait ce que l'utilisateur vient de taper.
+  // Local state for the text, so typing stays smooth without waiting on the
+  // network. It is only reseeded when the note changes: without that guard, a
+  // background revalidation would overwrite what the user has just typed.
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [codeName, setCodeName] = useState('')
@@ -248,14 +248,14 @@ export default function NoteEditor() {
     setCodeName(note.code_name ?? '')
   }, [note])
 
-  // Enregistrement différé du titre, du corps et du nom de code.
+  // Deferred save of the title, the body and the code name.
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scheduleSave = useCallback(
     (patch: { title?: string; body?: string; codeName?: string }) => {
       if (!note) return
-      // Écrire est un geste, même quand aucun doigt ne touche l'écran : sur un
-      // téléphone les touches appartiennent au clavier du système, que le coffre
-      // ne voit pas passer. Voir `markActivity`.
+      // Typing is a gesture, even when no finger touches the screen: on a phone
+      // the keys belong to the system keyboard, which the vault does not see go
+      // by. See `markActivity`.
       markActivity()
       if (pending.current) clearTimeout(pending.current)
       pending.current = setTimeout(() => {
@@ -263,8 +263,8 @@ export default function NoteEditor() {
           id: note.id,
           encrypted,
           current: { title: note.title, body: note.body },
-          // Un titre vide vaut « pas de titre » : la contrainte SQL refuse une
-          // chaîne blanche, et null est le bon état pour une note sans titre.
+          // An empty title means "no title": the SQL constraint rejects a blank
+          // string, and null is the right state for an untitled note.
           patch: {
             ...(patch.title !== undefined ? { title: patch.title.trim() || null } : {}),
             ...(patch.body !== undefined ? { body: patch.body || null } : {}),
@@ -276,7 +276,7 @@ export default function NoteEditor() {
     [note, updateNote, encrypted, markActivity],
   )
 
-  // Un départ d'écran ne doit pas emporter la dernière frappe avec lui.
+  // Leaving the screen must not take the last keystroke with it.
   useEffect(() => {
     return () => {
       if (pending.current) clearTimeout(pending.current)
@@ -284,12 +284,11 @@ export default function NoteEditor() {
   }, [])
 
   /**
-   * Écrit tout de suite ce qui attendait, sans rien annoncer.
+   * Writes whatever was waiting, right away, without announcing anything.
    *
-   * Séparé de l'accusé de réception parce que deux appelants n'ont pas les mêmes
-   * besoins : le bouton d'enregistrement veut un mot à afficher, le détour par
-   * le coffre veut seulement que la frappe en cours soit posée avant de quitter
-   * l'écran.
+   * Kept apart from the acknowledgement because two callers have different
+   * needs: the save button wants a word to display, the detour through the vault
+   * only wants the pending typing written before leaving the screen.
    */
   const flushEdits = useCallback(async (): Promise<
     'empty' | 'unchanged' | 'saved' | 'failed'
@@ -304,8 +303,8 @@ export default function NoteEditor() {
     const nextBody = body || null
     const nextCodeName = note.is_private ? codeName.trim() || null : null
 
-    // Une note vide n'est pas enregistrée : elle serait écartée en sortant de
-    // l'éditeur, et prétendre le contraire serait un mensonge d'une minute.
+    // An empty note is not saved: it would be discarded on leaving the editor,
+    // and claiming otherwise would be a lie that lasts a minute.
     if (isEmptyNote({ ...note, title: nextTitle, body: nextBody, code_name: nextCodeName })) {
       return 'empty'
     }
@@ -328,17 +327,17 @@ export default function NoteEditor() {
   }, [note, title, body, codeName, updateNote, encrypted])
 
   /**
-   * Enregistrement à la demande.
+   * Save on demand.
    *
-   * L'enregistrement différé fait déjà le travail, et le bouton n'existe pas
-   * pour le remplacer : il existe parce qu'un enregistrement invisible ne
-   * rassure personne. Écrire un texte long sans jamais voir la moindre trace du
-   * fait qu'il est en sûreté est inconfortable, et le doute pousse à des gestes
-   * de repli, comme recopier la note ailleurs.
+   * The deferred save already does the work, and the button is not there to
+   * replace it: it is there because an invisible save reassures nobody. Writing
+   * a long text without ever seeing the slightest sign that it is safe is
+   * uncomfortable, and doubt drives fallback gestures, like copying the note
+   * somewhere else.
    *
-   * D'où la réponse systématique, y compris quand il n'y avait rien à écrire :
-   * un bouton qui ne dit rien une fois sur deux réintroduit exactement le doute
-   * qu'il devait lever.
+   * Hence an answer every time, including when there was nothing to write: a
+   * button that says nothing one time out of two brings back exactly the doubt
+   * it was meant to remove.
    */
   const saveNow = useCallback(async () => {
     switch (await flushEdits()) {
@@ -352,24 +351,24 @@ export default function NoteEditor() {
         toast('Note enregistrée.', { tone: 'success' })
         break
       case 'failed':
-        // Le texte saisi reste dans l'état local, donc à l'écran : l'échec ne
-        // coûte rien tant qu'on ne quitte pas la note, et c'est ce qu'il faut
-        // dire plutôt que de recopier une erreur réseau.
+        // The typed text stays in local state, so on screen: the failure costs
+        // nothing as long as the note is not left, and that is what to say
+        // rather than parroting a network error.
         toast('Enregistrement impossible, le texte reste à l’écran.', { tone: 'danger' })
         break
     }
   }, [flushEdits, toast])
 
   /**
-   * Ramène le champ d'ajout sous les yeux, en bas du défilement.
+   * Brings the add field back into view, at the bottom of the scroll.
    *
-   * L'écran se replie déjà devant le clavier, mais cela ne suffit pas à une
-   * liste : le champ est la dernière ligne du contenu, et chaque élément ajouté
-   * pousse le contenu vers le bas de la zone visible. Dix éléments d'affilée le
-   * feraient sortir par le bas sans que rien ne l'y ait poussé.
+   * The screen already shrinks in front of the keyboard, but that is not enough
+   * for a list: the field is the last line of the content, and each added item
+   * pushes the content further down the visible area. Ten items in a row would
+   * push it out through the bottom with nothing having scrolled it there.
    *
-   * Après le rendu et pas pendant : l'élément qui vient d'arriver doit avoir
-   * pris sa place pour que « la fin » soit la bonne. D'où l'attente d'une image.
+   * After the render and not during it: the item that has just arrived must
+   * have taken its place for "the end" to be the right one. Hence waiting a frame.
    */
   const scroller = useRef<ScrollView | null>(null)
   const keepDraftInView = useCallback(() => {
@@ -377,11 +376,11 @@ export default function NoteEditor() {
   }, [])
 
   /**
-   * Ajout d'un élément de liste.
+   * Adding a list item.
    *
-   * L'échec était muet : le champ se vidait, aucun élément n'apparaissait, et
-   * rien ne distinguait une écriture perdue d'un bouton qui ne marche pas. Le
-   * texte est donc rendu au champ si l'écriture échoue, plutôt que perdu.
+   * Failure used to be silent: the field emptied, no item appeared, and nothing
+   * told a lost write from a button that does not work. So the text is handed
+   * back to the field if the write fails, rather than lost.
    */
   const addDraftItem = useCallback(() => {
     if (!note) return
@@ -400,32 +399,32 @@ export default function NoteEditor() {
     )
   }, [note, draftItem, addItem, toast, encrypted, keepDraftInView])
 
-  /** Texte affiché d'un élément : le brouillon s'il existe, sinon la base. */
+  /** Displayed text of an item: the draft if there is one, otherwise the database. */
   const itemText = useCallback(
     (id: string, fallback: string) => itemDrafts[id] ?? fallback,
     [itemDrafts],
   )
 
   /**
-   * Champs de saisie, par cible, pour pouvoir leur rendre le focus.
+   * Text fields, by target, so focus can be given back to them.
    *
-   * Appuyer sur un bouton de la barre de mise en forme sort du champ — c'est ce
-   * que fait un clic sur un bouton, sur le web comme ailleurs. Le navigateur
-   * replie alors la sélection, et la position de curseur calculée par la
-   * commande n'a plus rien à quoi s'appliquer : on se retrouvait au début du
-   * texte, à devoir recliquer entre chaque marque.
+   * Pressing a button of the format bar leaves the field — that is what a click
+   * on a button does, on the web as elsewhere. The browser then collapses the
+   * selection, and the caret position computed by the command has nothing left
+   * to apply to: you ended up at the start of the text, having to click again
+   * between every mark.
    */
   const champs = useRef(new Map<string, TextInput | null>()).current
   const cleChamp = (pour: Cible) => (pour.kind === 'body' ? 'body' : `item:${pour.id}`)
 
   /**
-   * Écrit un texte mis en forme dans le champ visé, et y replace le curseur.
+   * Writes formatted text into the targeted field, and puts the caret back in it.
    *
-   * Un seul chemin pour les deux sortes de champ, parce que la différence entre
-   * un corps de note et un élément de liste tient à où l'on écrit, pas à ce que
-   * l'on écrit. L'élément part en base tout de suite : contrairement au corps, il
-   * n'a pas d'enregistrement différé, et attendre la sortie du champ perdrait la
-   * mise en forme si l'on quitte l'écran entre-temps.
+   * One path for both kinds of field, because the difference between a note
+   * body and a list item lies in where you write, not in what you write. The
+   * item goes to the database right away: unlike the body, it has no deferred
+   * save, and waiting for the field to be left would lose the formatting if the
+   * screen is left in the meantime.
    */
   const ecrire = useCallback(
     (edit: { text: string; selection: Selection }) => {
@@ -440,15 +439,15 @@ export default function NoteEditor() {
       setSelection(edit.selection)
 
       /**
-       * Le focus d'abord, la sélection ensuite, et dans cet ordre.
+       * Focus first, selection second, and in that order.
        *
-       * La propriété `selection` ne se pose que sur un champ qui a le focus, et
-       * le champ vient de le perdre au profit du bouton sur lequel on a appuyé.
-       * L'imposer avant serait sans effet, et le curseur repartirait au début du
-       * texte — il fallait recliquer dans le champ entre chaque marque.
+       * The `selection` prop only takes on a field that has focus, and the field
+       * has just lost it to the button that was pressed. Forcing it before would
+       * do nothing, and the caret would go back to the start of the text — you
+       * had to click in the field again between every mark.
        *
-       * L'objet est recréé volontairement : la sélection imposée n'est reprise
-       * que si la propriété change, or elle vaut peut-être déjà cette valeur-là.
+       * The object is recreated on purpose: the forced selection is only picked
+       * up when the prop changes, and it may already hold that very value.
        */
       const cle = cleChamp(cible)
       setTimeout(() => {
@@ -482,15 +481,15 @@ export default function NoteEditor() {
   }, [texteCible, selection, ecrire])
 
   /**
-   * L'adresse dans laquelle se trouve le curseur, s'il y en a une.
+   * The address the caret sits in, if there is one.
    *
-   * C'est ce qui remplace le lien cliquable pendant l'écriture, faute de pouvoir
-   * en poser un dans un champ de saisie. La barre n'apparaît donc que lorsqu'elle
-   * a quelque chose à ouvrir, et se retire dès que le curseur en sort — elle ne
-   * demande pas à être cherchée, elle se présente au bon moment.
+   * This is what stands in for a clickable link while writing, since none can
+   * be placed in a text field. So the bar only appears when it has something to
+   * open, and goes away as soon as the caret leaves — it does not have to be
+   * looked for, it shows up at the right moment.
    *
-   * Rien en lecture : les liens y sont déjà cliquables, et une barre de plus n'y
-   * dirait que ce qui est sous les yeux.
+   * Nothing in reading mode: links are already clickable there, and one more bar
+   * would only say what is already in plain sight.
    */
   const lienSousCurseur = useMemo(
     () => (reading ? null : linkAt(texteCible() ?? '', selection.start)),
@@ -498,11 +497,11 @@ export default function NoteEditor() {
   )
 
   /**
-   * Gestionnaires communs à tout champ que la barre peut mettre en forme.
+   * Handlers shared by every field the bar can format.
    *
-   * `onSelectionChange` sert deux fins : suivre ce qui est sélectionné, et
-   * relâcher la sélection imposée une fois qu'elle a pris. Sans le second, le
-   * curseur resterait bloqué là où la dernière commande l'avait posé.
+   * `onSelectionChange` serves two ends: tracking what is selected, and
+   * releasing the forced selection once it has taken. Without the second, the
+   * caret would stay stuck where the last command had put it.
    */
   const champFormatable = useCallback(
     (pour: Cible) => ({
@@ -528,22 +527,22 @@ export default function NoteEditor() {
     if (note) {
       const nextTitle = title.trim() || null
       const nextBody = body || null
-      // Le nom de code ne survit pas hors du coffre : la contrainte
-      // `code_name_requires_private` le refuse, et l'y écrire ferait échouer
-      // l'enregistrement de sortie sans que rien ne l'explique à l'écran.
+      // The code name does not survive outside the vault: the
+      // `code_name_requires_private` constraint rejects it, and writing it would
+      // fail the save on leaving with nothing on screen to explain why.
       const nextCodeName = note.is_private ? codeName.trim() || null : null
 
       /**
-       * Une note restée entièrement vide est écartée en sortant, comme le fait
-       * Google Keep. Sans cela chaque ouverture des boutons de création laisse un
-       * résidu dans la grille, et une note sans contenu s'y affiche mal.
+       * A note left entirely empty is discarded on leaving, as Google Keep
+       * does. Otherwise every use of the create buttons leaves a residue in the
+       * grid, and a note with no content displays badly there.
        *
-       * L'emptiness est calculée sur l'état local, pas sur `note` : la note
-       * serveur peut être en retard de 600 millisecondes sur la frappe, et
-       * supprimer sur cette base effacerait ce que l'utilisateur vient d'écrire.
+       * Emptiness is computed on local state, not on `note`: the server note can
+       * lag 600 milliseconds behind typing, and deleting on that basis would
+       * erase what the user has just written.
        *
-       * Suppression définitive et non mise à la corbeille : il n'y a rien à
-       * récupérer, et remplir la corbeille de coquilles vides n'aide personne.
+       * Permanent deletion rather than the trash: there is nothing to recover,
+       * and filling the trash with empty shells helps nobody.
        */
       if (isEmptyNote({ ...note, title: nextTitle, body: nextBody, code_name: nextCodeName })) {
         purgeNote.mutate(note.id)
@@ -569,20 +568,19 @@ export default function NoteEditor() {
         <View style={{ padding: space.lg, gap: space.md }}>
           <IconButton icon="arrow-left" label="Retour" onPress={() => goBack()} />
           {/**
-           * Trois raisons très différentes de ne pas trouver la note, et il faut
-           * les distinguer.
+           * Three very different reasons for not finding the note, and they
+           * have to be told apart.
            *
-           * La première n'en est pas une : la recherche n'est pas finie. Ouvrir
-           * une note à froid, ou recharger la page sur le web, arrive ici avant
-           * que la requête ne réponde. Annoncer une disparition à ce moment-là
-           * est un contresens, et c'est ce que faisait cet écran.
+           * The first is not one: the lookup has not finished. Opening a note
+           * cold, or reloading the page on the web, lands here before the query
+           * answers. Announcing a disappearance at that moment gets it backwards,
+           * and that is what this screen used to do.
            *
-           * Le coffre se referme tout seul au bout de cinq minutes sans un
-           * geste. Si une note du coffre était ouverte, elle disparaît
-           * sous les yeux de son lecteur : c'est le comportement voulu, le
-           * contenu ne doit pas rester à l'écran après la fermeture. Mais
-           * annoncer une suppression depuis un autre appareil serait un mensonge
-           * inquiétant pour quelque chose de parfaitement normal.
+           * The vault closes by itself after five minutes without a gesture. If
+           * a vault note was open, it vanishes before its reader's eyes: that is
+           * the intended behaviour, content must not stay on screen after the
+           * vault closes. But announcing a deletion from another device would be
+           * an alarming lie about something perfectly normal.
            */}
           {isLoading ? (
             <RuneLoader message="On déterre la note…" />
@@ -610,10 +608,10 @@ export default function NoteEditor() {
   const selectedTagIds = note.tags.map((t) => t.id)
 
   /**
-   * Frappe en attente d'écriture. Le bouton d'enregistrement s'allume tant qu'il
-   * reste quelque chose à poser, et s'éteint dès que c'est fait : l'état du
-   * bouton devient l'indicateur permanent que l'enregistrement différé n'avait
-   * pas, sans ajouter un mot de plus à l'écran.
+   * Typing waiting to be written. The save button lights up as long as something
+   * is left to write, and goes dark as soon as it is done: the button's state
+   * becomes the permanent indicator the deferred save lacked, without adding one
+   * more word to the screen.
    */
   const unsaved =
     (title.trim() || null) !== note.title ||
@@ -621,34 +619,34 @@ export default function NoteEditor() {
     (note.is_private ? codeName.trim() || null : null) !== note.code_name
 
   /**
-   * Entrée et sortie du coffre.
+   * Moving into and out of the vault.
    *
-   * Le coffre doit être ouvert pour y ranger quoi que ce soit, et ce n'est pas
-   * une formalité de sécurité : une note masquée pendant que le coffre est fermé
-   * disparaîtrait de la liste visible sans réapparaître nulle part, et l'éditeur
-   * ouvert dessus afficherait « note introuvable » dans la seconde. On envoie
-   * donc d'abord vers le coffre, la note reste où elle est.
+   * The vault has to be open to put anything in it, and that is not a security
+   * formality: a note hidden while the vault is closed would vanish from the
+   * visible list without reappearing anywhere, and the editor open on it would
+   * show « note introuvable » within the second. So we send to the vault first,
+   * and the note stays where it is.
    *
-   * ── L'intention voyage avec la navigation ────────────────────────────────────
-   * Le détour emporte l'identifiant de la note, et le coffre la range lui-même en
-   * s'ouvrant. Sans cela le geste se perdait en route : on posait son code, on
-   * arrivait devant un coffre vide, et il fallait deviner qu'il fallait revenir
-   * appuyer une seconde fois. Pire, c'était impossible : quitter l'écran du
-   * coffre le referme, l'éditeur retrouvait donc un coffre fermé et renvoyait
-   * vers le même écran, indéfiniment.
+   * ── The intent travels with the navigation ───────────────────────────────────
+   * The detour carries the note's id, and the vault files the note itself as it
+   * opens. Without that the gesture got lost on the way: you entered your code,
+   * arrived in front of an empty vault, and had to guess you should come back
+   * and press a second time. Worse, it was impossible: leaving the vault screen
+   * closes it, so the editor found a closed vault again and sent you back to the
+   * same screen, forever.
    */
   async function toggleVault() {
     if (!note) return
     if (!note.is_private && (!vault.configured || !vault.unlocked)) {
-      // La frappe en attente est posée avant de quitter l'écran : le coffre va
-      // écrire sur cette même note, et une écriture différée qui atterrirait
-      // après la sienne rouvrirait un conflit sans arbitre.
+      // Pending typing is written before leaving the screen: the vault is about
+      // to write to this same note, and a deferred write landing after its own
+      // would reopen a conflict with no referee.
       await flushEdits()
       router.push({ pathname: '/vault', params: { claim: note.id } })
       return
     }
-    // Le rangement ne se voit qu'à l'icône qui change de teinte, et la note reste
-    // à l'écran : sans un mot, le doute est le même qu'avant.
+    // Filing the note only shows as an icon changing tint, and the note stays on
+    // screen: without a word, the doubt is the same as before.
     const entering = !note.is_private
     setNotePrivate.mutate(
       {
@@ -670,24 +668,23 @@ export default function NoteEditor() {
   }
 
   /**
-   * Pose ou retire un tag, et ajuste la couleur de la note.
+   * Adds or removes a tag, and adjusts the note's colour.
    *
-   * Deux écritures et non une : les tags vivent dans une table de liaison, la
-   * couleur sur la note. Elles sont indépendantes, et c'est tant mieux — si la
-   * seconde échoue, le tag reste posé, ce qui est le geste demandé. L'inverse
-   * serait une couleur sans son tag.
+   * Two writes and not one: tags live in a join table, the colour on the note.
+   * They are independent, and just as well — if the second fails, the tag stays
+   * on, which is the gesture that was asked for. The reverse would be a colour
+   * without its tag.
    *
-   * Un seul tag par appel, jamais la liste entière : voir `useSetNoteTag`, où
-   * l'on explique pourquoi remplacer l'ensemble faisait revenir l'ancien tag
-   * quand on en changeait.
+   * One tag per call, never the whole list: see `useSetNoteTag`, which explains
+   * why replacing the whole set brought the old tag back when switching tags.
    *
-   * La décision sur la couleur est dans `colorAfterTagChange`, où elle est
-   * testée : elle n'a besoin ni de React ni du réseau, et c'est là que vivent
-   * les erreurs qui comptent — repeindre une note colorée à la main, ou laisser
-   * une note sur la teinte d'une catégorie qu'elle n'a plus.
+   * The colour decision lives in `colorAfterTagChange`, where it is tested: it
+   * needs neither React nor the network, and that is where the mistakes that
+   * matter live — repainting a note coloured by hand, or leaving a note in the
+   * tint of a category it no longer has.
    *
-   * `extra` porte un tag que le cache ne connaît pas encore, celui qui vient
-   * d'être créé : sans lui la couleur ne pourrait pas être décidée.
+   * `extra` carries a tag the cache does not know yet, the one just created:
+   * without it the colour could not be decided.
    */
   function setTag(tagId: string, on: boolean, extra?: Tag) {
     if (!note) return
@@ -710,23 +707,23 @@ export default function NoteEditor() {
   }
 
   /**
-   * Création d'un tag depuis la note, sans passer par l'onglet Tags.
+   * Creating a tag from the note, without going through the Tags tab.
    *
-   * Le tag est posé dans la foulée. C'est tout l'intérêt du geste : on ne vient
-   * pas ici gérer sa collection de tags, on vient en poser un sur la note
-   * qu'on est en train d'écrire, et le créer sans l'associer laisserait le
-   * travail à moitié fait.
+   * The tag is attached right away. That is the whole point of the gesture: you
+   * do not come here to manage your tag collection, you come to put one on the
+   * note you are writing, and creating it without attaching it would leave the
+   * job half done.
    *
-   * Un nom déjà pris ne donne pas une erreur mais le tag existant. Refuser
-   * serait exact et inutile : quelqu'un qui tape « courses » dans ce champ veut
-   * le tag « courses », qu'il ait été créé il y a dix secondes ou l'an dernier.
-   * Le geste est donc annoncé comme une réussite, et non en rouge sous le
-   * champ : rien n'a échoué, et l'absence de nouveau tag dans la liste ne doit
-   * pas non plus passer pour un bouton mort.
+   * A name already taken does not give an error but the existing tag. Refusing
+   * would be accurate and useless: someone who types « courses » in this field
+   * wants the « courses » tag, whether it was created ten seconds or a year ago.
+   * So the gesture is announced as a success, and not in red under the field:
+   * nothing failed, and no new tag showing up in the list must not pass for a
+   * dead button either.
    *
-   * Le tag fraîchement créé est passé à `setTag` en main propre plutôt que
-   * cherché dans `tagsQuery` : le cache n'est revalidé qu'après, et la décision
-   * sur la couleur retomberait sur un `undefined` une fois sur deux.
+   * The freshly created tag is handed to `setTag` directly rather than looked up
+   * in `tagsQuery`: the cache is only revalidated afterwards, and the colour
+   * decision would fall on an `undefined` one time out of two.
    */
   async function createAndAttachTag(name: string) {
     if (!note) return
@@ -769,33 +766,32 @@ export default function NoteEditor() {
 
   return (
     /**
-     * L'écran se replie devant le clavier, au lieu de se laisser recouvrir.
+     * The screen shrinks in front of the keyboard, instead of being covered.
      *
-     * On écrivait à l'aveugle : le champ « Ajouter un élément » est la dernière
-     * ligne de la liste, donc le bas du contenu, et le clavier se dessine
-     * par-dessus. Chaque élément ajouté allongeait la colonne au-dessus du champ
-     * et l'enfonçait un peu plus sous les touches — là où l'on ne voit ni ce
-     * qu'on tape, ni les fautes qu'on y fait.
+     * We used to type blind: the « Ajouter un élément » field is the last line
+     * of the list, so the bottom of the content, and the keyboard draws over it.
+     * Each added item lengthened the column above the field and pushed it a
+     * little further under the keys — where you see neither what you type nor
+     * the typos you make.
      *
-     * `padding` sur les deux plateformes, et non la recette habituelle
-     * « `undefined` sur Android ». Celle-ci suppose une fenêtre qui rétrécit
-     * d'elle-même sous le clavier, ce qu'une application dessinée bord à bord ne
-     * fait plus. Le rembourrage, lui, se calcule à partir du cadre réel de cette
-     * vue et de celui du clavier : il reste juste dans les deux cas.
+     * `padding` on both platforms, and not the usual recipe of "`undefined` on
+     * Android". That one assumes a window that shrinks by itself under the
+     * keyboard, which an edge-to-edge app no longer does. The padding, for its
+     * part, is computed from the real frame of this view and the keyboard's: it
+     * stays right in both cases.
      *
-     * Le rembourrage se pose en bas, donc la barre du haut ne bouge pas d'un
-     * point : c'est la place offerte au contenu qui se réduit, et la barre
-     * d'actions du bas qui remonte se poser sur le clavier.
+     * The padding goes at the bottom, so the top bar does not move a point: it
+     * is the room given to the content that shrinks, and the bottom action bar
+     * that rises to sit on the keyboard.
      */
     <KeyboardAvoidingView
       behavior="padding"
       style={{ flex: 1, backgroundColor: theme.surface.page, paddingTop: insets.top }}
     >
-      {/* Barre d'actions.
-          Sept cibles de 48 points tiennent sur un écran de 360, plus sur un
-          écran de 320. Le retour à la ligne fait alors descendre le dernier
-          bouton d'un cran plutôt que de le laisser dépasser du bord, où il
-          serait rogné et donc inatteignable. */}
+      {/* Action bar.
+          Seven 48-point targets fit on a 360 screen, no longer on a 320 one.
+          Wrapping then drops the last button down a row rather than letting it
+          overflow the edge, where it would be clipped and so unreachable. */}
       <View
         style={{
           flexDirection: 'row',
@@ -813,15 +809,15 @@ export default function NoteEditor() {
         />
         <View style={{ flex: 1 }} />
         {/**
-         * Lecture ou écriture.
+         * Reading or writing.
          *
-         * Il faut bien un bouton : un champ de saisie devient un `textarea` sur
-         * le web et n'accepte que du texte nu, donc le balisage ne peut pas se
-         * rendre à l'endroit où on le tape. C'est aussi la seule vue où un lien
-         * s'ouvre — dans un champ, un appui pose un curseur.
+         * A button is needed: a text field becomes a `textarea` on the web and
+         * accepts plain text only, so markup cannot be rendered where it is
+         * typed. It is also the only view where a link opens — in a field, a tap
+         * places a caret.
          *
-         * Le passage en lecture pose ce qui attendait : le rendu doit montrer la
-         * dernière frappe, pas l'état d'il y a six cents millisecondes.
+         * Switching to reading writes what was waiting: the rendering must show
+         * the last keystroke, not the state of six hundred milliseconds ago.
          */}
         <IconButton
           icon={reading ? 'edit-3' : 'book-open'}
@@ -884,20 +880,20 @@ export default function NoteEditor() {
       </View>
 
       {/**
-       * Le contenu de la note se pose, la barre d'actions non : elle est le
-       * cadre, et un cadre qui bouge donne le mal de mer.
+       * The note's content settles in, the action bar does not: it is the
+       * frame, and a frame that moves makes you seasick.
        *
-       * Un style animé, et surtout pas une animation d'entrée.
+       * An animated style, and above all not an entering animation.
        *
-       * `entering` confie la disposition de la vue à Reanimated. Sur ce bloc-ci,
-       * dont tout le rôle est d'occuper la place laissée libre entre les deux
-       * barres, la hauteur calculée par le `flex: 1` était perdue : le bloc
-       * s'écrasait, et la barre du bas remontait se poser sur le titre — qu'elle
-       * masquait, étant opaque. Déplacer l'animation sur une enveloppe ne
-       * changeait rien, le problème suivait l'animation, pas le nœud.
+       * `entering` hands the view's layout over to Reanimated. On this block,
+       * whose whole job is to fill the room left between the two bars, the
+       * height computed by `flex: 1` was lost: the block collapsed, and the
+       * bottom bar rose to sit on the title — which it hid, being opaque. Moving
+       * the animation to a wrapper changed nothing: the problem followed the
+       * animation, not the node.
        *
-       * `useRise` n'anime que l'opacité et une translation : Yoga garde la main
-       * sur la mise en page. Voir la règle dans src/ui/transitions.ts.
+       * `useRise` only animates opacity and a translation: Yoga keeps control
+       * of the layout. See the rule in src/ui/transitions.ts.
        */}
       <Animated.View style={[{ flex: 1 }, rising]}>
         <ScrollView
@@ -907,14 +903,14 @@ export default function NoteEditor() {
             paddingBottom: space.xxxl,
             gap: space.md,
             /**
-             * Le contenu occupe au minimum toute la hauteur offerte.
+             * The content takes at least all the height available.
              *
-             * Sans cela la colonne s'arrêtait à la hauteur de ce qu'elle
-             * portait, et le corps de la note — haut de 220 points fixes — se
-             * retrouvait suivi d'une grande zone morte : elle avait l'air de
-             * faire partie du champ, mais cliquer dedans ne donnait le focus à
-             * rien. C'est ce `flexGrow` qui donne au champ de la place à
-             * prendre, et le `flex: 1` plus bas qui la lui fait prendre.
+             * Otherwise the column stopped at the height of what it held, and
+             * the note body — a fixed 220 points tall — ended up followed by a
+             * large dead zone: it looked like part of the field, but clicking
+             * in it gave focus to nothing. This `flexGrow` is what gives the
+             * field room to take, and the `flex: 1` further down what makes it
+             * take it.
              */
             flexGrow: 1,
           }}
@@ -941,12 +937,12 @@ export default function NoteEditor() {
           />
 
           {/**
-           * Nom de code, uniquement sur une note du coffre.
+           * Code name, on a vault note only.
            *
-           * C'est lui, et lui seul, qui s'affiche dans la grille du coffre. Sans
-           * nom de code la carte reste muette : le titre n'est pas montré en
-           * repli, ce serait exactement la fuite que le coffre doit empêcher.
-           * D'où l'indication sous le champ plutôt qu'un simple libellé.
+           * It, and it alone, is what shows in the vault grid. Without a code
+           * name the card stays silent: the title is not shown as a fallback,
+           * that would be exactly the leak the vault exists to prevent. Hence
+           * the hint under the field rather than a mere label.
            */}
           {note.is_private ? (
             <View style={{ gap: space.xxs }}>
@@ -1028,21 +1024,21 @@ export default function NoteEditor() {
             </View>
           ) : null}
 
-          {/* Le titre est séparé du corps par un trait de partage gravé, comme sur
-              une pierre où l'en-tête n'est pas dans la même travée que le texte.
-              Dagaz est choisie pour sa forme symétrique : elle se lit comme un
-              ornement, pas comme une lettre qu'il faudrait déchiffrer. */}
+          {/* The title is set apart from the body by an engraved dividing line,
+              as on a stone where the heading does not sit in the same band as
+              the text. Dagaz is chosen for its symmetrical shape: it reads as an
+              ornament, not as a letter that would need deciphering. */}
           <Seam mark="dagaz" />
 
           {note.kind === 'note' && reading ? (
             /**
-             * Vue de lecture du corps.
+             * Reading view of the body.
              *
-             * Elle prend la même place que le champ, `flex: 1` compris, pour que
-             * passer de l'une à l'autre ne fasse pas sauter la mise en page. La
-             * `Pressable` qui l'enveloppe ramène à l'écriture au toucher : les
-             * liens sont des `Text` avec leur propre gestionnaire, ils prennent
-             * donc l'appui avant elle et s'ouvrent au lieu de rendre la main.
+             * It takes the same room as the field, `flex: 1` included, so that
+             * switching from one to the other does not make the layout jump.
+             * The wrapping `Pressable` returns to writing on touch: links are
+             * `Text` with their own handler, so they take the press before it
+             * and open instead of handing control back.
              */
             <Pressable
               accessibilityRole="button"
@@ -1077,24 +1073,22 @@ export default function NoteEditor() {
                   fontSize: type.body.fontSize,
                   lineHeight: type.body.lineHeight,
                   /**
-                   * Le champ prend toute la place laissée libre sous le titre.
+                   * The field takes all the room left free under the title.
                    *
-                   * Écrire une note, c'est écrire dans une page, pas dans une
-                   * fenêtre de 220 points suivie d'un grand vide inerte. Le
-                   * vide en question ressemblait à la suite du champ : on
-                   * cliquait dedans pour continuer à écrire, et rien ne prenait
-                   * le focus. Sur un écran de bureau il occupait les deux tiers
-                   * de la hauteur.
+                   * Writing a note is writing on a page, not in a 220-point
+                   * window followed by a large inert void. That void looked
+                   * like the rest of the field: you clicked in it to keep
+                   * writing, and nothing took focus. On a desktop screen it
+                   * filled two thirds of the height.
                    *
-                   * Au-delà de la place disponible, c'est le champ lui-même qui
-                   * défile, comme il le fait déjà nativement, plutôt que la
-                   * page : le titre reste en vue, ce qui est ce qu'on veut d'un
-                   * éditeur. Une barre de défilement n'apparaît donc plus tant
-                   * que le texte tient dans la hauteur offerte.
+                   * Beyond the available room, it is the field itself that
+                   * scrolls, as it already does natively, rather than the page:
+                   * the title stays in view, which is what you want from an
+                   * editor. So no scrollbar appears as long as the text fits in
+                   * the height on offer.
                    *
-                   * Le plancher reste pour les fenêtres très basses, où la
-                   * place libre peut être quasi nulle une fois le clavier
-                   * logiciel ouvert.
+                   * The floor stays for very short windows, where the free room
+                   * can be close to nothing once the software keyboard is open.
                    */
                   flex: 1,
                   minHeight: 220,
@@ -1106,13 +1100,13 @@ export default function NoteEditor() {
             <View style={{ gap: space.xs }}>
               {note.items.map((item, index) => (
                 /**
-                 * `layout` fait glisser l'élément vers sa nouvelle place au lieu de
-                 * l'y téléporter. Sans cela, monter un élément le fait sauter d'un
-                 * rang et rien ne dit lequel a bougé : il faut relire la liste pour
-                 * vérifier que le bon a été déplacé.
+                 * `layout` slides the item to its new place instead of teleporting
+                 * it there. Without it, moving an item up makes it jump a row and
+                 * nothing says which one moved: you have to reread the list to
+                 * check the right one was moved.
                  *
-                 * `entering` et `exiting` couvrent l'ajout et la suppression, qui
-                 * décalaient tout le reste d'un cran, sec.
+                 * `entering` and `exiting` cover adding and deleting, which used
+                 * to shift everything else by a row, abruptly.
                  */
                 <Animated.View
                   key={item.id}
@@ -1173,9 +1167,9 @@ export default function NoteEditor() {
                   ) : (
                     <TextInput
                       {...champFormatable({ kind: 'item', id: item.id })}
-                      // Contrôlé, contrairement à avant : la barre de mise en
-                      // forme réécrit le contenu depuis l'extérieur du champ, et
-                      // un `defaultValue` garderait à l'écran le texte d'avant.
+                      // Controlled, unlike before: the format bar rewrites the
+                      // content from outside the field, and a `defaultValue`
+                      // would keep the previous text on screen.
                       value={itemText(item.id, item.content)}
                       multiline={ITEMS_WRAP}
                       // Return validates and leaves the field, as it did when the
@@ -1183,8 +1177,8 @@ export default function NoteEditor() {
                       submitBehavior="blurAndSubmit"
                       textAlignVertical="top"
                       onChangeText={(next) => {
-                        // Les éléments ne passent pas par `scheduleSave` : la
-                        // frappe s'y annonce donc elle-même. Voir `markActivity`.
+                        // Items do not go through `scheduleSave`: so typing
+                        // announces itself here. See `markActivity`.
                         markActivity()
                         setItemDrafts((current) => ({ ...current, [item.id]: oneLine(next) }))
                       }}
@@ -1251,13 +1245,13 @@ export default function NoteEditor() {
 
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.sm }}>
                 {/**
-                 * Ce plus était un décor : une icône posée dans une vue, à
-                 * l'emplacement d'une case à cocher. Il a exactement la forme d'un
-                 * bouton d'ajout, donc on clique dessus, et il ne se passait rien.
+                 * This plus used to be decoration: an icon set in a view, where a
+                 * checkbox would be. It has exactly the shape of an add button,
+                 * so people clicked it, and nothing happened.
                  *
-                 * La touche entrée reste le geste rapide, mais elle ne peut pas
-                 * être le seul : à la souris on ne la cherche pas, et certains
-                 * claviers logiciels renvoient à la ligne au lieu de valider.
+                 * The return key stays the quick gesture, but it cannot be the
+                 * only one: with a mouse nobody looks for it, and some software
+                 * keyboards insert a line break instead of submitting.
                  */}
                 <View style={{ height: 44, justifyContent: 'center' }}>
                   <IconButton
@@ -1278,12 +1272,12 @@ export default function NoteEditor() {
                   }}
                   placeholder="Ajouter un élément"
                   placeholderTextColor={theme.text.muted}
-                  // Toucher le champ le ramène en vue : le clavier arrive dans
-                  // la foulée, et sans cela il se poserait dessus.
+                  // Touching the field brings it into view: the keyboard comes
+                  // right after, and would otherwise settle on top of it.
                   onFocus={keepDraftInView}
                   returnKeyType="done"
-                  // blurOnSubmit désactivé : on enchaîne les éléments sans avoir à
-                  // recliquer dans le champ à chaque fois.
+                  // Submitting does not blur: items are chained without having
+                  // to click back into the field each time.
                   // Both props say the same thing: `submitBehavior` is what native
                   // reads, and it wins there; react-native-web only knows
                   // `blurOnSubmit`. On native, `submit` also keeps return from
@@ -1310,20 +1304,20 @@ export default function NoteEditor() {
         </ScrollView>
       </Animated.View>
 
-      {/* Panneaux d'attributs, en bas, dépliés à la demande. */}
+      {/* Attribute panels, at the bottom, unfolded on demand. */}
       <View
         style={{
           borderTopWidth: 1,
           borderTopColor: theme.line.hairline,
           backgroundColor: theme.surface.card,
-          // Clavier ouvert, la marge du bas ne protège plus rien : la barre de
-          // navigation du système est sous les touches. La garder laisserait une
-          // bande de page flotter au-dessus du clavier.
+          // With the keyboard open, the bottom inset protects nothing any more:
+          // the system navigation bar is under the keys. Keeping it would leave a
+          // strip of page floating above the keyboard.
           paddingBottom: keyboardOpen ? 0 : insets.bottom,
         }}
       >
-        {/* Les panneaux poussent la barre vers le haut en s'ouvrant : ils
-            apparaissent et disparaissent en fondu plutôt que d'un coup sec. */}
+        {/* Panels push the bar up as they open: they fade in and out rather
+            than snapping. */}
         {panel === 'color' ? (
           <Animated.View
             entering={appear}
@@ -1392,9 +1386,9 @@ export default function NoteEditor() {
           </Animated.View>
         ) : null}
 
-        {/* L'adresse sous le curseur, offerte à l'ouverture. Elle se pose juste
-            au-dessus de la barre basse, donc près du pouce sur un téléphone, et
-            au-dessus des panneaux pour ne pas sauter quand l'un d'eux s'ouvre. */}
+        {/* The address under the caret, offered for opening. It sits just above
+            the bottom bar, so near the thumb on a phone, and above the panels so
+            it does not jump when one of them opens. */}
         {lienSousCurseur ? (
           <Animated.View
             entering={appear}
@@ -1423,8 +1417,8 @@ export default function NoteEditor() {
               ]}
             >
               <Feather name="external-link" size={14} color={theme.accent.default} />
-              {/* Une seule ligne, tronquée : une adresse longue ne doit pas
-                  repousser l'éditeur vers le haut à chaque fois qu'on la frôle. */}
+              {/* One line, truncated: a long address must not push the editor up
+                  every time the caret brushes past it. */}
               <Txt variant="caption" tone="secondary" numberOfLines={1} style={{ flex: 1 }}>
                 Ouvrir {lienSousCurseur.href}
               </Txt>
@@ -1433,10 +1427,10 @@ export default function NoteEditor() {
         ) : null}
 
         <View style={{ flexDirection: 'row', paddingHorizontal: space.sm, paddingVertical: space.xs }}>
-          {/* Barre basse : les bulles s'ouvrent vers le haut, sinon elles
-              tomberaient hors de l'écran et basculeraient d'elles-mêmes. */}
-          {/* La mise en forme n'a pas de sens en lecture : le bouton disparaît
-              plutôt que de rester là, éteint et sans explication. */}
+          {/* Bottom bar: tooltips open upwards, otherwise they would fall off
+              the screen and flip over by themselves. */}
+          {/* Formatting makes no sense in reading mode: the button disappears
+              rather than staying there, greyed out and unexplained. */}
           {reading ? null : (
             <IconButton
               icon="bold"
@@ -1462,8 +1456,8 @@ export default function NoteEditor() {
             placement="top"
             active={panel === 'tags'}
             onPress={() => {
-              // Le message de création ne survit pas à la fermeture du panneau :
-              // il parle d'un geste qu'on ne voit plus.
+              // The creation message does not outlive the panel closing: it
+              // speaks of a gesture no longer in view.
               setTagError(null)
               setPanel(panel === 'tags' ? 'none' : 'tags')
             }}

@@ -5,16 +5,15 @@ import { Txt } from './components'
 import { space } from './theme'
 
 /**
- * Barre de mise en forme.
+ * The format bar.
  *
- * Elle n'écrit rien elle-même : elle nomme un geste, l'écran décide sur quel
- * champ l'appliquer. C'est ce qui lui permet de servir aussi bien au corps d'une
- * note qu'à l'élément de liste que l'on est en train de modifier, sans qu'elle
- * ait à connaître ni l'un ni l'autre.
+ * It writes nothing itself: it names a gesture, and the screen decides which
+ * field to apply it to. That is what lets it serve a note's body as well as the
+ * list item being edited, without having to know either.
  *
- * Les commandes défilent horizontalement : neuf cibles de 44 points ne tiennent
- * pas sur un écran de 360, et un retour à la ligne ferait grandir le panneau
- * juste au-dessus du clavier, là où la place est la plus rare.
+ * The commands scroll horizontally: nine 44-point targets do not fit on a 360
+ * screen, and wrapping would make the panel grow right above the keyboard,
+ * where room is scarcest.
  */
 export function FormatBar({
   onFormat,
@@ -25,7 +24,7 @@ export function FormatBar({
   onFormat: (format: Format) => void
   onLink: () => void
   disabled?: boolean
-  /** Ce sur quoi la commande va s'appliquer, ou ce qu'il manque pour qu'elle le puisse. */
+  /** What the command will apply to, or what is missing for it to be able to. */
   hint: string
 }) {
   return (

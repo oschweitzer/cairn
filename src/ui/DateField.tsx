@@ -2,8 +2,8 @@ import { SEGMENTS_DATE, SEPARATEUR_DATE } from '@/google/creneau'
 import { SegmentedField } from './SegmentedField'
 
 /**
- * Saisie d'une date : jour, mois et année, les « / » entre eux étant dessinés
- * et non tapés. Voir `SegmentedField` pour la raison.
+ * Entering a date: day, month and year, the "/" between them being drawn and
+ * not typed. See `SegmentedField` for why.
  */
 export function DateField({
   label,
@@ -11,7 +11,7 @@ export function DateField({
   onChangeText,
 }: {
   label: string
-  /** La date au format « JJ/MM/AAAA », le seul que `lireCreneau` connaisse. */
+  /** The date as "JJ/MM/AAAA", the only format `lireCreneau` knows. */
   value: string
   onChangeText: (date: string) => void
 }) {

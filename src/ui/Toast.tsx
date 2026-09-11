@@ -9,22 +9,22 @@ import { radius, space } from './theme'
 import { rise, vanish } from './transitions'
 
 /**
- * Bandeau d'accusé de réception, en bas de l'écran.
+ * Acknowledgement banner, at the bottom of the screen.
  *
- * Il sert aux actions dont le résultat ne se voit pas : un enregistrement réussi
- * ne change rien à l'écran, et sans un mot l'utilisateur n'a aucun moyen de
- * savoir si son geste a porté. À l'inverse, épingler ou archiver se voit tout
- * seul et n'a rien à annoncer, sous peine de commenter chaque clic.
+ * It serves actions whose result does not show: a successful save changes
+ * nothing on screen, and without a word the user has no way of knowing whether
+ * their gesture took. Conversely, pinning or archiving shows by itself and has
+ * nothing to announce, or every click would get a commentary.
  *
- * Un seul bandeau à la fois : le suivant remplace le précédent. Empiler des
- * messages transformerait un accusé de réception en journal d'événements, et
- * couvrirait l'écran au moment précis où l'on veut le voir.
+ * One banner at a time: the next replaces the previous one. Stacking messages
+ * would turn an acknowledgement into an event log, and would cover the screen
+ * at the very moment you want to see it.
  */
 
 export type ToastTone = 'neutral' | 'success' | 'danger'
 
 type Toast = {
-  /** Change à chaque appel, y compris pour un message identique : c'est ce qui relance l'animation. */
+  /** Changes on every call, even for an identical message: that is what restarts the animation. */
   id: number
   message: string
   tone: ToastTone
@@ -34,7 +34,7 @@ type ShowToast = (message: string, options?: { tone?: ToastTone }) => void
 
 const ToastContext = createContext<ShowToast | null>(null)
 
-/** Assez pour lire une ligne sans presser. Une erreur reste plus longtemps. */
+/** Long enough to read one line without rushing. An error stays longer. */
 const DURATION = 2600
 const DURATION_DANGER = 4200
 
@@ -62,8 +62,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 /**
- * Affiche un bandeau. À n'utiliser que pour ce qui ne se voit pas autrement,
- * voir l'en-tête de ce fichier.
+ * Shows a banner. Only to be used for what does not show otherwise, see this
+ * file's header.
  */
 export function useToast(): ShowToast {
   const show = useContext(ToastContext)
@@ -72,10 +72,10 @@ export function useToast(): ShowToast {
 }
 
 /**
- * La couche de position reste montée en permanence, et c'est nécessaire : une
- * animation de sortie ne peut jouer que si le parent de ce qui disparaît est
- * toujours là pour l'accueillir. Elle ne coûte rien, `box-none` laissant passer
- * tous les gestes qui ne visent pas le bandeau lui-même.
+ * The positioning layer stays mounted permanently, and it has to: an exiting
+ * animation can only play if the parent of what is disappearing is still there
+ * to hold it. It costs nothing, `box-none` letting through every gesture not
+ * aimed at the banner itself.
  */
 function ToastLayer({
   toast,
@@ -98,9 +98,9 @@ function ToastLayer({
       }}
     >
       {toast ? (
-        // Remonter la clé remet l'animation à son départ : sans cela, deux
-        // enregistrements d'affilée n'afficheraient un mouvement que la
-        // première fois, et le second passerait inaperçu.
+        // Remounting through the key resets the animation to its start: without
+        // it, two saves in a row would only show movement the first time, and
+        // the second would go unnoticed.
         <ToastBanner key={toast.id} toast={toast} onDismiss={() => onDismiss(toast.id)} />
       ) : null}
     </View>
@@ -120,8 +120,8 @@ function ToastBanner({ toast, onDismiss }: { toast: Toast; onDismiss: () => void
   const icon =
     toast.tone === 'danger' ? 'alert-triangle' : toast.tone === 'success' ? 'check' : 'info'
 
-  // Le retrait suffit à déclencher la sortie : `exiting` retient le bandeau le
-  // temps de son fondu, il n'y a donc pas d'état « en train de partir » à tenir.
+  // Removal is enough to trigger the exit: `exiting` holds the banner for the
+  // length of its fade, so there is no "leaving" state to keep.
   useEffect(() => {
     const timer = setTimeout(onDismiss, toast.tone === 'danger' ? DURATION_DANGER : DURATION)
     return () => clearTimeout(timer)

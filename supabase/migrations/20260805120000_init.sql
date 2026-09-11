@@ -1,23 +1,23 @@
--- Cairn, schéma initial.
+-- Cairn, initial schema.
 --
--- Deux principes gouvernent ce fichier.
+-- Two principles govern this file.
 --
--- 1. Les invariants vivent dans la base, pas dans le client. Une note chiffrée ne
---    peut pas contenir de titre en clair, un rappel ne peut pas viser à la fois
---    une note et un élément de liste, un élément de liste ne peut pas appartenir
---    à la note d'un autre utilisateur. Ce sont des contraintes, pas des
---    conventions que le code applicatif devrait se rappeler de respecter.
+-- 1. Invariants live in the database, not in the client. An encrypted note
+--    cannot hold a plaintext title, a reminder cannot target both a note and a
+--    list item, a list item cannot belong to another user's note. These are
+--    constraints, not conventions the application code would have to remember
+--    to respect.
 --
--- 2. Le jeton Google n'est jamais lisible par le client. Il vit dans une table
---    séparée dont RLS est activé sans aucune politique, ce qui interdit tout
---    accès sauf à la clé de service utilisée par les Edge Functions.
+-- 2. The Google token is never readable by the client. It lives in a separate
+--    table with RLS enabled and no policy at all, which forbids any access
+--    except to the service key used by the Edge Functions.
 
 -- ---------------------------------------------------------------- types
 
 create type note_kind as enum ('note', 'checklist');
 
--- Doit rester synchronisé avec `tagPalette` dans src/ui/theme.ts.
--- Ajouter une teinte demande une migration : alter type tag_color add value '...'.
+-- Must stay in sync with `tagPalette` in src/ui/theme.ts.
+-- Adding a hue takes a migration: alter type tag_color add value '...'.
 create type tag_color as enum (
   'ocre', 'oxyde', 'grenat', 'amethyste', 'ardoise',
   'malachite', 'mousse', 'silex', 'craie', 'basalte'
@@ -27,17 +27,17 @@ create type google_target as enum ('task', 'event');
 create type sync_state as enum ('pending', 'synced', 'error', 'disabled');
 create type theme_preference as enum ('dark', 'light', 'system');
 
--- ---------------------------------------------------------------- profils
+-- ---------------------------------------------------------------- profiles
 
 create table profiles (
   id uuid primary key references auth.users on delete cascade,
-  -- Miroir du réglage, pour retrouver ses préférences sur un nouvel appareil.
-  -- La source de vérité à l'affichage reste le stockage local, lu avant le
-  -- premier rendu pour éviter le flash de thème inversé.
+  -- Mirror of the setting, to find one's preferences again on a new device.
+  -- The source of truth for display stays local storage, read before the first
+  -- render to avoid a flash of the inverted theme.
   theme_preference theme_preference not null default 'dark',
-  -- Le widget peut être forcé en sombre même quand le système est en clair.
+  -- The widget can be forced dark even when the system is light.
   widget_force_dark boolean not null default false,
-  -- Les notes privées apparaissent-elles dans le widget, sous leur nom de code.
+  -- Whether private notes appear in the widget, under their code name.
   widget_show_private boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -51,22 +51,22 @@ create table notes (
 
   kind note_kind not null default 'note',
 
-  -- Nuls lorsque la note est chiffrée : tout est alors dans ciphertext.
+  -- Null when the note is encrypted: everything is then in ciphertext.
   title text,
   body text,
 
-  -- Clé de palette, jamais un hexadécimal. Nul signifie « carte sans teinte ».
+  -- Palette key, never a hexadecimal. Null means "card without a tint".
   color_key tag_color,
 
   is_pinned boolean not null default false,
   is_archived boolean not null default false,
 
-  -- Masquage : la note sort de la grille et n'apparaît que dans le coffre.
+  -- Hiding: the note leaves the grid and only appears in the vault.
   is_private boolean not null default false,
-  -- Nom de code substitué au titre partout où la note est listée.
+  -- Code name substituted for the title wherever the note is listed.
   code_name text,
 
-  -- Chiffrement bout en bout, activable note par note.
+  -- End-to-end encryption, which can be turned on note by note.
   is_encrypted boolean not null default false,
   ciphertext text,
   nonce text,
@@ -76,13 +76,13 @@ create table notes (
   updated_at timestamptz not null default now(),
   deleted_at timestamptz,
 
-  -- Permet aux tables filles de référencer (note_id, user_id) d'un seul tenant,
-  -- ce qui rend structurellement impossible de rattacher un élément de liste
-  -- à la note d'autrui. Voir les clés étrangères composites plus bas.
+  -- Lets child tables reference (note_id, user_id) in one piece, which makes it
+  -- structurally impossible to attach a list item to someone else's note. See
+  -- the composite foreign keys below.
   unique (id, user_id),
 
-  -- Une note chiffrée ne stocke aucun texte clair, et réciproquement une note
-  -- en clair ne stocke pas de matériel de chiffrement à moitié rempli.
+  -- An encrypted note stores no plaintext, and conversely a plaintext note
+  -- stores no half-filled encryption material.
   constraint encrypted_note_has_no_plaintext check (
     case when is_encrypted
       then title is null and body is null
@@ -91,17 +91,17 @@ create table notes (
     end
   ),
 
-  -- Un nom de code n'a de sens que sur une note masquée.
+  -- A code name only makes sense on a hidden note.
   constraint code_name_requires_private check (code_name is null or is_private),
 
-  -- Le titre en clair reste optionnel, mais s'il existe il n'est pas vide.
+  -- The plaintext title stays optional, but if it exists it is not empty.
   constraint title_not_blank check (title is null or length(btrim(title)) > 0)
 );
 
 comment on column notes.code_name is
   'Substitué au titre dans la grille, les notifications et le widget. Masquage, pas chiffrement.';
 
--- --------------------------------------------------- éléments de liste
+-- ------------------------------------------------------------ list items
 
 create table checklist_items (
   id uuid primary key default gen_random_uuid(),
@@ -116,7 +116,7 @@ create table checklist_items (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
-  -- Clé composite : l'élément suit forcément le propriétaire de sa note.
+  -- Composite key: the item necessarily follows its note's owner.
   foreign key (note_id, user_id) references notes (id, user_id) on delete cascade,
 
   constraint content_not_blank check (length(btrim(content)) > 0)
@@ -132,7 +132,7 @@ create table tags (
   position integer not null default 0,
   created_at timestamptz not null default now(),
 
-  -- Deux tags de même nom chez un même utilisateur n'apportent rien.
+  -- Two tags with the same name for the same user add nothing.
   unique (user_id, name),
   unique (id, user_id),
 
@@ -150,29 +150,29 @@ create table note_tags (
   foreign key (tag_id, user_id) references tags (id, user_id) on delete cascade
 );
 
--- ----------------------------------------------------------------- rappels
+-- --------------------------------------------------------------- reminders
 
 create table reminders (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users on delete cascade,
 
-  -- Exactement une des deux cibles, jamais les deux, jamais aucune.
+  -- Exactly one of the two targets, never both, never neither.
   note_id uuid,
   checklist_item_id uuid references checklist_items on delete cascade,
 
   remind_at timestamptz not null,
 
-  -- Notification locale : c'est elle qui prévient réellement l'utilisateur,
-  -- elle fonctionne sans réseau et sans Google.
+  -- Local notification: it is what actually alerts the user, and it works
+  -- without network and without Google.
   local_notification_id text,
 
-  -- Export Google, indépendant de la notification locale.
+  -- Google export, independent of the local notification.
   google_kind google_target,
   google_id text,
   sync_state sync_state not null default 'pending',
   last_error text,
   last_synced_at timestamptz,
-  -- Nombre de tentatives, pour espacer les reprises sans boucler indéfiniment.
+  -- Number of attempts, to space out retries without looping forever.
   attempts integer not null default 0,
 
   created_at timestamptz not null default now(),
@@ -185,27 +185,27 @@ create table reminders (
   )
 );
 
--- ------------------------------------------------------- comptes Google
+-- --------------------------------------------------------- Google accounts
 
--- Métadonnées visibles par le client : de quoi afficher l'état de la connexion
--- et la bannière de reconnexion, sans jamais exposer de secret.
+-- Metadata visible to the client: enough to show the connection state and the
+-- reconnect banner, without ever exposing a secret.
 create table google_accounts (
   user_id uuid primary key references auth.users on delete cascade,
   google_email text,
   scopes text[] not null default '{}',
-  -- Expiration du refresh token. En mode test Google, elle tombe à 7 jours.
+  -- Refresh token expiry. In Google's test mode, it falls at 7 days.
   refresh_expires_at timestamptz,
   needs_reauth boolean not null default false,
   connected_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
--- Le secret lui-même. RLS activé SANS AUCUNE POLITIQUE : aucun rôle
--- authenticated ou anon ne peut lire, écrire ou même détecter ces lignes.
--- Seule la clé de service, utilisée par les Edge Functions, contourne RLS.
+-- The secret itself. RLS enabled WITH NO POLICY AT ALL: no authenticated or
+-- anon role can read, write or even detect these rows. Only the service key,
+-- used by the Edge Functions, bypasses RLS.
 create table google_credentials (
   user_id uuid primary key references auth.users on delete cascade,
-  -- Chiffré côté serveur avec une clé stockée dans les secrets Edge Functions.
+  -- Encrypted server-side with a key stored in the Edge Functions secrets.
   refresh_token_encrypted text not null,
   updated_at timestamptz not null default now()
 );
@@ -215,11 +215,11 @@ comment on table google_credentials is
 
 -- ------------------------------------------------------------------ index
 
--- Grille principale : notes vivantes, non archivées, épinglées d'abord.
+-- Main grid: live notes, not archived, pinned first.
 create index notes_active_idx on notes (user_id, is_pinned desc, updated_at desc)
   where deleted_at is null and is_archived = false and is_private = false;
 
--- Coffre.
+-- Vault.
 create index notes_private_idx on notes (user_id, updated_at desc)
   where deleted_at is null and is_private = true;
 
@@ -233,14 +233,14 @@ create index checklist_items_note_idx on checklist_items (note_id, position);
 create index note_tags_tag_idx on note_tags (tag_id);
 create index tags_user_idx on tags (user_id, position);
 
--- File de synchronisation : on ne balaye que ce qui reste à faire.
+-- Sync queue: only what is left to do gets scanned.
 create index reminders_pending_idx on reminders (user_id, remind_at)
   where sync_state in ('pending', 'error');
 
 create index reminders_upcoming_idx on reminders (user_id, remind_at);
 
--- Recherche plein texte en français. Ne couvre que les notes en clair :
--- les notes chiffrées se cherchent côté client, sur l'index local déchiffré.
+-- French full-text search. Only covers plaintext notes: encrypted notes are
+-- searched on the client, over the decrypted local index.
 alter table notes add column search_vector tsvector
   generated always as (
     to_tsvector('french'::regconfig, coalesce(title, '') || ' ' || coalesce(body, ''))
@@ -270,7 +270,7 @@ create trigger profiles_touch before update on profiles
 create trigger google_accounts_touch before update on google_accounts
   for each row execute function touch_updated_at();
 
--- ------------------------------------------------- profil à l'inscription
+-- ------------------------------------------------------ profile on sign-up
 
 create or replace function create_profile_for_new_user() returns trigger
 language plpgsql
@@ -299,9 +299,9 @@ alter table reminders enable row level security;
 alter table google_accounts enable row level security;
 alter table google_credentials enable row level security;
 
--- `using` filtre ce qui est lisible, `with check` ce qui est écrivable.
--- Les deux sont nécessaires : sans `with check`, un utilisateur pourrait
--- insérer une ligne au nom d'un autre.
+-- `using` filters what is readable, `with check` what is writable. Both are
+-- needed: without `with check`, a user could insert a row in someone else's
+-- name.
 
 create policy own_profile on profiles for all
   using (id = auth.uid()) with check (id = auth.uid());
@@ -324,5 +324,5 @@ create policy own_reminders on reminders for all
 create policy own_google_account on google_accounts for all
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
--- google_credentials : aucune politique, volontairement. Toute requête d'un
--- client authentifié renvoie zéro ligne et tout écriture échoue.
+-- google_credentials: no policy, on purpose. Every query from an authenticated
+-- client returns zero rows and every write fails.

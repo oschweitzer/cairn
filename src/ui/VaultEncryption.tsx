@@ -10,21 +10,21 @@ import { useToast } from './Toast'
 import { radius, space, type } from './theme'
 
 /**
- * Mise en place du chiffrement, et reprise sur un appareil neuf.
+ * Setting up encryption, and recovering on a new device.
  *
- * Ces deux écrans sont le seul moment où l'utilisateur voit la cryptographie.
- * Le reste du temps elle doit être invisible — c'est ici, et seulement ici, que
- * se joue la seule chose qu'il ait à retenir.
+ * These two screens are the only moment the user sees the cryptography. The
+ * rest of the time it must be invisible — it is here, and only here, that the
+ * one thing they have to remember is at stake.
  */
 
 /**
- * La clé de secours, montrée une fois.
+ * The recovery key, shown once.
  *
- * Elle n'existe nulle part ailleurs en clair : ni sur l'appareil, ni sur le
- * serveur, qui n'en détient que l'effet. Fermer cet écran sans l'avoir notée,
- * c'est accepter de perdre ses notes le jour où l'on change de téléphone. D'où
- * la confirmation explicite, qui n'est pas une formalité : c'est le seul
- * endroit de l'application où un bouton engage vraiment.
+ * It exists nowhere else in plaintext: not on the device, not on the server,
+ * which only holds its effect. Closing this screen without having written it
+ * down means accepting to lose one's notes the day one changes phones. Hence
+ * the explicit confirmation, which is not a formality: it is the only place in
+ * the app where a button truly commits.
  */
 export function RecoveryKeyReveal() {
   const { theme } = useTheme()
@@ -78,11 +78,11 @@ export function RecoveryKeyReveal() {
 }
 
 /**
- * Proposition d'activer le chiffrement, quand aucune clé n'existe encore.
+ * Offer to turn on encryption, when no key exists yet.
  *
- * Le chiffrement n'est pas activé d'office : il change la nature de ce qu'on
- * peut promettre, et il engage l'utilisateur à garder une clé. Un tel
- * engagement se prend, il ne se subit pas.
+ * Encryption is not turned on by default: it changes the nature of what can be
+ * promised, and it commits the user to keeping a key. Such a commitment is
+ * taken, not imposed.
  */
 export function EncryptionSetup() {
   const { enableEncryption } = useVault()
@@ -128,10 +128,10 @@ export function EncryptionSetup() {
 }
 
 /**
- * Reprise sur un appareil qui n'a pas la clé.
+ * Recovering on a device that does not have the key.
  *
- * Écran bloquant, volontairement : sans la clé de données, les notes s'affichent
- * vides. Mieux vaut dire pourquoi que laisser croire à un coffre effacé.
+ * A blocking screen, on purpose: without the data key, the notes display
+ * empty. Better to say why than let people believe the vault was erased.
  */
 export function EncryptionRestore() {
   const { restoreWithRecoveryKey } = useVault()
@@ -146,9 +146,9 @@ export function EncryptionRestore() {
     setError(null)
     try {
       const verdict = await restoreWithRecoveryKey(input)
-      // Deux messages distincts : « mal recopiée » se corrige en relisant sa
-      // feuille, « ne correspond pas » veut dire qu'on tient la clé d'un autre
-      // coffre. Un message unique laisserait chercher au mauvais endroit.
+      // Two distinct messages: "mistyped" is fixed by rereading one's sheet,
+      // "does not match" means one is holding another vault's key. A single
+      // message would send people looking in the wrong place.
       if (verdict === 'malformed') setError('Cette clé n’a pas la bonne forme. Huit groupes de quatre.')
       else if (verdict === 'wrong-key') setError('Cette clé ne correspond pas à ce coffre.')
     } finally {
@@ -208,15 +208,15 @@ export function EncryptionRestore() {
 }
 
 /**
- * Demander une clé de secours neuve, le coffre étant ouvert.
+ * Asking for a fresh recovery key, with the vault open.
  *
- * Trois situations, une seule réponse : on l'a perdue, on ne l'a jamais vue, ou
- * on la soupçonne lue par quelqu'un d'autre. Réenvelopper la clé de données
- * sous une clé neuve règle les trois, sans toucher à une seule note — c'est
- * l'enveloppe qui change, pas ce qu'elle contient.
+ * Three situations, a single answer: it was lost, it was never seen, or it is
+ * suspected to have been read by someone else. Rewrapping the data key under a
+ * fresh key settles all three, without touching a single note — it is the
+ * wrapping that changes, not what it holds.
  *
- * Affichée en permanence, et discrètement : c'est la sortie de secours d'un
- * coffre chiffré, elle doit être là avant qu'on la cherche.
+ * Shown permanently, and discreetly: it is an encrypted vault's emergency exit,
+ * it has to be there before anyone looks for it.
  */
 export function RecoveryKeyRenewal() {
   const { regenerateRecoveryKey } = useVault()

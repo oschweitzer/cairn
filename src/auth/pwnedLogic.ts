@@ -1,29 +1,29 @@
 /**
- * Logique pure du contrôle des mots de passe compromis.
+ * Pure logic of the compromised-password check.
  *
- * Séparée de l'appel réseau pour la même raison que src/db/noteLogic.ts l'est
- * des requêtes : elle n'a besoin ni de React ni du réseau, donc elle se teste
- * directement sous Node — et c'est là que se cachent les erreurs qui comptent,
- * une comparaison de casse ratée laissant passer tous les mots de passe fuités.
+ * Kept apart from the network call for the same reason src/db/noteLogic.ts is
+ * kept apart from the queries: it needs neither React nor the network, so it is
+ * tested directly under Node — and that is where the mistakes that matter hide,
+ * a botched case comparison letting every leaked password through.
  *
- * ── Le mot de passe ne sort jamais de l'appareil ─────────────────────────────
- * Le service ne reçoit que les cinq premiers caractères de l'empreinte SHA-1.
- * Ce préfixe est partagé par des centaines de milliers de mots de passe : il
- * désigne un seau, jamais un mot de passe. La réponse contient tous les suffixes
- * du seau, et c'est ici, hors réseau, que l'on cherche le nôtre.
+ * ── The password never leaves the device ─────────────────────────────────────
+ * The service only receives the first five characters of the SHA-1 hash. That
+ * prefix is shared by hundreds of thousands of passwords: it points to a bucket,
+ * never to a password. The response holds every suffix in the bucket, and it is
+ * here, off the network, that we look for ours.
  *
- * C'est le mécanisme dit de k-anonymat, et c'est exactement celui que Supabase
- * emploie derrière son interrupteur payant.
+ * This is the so-called k-anonymity mechanism, and it is exactly the one
+ * Supabase uses behind its paid switch.
  */
 
-/** Longueur du préfixe attendue par l'API. Cinq caractères, pas un de plus. */
+/** Prefix length the API expects. Five characters, not one more. */
 const PREFIX_LENGTH = 5
 
 export type HashParts = { prefix: string; suffix: string }
 
 /**
- * Coupe l'empreinte en un préfixe à envoyer et un suffixe à garder.
- * Rend `null` si l'empreinte n'a pas la forme d'un SHA-1.
+ * Cuts the hash into a prefix to send and a suffix to keep. Returns `null` if
+ * the hash does not have the shape of a SHA-1.
  */
 export function splitHash(hex: string): HashParts | null {
   const value = hex.trim().toUpperCase()
@@ -32,14 +32,13 @@ export function splitHash(hex: string): HashParts | null {
 }
 
 /**
- * Cherche le suffixe dans la réponse du service et rend le nombre de fuites
- * connues. Zéro signifie « jamais vu », ce qui est la seule bonne nouvelle.
+ * Looks for the suffix in the service's response and returns the number of
+ * known leaks. Zero means "never seen", which is the only good news.
  *
- * Chaque ligne vaut `SUFFIXE:COMPTE`. Les lignes à compte nul sont du
- * rembourrage : le service en ajoute, sur demande, pour que toutes les réponses
- * pèsent pareil et qu'un observateur du trafic ne puisse pas déduire du poids
- * combien de mots de passe partagent le préfixe. Les compter comme des trouvailles
- * refuserait tous les mots de passe.
+ * Each line reads `SUFFIX:COUNT`. Lines with a zero count are padding: the
+ * service adds some, on request, so that every response weighs the same and a
+ * traffic observer cannot infer from the size how many passwords share the
+ * prefix. Counting them as hits would reject every password.
  */
 export function countInRange(body: string, suffix: string): number {
   const needle = suffix.trim().toUpperCase()

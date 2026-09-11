@@ -9,16 +9,16 @@ import { RuneLoader } from '@/ui/RuneLoader'
 import { space } from '@/ui/theme'
 
 /**
- * Création rapide, ouverte par un lien profond.
+ * Quick creation, opened by a deep link.
  *
- * `cairn://nouvelle?kind=note` et `cairn://nouvelle?kind=checklist` : c'est ce
- * que les deux boutons du widget Android déclenchent. L'écran ne fait que créer
- * la note et se remplacer par son éditeur — il n'a rien à montrer, sinon
- * pendant la seconde où la base répond.
+ * `cairn://nouvelle?kind=note` and `cairn://nouvelle?kind=checklist`: that is
+ * what the Android widget's two buttons trigger. The screen only creates the
+ * note and replaces itself with its editor — it has nothing to show, except
+ * during the second the database takes to answer.
  *
- * `router.replace` et non `push` : cet écran n'a aucune raison de rester dans la
- * pile. Sans cela, le retour depuis la note fraîchement créée retomberait ici,
- * qui en créerait aussitôt une seconde.
+ * `router.replace` and not `push`: this screen has no reason to stay in the
+ * stack. Otherwise, going back from the freshly created note would land here
+ * again, which would create a second one right away.
  */
 export default function CreationRapide() {
   const { kind } = useLocalSearchParams<{ kind?: string }>()
@@ -28,18 +28,18 @@ export default function CreationRapide() {
   const createNote = useCreateNote()
 
   /**
-   * Une seule création, quoi qu'il arrive.
+   * A single creation, whatever happens.
    *
-   * L'effet se rejoue à chaque changement de session ou de routeur, et une
-   * création déclenchée deux fois laisserait une note vide derrière elle. Le
-   * garde est un `ref` et non un état : il ne doit surtout pas provoquer de
-   * rendu, sans quoi il rejouerait l'effet qu'il est censé retenir.
+   * The effect replays on every change of session or router, and a creation
+   * triggered twice would leave an empty note behind. The guard is a `ref` and
+   * not state: it must above all not cause a render, otherwise it would replay
+   * the very effect it is meant to hold back.
    */
   const started = useRef(false)
 
   useEffect(() => {
-    // Sans session, rien à créer : l'aiguillage de la racine envoie vers la
-    // connexion, et le lien reprendra son cours une fois connecté.
+    // Without a session, nothing to create: the root routing sends to sign-in,
+    // and the link will resume its course once signed in.
     if (loading || !session || started.current) return
     started.current = true
 
@@ -50,8 +50,8 @@ export default function CreationRapide() {
         })
         router.replace(`/note/${note.id}`)
       } catch {
-        // La grille est le seul repli honnête : elle montre ce qui existe, et
-        // ne prétend pas avoir créé quoi que ce soit.
+        // The grid is the only honest fallback: it shows what exists, and does
+        // not claim to have created anything.
         router.replace('/')
       }
     })()

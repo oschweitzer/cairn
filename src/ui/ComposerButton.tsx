@@ -6,12 +6,12 @@ import { Tooltip } from './Tooltip'
 import { radius, withAlpha } from './theme'
 
 /**
- * Bouton de création flottant, en bas à droite.
+ * Floating create button, at the bottom right.
  *
- * Il existait en deux exemplaires identiques, un par écran qui crée des notes —
- * la grille et le coffre. Les deux ont dérivé dès la première retouche : celui
- * de la grille avait gagné une infobulle, celui du coffre non. Un seul
- * composant, et le halo de survol n'a pas à être posé deux fois non plus.
+ * It used to exist as two identical copies, one per screen that creates notes —
+ * the grid and the vault. The two drifted at the first touch-up: the grid's had
+ * gained a tooltip, the vault's had not. A single component, and the hover glow
+ * does not have to be set twice either.
  */
 export function ComposerButton({
   icon,
@@ -22,7 +22,7 @@ export function ComposerButton({
 }: {
   icon: 'plus' | 'check-square'
   label: string
-  /** L'action principale de l'écran : pleine d'accent, une seule par paire. */
+  /** The screen's main action: filled with accent, only one per pair. */
   primary?: boolean
   busy?: boolean
   onPress: () => void
@@ -32,7 +32,7 @@ export function ComposerButton({
   const lit = hovered && !busy
 
   return (
-    // Bulle vers le haut : ces boutons sont posés au ras du bord bas.
+    // Tooltip upwards: these buttons sit right at the bottom edge.
     <Tooltip label={label} placement="top">
       <Pressable
         accessibilityRole="button"
@@ -43,7 +43,7 @@ export function ComposerButton({
         {...hoverProps}
         style={({ pressed }) => [
           {
-            // 56 points : cible confortable pour un bouton flottant atteint au pouce.
+            // 56 points: a comfortable target for a floating button reached with the thumb.
             width: 56,
             height: 56,
             borderRadius: radius.xl,
@@ -67,10 +67,10 @@ export function ComposerButton({
             opacity: busy ? 0.6 : 1,
           },
           /**
-           * Halo plus large que sur les boutons de barre, et c'est une question
-           * de fond : ces deux-là flottent au-dessus de la grille, sans rien
-           * autour pour les cadrer. Une lueur trop serrée y passerait pour un
-           * défaut de rendu plutôt que pour une réponse au pointeur.
+           * A wider glow than on bar buttons, and it is a matter of substance:
+           * these two float above the grid, with nothing around to frame them.
+           * A glow too tight would pass for a rendering glitch rather than a
+           * response to the pointer.
            */
           lit ? glow(withAlpha(theme.accent.default, 0.4), 22) : null,
         ]}

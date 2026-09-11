@@ -1,5 +1,5 @@
-// Doit précéder la création du client : supabase-js s'appuie sur URL et
-// URLSearchParams, absents du moteur JavaScript de React Native.
+// Must come before the client is created: supabase-js relies on URL and
+// URLSearchParams, which React Native's JavaScript engine lacks.
 import 'react-native-url-polyfill/auto'
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
@@ -8,13 +8,13 @@ import { Platform } from 'react-native'
 import type { Database } from './types'
 
 /**
- * Une variable présente mais vide compte comme absente.
+ * A variable that is present but empty counts as absent.
  *
- * Ce n'est pas de la coquetterie : `.env.example` livre justement
- * `EXPO_PUBLIC_SUPABASE_URL=` sans valeur. Avec l'opérateur `??`, qui ne se replie
- * que sur null et undefined, cette chaîne vide traversait jusqu'à `createClient`
- * qui levait « supabaseUrl is required » et plantait l'application, là où l'écran
- * de configuration aurait dû s'afficher.
+ * It is not fussiness: `.env.example` ships precisely `EXPO_PUBLIC_SUPABASE_URL=`
+ * with no value. With the `??` operator, which only falls back on null and
+ * undefined, that empty string went all the way to `createClient`, which threw
+ * "supabaseUrl is required" and crashed the app, where the configuration screen
+ * should have shown.
  */
 function readEnv(value: string | undefined): string | null {
   const trimmed = value?.trim()
@@ -25,51 +25,51 @@ const url = readEnv(process.env.EXPO_PUBLIC_SUPABASE_URL)
 const anonKey = readEnv(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY)
 
 /**
- * Faux tant que .env n'est pas rempli. L'application affiche alors un écran de
- * configuration au lieu d'un écran blanc ou d'une pile d'erreurs réseau.
+ * False as long as .env is not filled in. The app then shows a configuration
+ * screen instead of a blank screen or a pile of network errors.
  */
 export const isSupabaseConfigured = url !== null && anonKey !== null
 
 let client: SupabaseClient<Database> | null = null
 
 /**
- * Construction différée, et c'est une nécessité, pas une préférence.
+ * Deferred construction, and it is a necessity, not a preference.
  *
- * Le web est exporté en rendu statique, donc les composants sont d'abord rendus
- * sous Node. Or `createClient` instancie au passage un client Realtime qui exige
- * un WebSocket global, absent de Node avant la version 22. Un client créé au
- * niveau module ferait donc échouer le rendu serveur avec une erreur qui n'a
- * aucun rapport apparent avec la cause.
+ * The web is exported as a static render, so components are first rendered
+ * under Node. And `createClient` instantiates a Realtime client along the way,
+ * which requires a global WebSocket, absent from Node before version 22. A
+ * client created at module level would therefore fail the server render with an
+ * error that has no apparent link to its cause.
  *
- * En différant la création, le client n'apparaît qu'au premier appel, lequel a
- * toujours lieu dans un effet ou un gestionnaire d'évènement, donc côté
- * navigateur uniquement. Aucune configuration à contourner, et rien de spécifique
- * à Node ne rentre dans le bundle.
+ * By deferring creation, the client only appears on the first call, which
+ * always happens in an effect or an event handler, so on the browser side only.
+ * No configuration to work around, and nothing Node-specific gets into the
+ * bundle.
  */
 export function getSupabase(): SupabaseClient<Database> {
   if (client) return client
 
-  // Valeurs de repli syntaxiquement valides, pour que le client se construise
-  // même sans configuration. Les requêtes échoueront, ce qui est le comportement
-  // voulu : l'écran de configuration explique quoi faire, et rien ne plante.
+  // Syntactically valid fallback values, so the client builds even without
+  // configuration. Requests will fail, which is the intended behaviour: the
+  // configuration screen explains what to do, and nothing crashes.
   client = createClient<Database>(url ?? 'http://127.0.0.1:54321', anonKey ?? 'cle-absente', {
     auth: {
       /**
-       * Le jeton de session est un JWT qui dépasse régulièrement les 2048 octets,
-       * limite d'expo-secure-store. AsyncStorage est donc le bon support ici, et
-       * c'est aussi celui que documente Supabase pour React Native.
+       * The session token is a JWT that regularly exceeds 2048 bytes,
+       * expo-secure-store's limit. So AsyncStorage is the right medium here, and
+       * it is also the one Supabase documents for React Native.
        *
-       * SecureStore reste réservé à ce qui est petit et vraiment sensible, à
-       * savoir la clé maîtresse de chiffrement, adossée au Keystore Android.
+       * SecureStore stays reserved for what is small and truly sensitive,
+       * namely the master encryption key, backed by the Android Keystore.
        *
-       * Sur le web, supabase-js utilise localStorage, son défaut.
+       * On the web, supabase-js uses localStorage, its default.
        */
       storage: Platform.OS === 'web' ? undefined : AsyncStorage,
       autoRefreshToken: true,
       persistSession: true,
-      // Le web récupère les jetons OAuth dans le fragment d'URL au retour de
-      // redirection. Sur mobile, le retour passe par un lien profond, traité
-      // explicitement, donc pas d'analyse d'URL automatique.
+      // The web picks up OAuth tokens from the URL fragment on returning from
+      // the redirect. On mobile, the return goes through a deep link, handled
+      // explicitly, so no automatic URL parsing.
       detectSessionInUrl: Platform.OS === 'web',
       flowType: 'pkce',
     },

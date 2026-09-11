@@ -1,22 +1,22 @@
 /**
- * Dérive tous les artefacts de thème depuis src/ui/theme.ts.
+ * Derives every theme artefact from src/ui/theme.ts.
  *
- *   npm run theme          régénère generated/
- *   npm run theme:check    échoue si generated/ a dérivé de la source
- *   npm run theme:contrast rapport de contraste WCAG seul
+ *   npm run theme          regenerates generated/
+ *   npm run theme:check    fails if generated/ has drifted from the source
+ *   npm run theme:contrast WCAG contrast report only
  *
- * Sorties :
- *   generated/theme.json        jetons à plat, lus par app.config.ts
- *   generated/theme.css         variables CSS pour la PWA
- *   generated/colors.xml        ressources Android, mode clair (valeurs par défaut)
- *   generated/colors-night.xml  ressources Android, mode sombre
- *   modules/cairn-widget/…/res/values{,-night}/colors.xml  les mêmes, dans le
- *     module du widget, qui est compilé contre ses propres ressources
+ * Outputs:
+ *   generated/theme.json        flat tokens, read by app.config.ts
+ *   generated/theme.css         CSS variables for the PWA
+ *   generated/colors.xml        Android resources, light mode (default values)
+ *   generated/colors-night.xml  Android resources, dark mode
+ *   modules/cairn-widget/…/res/values{,-night}/colors.xml  the same, in the
+ *     widget module, which is compiled against its own resources
  *
- * Sur le widget, la couleur de rendu vient de theme.ts résolu en JS selon le
- * réglage stocké, ce qui permet de forcer le sombre même quand le système est
- * en clair. Les deux XML servent aux surfaces natives que le JS ne peint pas,
- * l'aperçu du widget dans le sélecteur et l'activité de configuration.
+ * On the widget, the rendering colour comes from theme.ts resolved in JS
+ * according to the stored setting, which allows forcing dark even when the
+ * system is light. The two XML files serve the native surfaces JS does not
+ * paint, the widget preview in the picker and the configuration activity.
  */
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
@@ -29,11 +29,11 @@ const outDir = join(root, 'generated')
 
 const mode = process.argv[2] ?? '--write'
 
-// ---------------------------------------------------------------- aplatissement
+// ------------------------------------------------------------------ flattening
 
 type Flat = Record<string, string>
 
-/** `surface: { page }` devient `surface-page`, pour un nom exploitable partout. */
+/** `surface: { page }` becomes `surface-page`, a name usable everywhere. */
 function flatten(theme: Theme): Flat {
   const out: Flat = {}
   for (const [group, value] of Object.entries(theme)) {
@@ -51,7 +51,7 @@ function flatten(theme: Theme): Flat {
   return out
 }
 
-// ------------------------------------------------------------------- couleurs
+// --------------------------------------------------------------------- colours
 
 type Rgba = { r: number; g: number; b: number; a: number }
 
@@ -78,14 +78,14 @@ function parseColor(input: string): Rgba {
   return { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] }
 }
 
-/** Android veut #AARRGGBB, et n'accepte pas la notation rgba(). */
+/** Android wants #AARRGGBB, and does not accept the rgba() notation. */
 function toAndroidHex(input: string): string {
   const { r, g, b, a } = parseColor(input)
   const p = (n: number) => Math.round(n).toString(16).padStart(2, '0').toUpperCase()
   return `#${p(a * 255)}${p(r)}${p(g)}${p(b)}`
 }
 
-/** Aplatit une couleur translucide sur un fond, pour mesurer son contraste réel. */
+/** Flattens a translucent colour onto a background, to measure its real contrast. */
 function composite(fg: Rgba, bg: Rgba): Rgba {
   if (fg.a >= 1) return fg
   return {
@@ -96,7 +96,7 @@ function composite(fg: Rgba, bg: Rgba): Rgba {
   }
 }
 
-/** Luminance relative, WCAG 2.1 formule 1.4.3. */
+/** Relative luminance, WCAG 2.1 formula 1.4.3. */
 function luminance(c: Rgba): number {
   const chan = (v: number) => {
     const s = v / 255
@@ -112,28 +112,28 @@ function contrast(fg: string, bg: string): number {
   return (hi + 0.05) / (lo + 0.05)
 }
 
-// -------------------------------------------------------- contrôle de contraste
+// ------------------------------------------------------------- contrast check
 
 type Check = { theme: ThemeName; fg: string; bg: string; ratio: number; min: number; ok: boolean }
 
 /**
- * Trois seuils, selon ce que l'élément fait réellement.
+ * Three thresholds, depending on what the element actually does.
  *
- * 4,5:1  texte courant, exigence WCAG AA, critère 1.4.3.
+ * 4.5:1  running text, WCAG AA requirement, criterion 1.4.3.
  *
- * 3:1    élément d'interface non textuel dont l'apparence porte une information :
- *        puce de couleur d'un tag, bordure d'un champ, anneau de focus.
- *        Exigence WCAG AA, critère 1.4.11.
+ * 3:1    non-text interface element whose appearance carries information: a
+ *        tag's colour chip, a field's border, the focus ring. WCAG AA
+ *        requirement, criterion 1.4.11.
  *
- * 1,8:1  plancher de perceptibilité du filet décoratif. Ce n'est pas une exigence
- *        WCAG : une couture entre deux strates est décorative au sens du critère
- *        1.4.11, et le contenu d'une carte reste identifiable sans elle. Mais la
- *        séparation de teinte entre strates ne dépasse pas 1,20:1, donc en
- *        pratique c'est ce filet qui dessine le contour de la carte. Le mesurer
- *        empêche qu'il redevienne invisible au fil des retouches.
+ * 1.8:1  perceptibility floor for the decorative hairline. It is not a WCAG
+ *        requirement: a seam between two strata is decorative in the sense of
+ *        criterion 1.4.11, and a card's content stays identifiable without it.
+ *        But the tint separation between strata does not exceed 1.20:1, so in
+ *        practice this hairline is what draws the card's outline. Measuring it
+ *        keeps it from turning invisible again over successive touch-ups.
  *
- * Le seuil réel appliqué est légèrement au-dessus de la norme, pour qu'un arrondi
- * hexadécimal ne fasse pas basculer une paire juste sous la barre.
+ * The threshold actually applied is slightly above the standard, so a
+ * hexadecimal rounding does not tip a pair just below the bar.
  */
 const AA_TEXT = 4.5
 const AA_UI = 3
@@ -150,31 +150,31 @@ function auditContrast(): Check[] {
       checks.push({ theme: themeName, fg, bg, ratio, min, ok: ratio >= min })
     }
 
-    // Texte courant sur chaque strate.
+    // Running text on every stratum.
     for (const bg of surfaces) {
       for (const fg of ['text-primary', 'text-secondary', 'text-muted']) add(fg, bg, AA_TEXT)
       for (const fg of ['accent-default', 'accent-pressed']) add(fg, bg, AA_TEXT)
       for (const s of ['state-danger', 'state-success', 'state-warning']) add(s, bg, AA_TEXT)
     }
 
-    // Puce ou état sélectionné sur fond d'accent atténué.
+    // Chip or selected state on a subdued accent background.
     add('text-primary', 'accent-subtle', AA_TEXT)
     add('accent-default', 'accent-subtle', AA_TEXT)
 
-    // Texte posé sur un aplat d'accent plein.
+    // Text set on a flat full accent fill.
     add('text-onAccent', 'accent-default', AA_TEXT)
     add('text-onAccent', 'accent-pressed', AA_TEXT)
 
-    // Bordure interactive et anneau de focus : porteuses d'information.
+    // Interactive border and focus ring: they carry information.
     for (const bg of surfaces) add('line-strong', bg, AA_UI)
 
-    // Couture décorative : plancher de perceptibilité, pas exigence WCAG.
+    // Decorative seam: a perceptibility floor, not a WCAG requirement.
     add('line-hairline', 'surface-card', SEAM_FLOOR)
     add('line-hairline', 'surface-page', SEAM_FLOOR)
     add('line-hairline', 'surface-raised', SEAM_FLOOR)
 
-    // Puces de tag : non textuelles, lues comme des éléments d'interface.
-    // Auditées sur les quatre strates, un tag pouvant apparaître dans une modale.
+    // Tag chips: non-textual, read as interface elements. Audited on all four
+    // strata, since a tag can appear in a modal.
     for (const key of Object.keys(tagPalette)) {
       for (const bg of surfaces) add(`tag-${key}`, bg, AA_UI)
     }
@@ -183,9 +183,9 @@ function auditContrast(): Check[] {
 }
 
 /**
- * Écart de teinte entre strates. Informatif, mais il explique pourquoi le filet
- * doit rester visible : à 1,13:1, une carte posée sur la page ne se distingue
- * pratiquement pas par sa seule couleur de fond.
+ * Tint difference between strata. Informational, but it explains why the
+ * hairline has to stay visible: at 1.13:1, a card set on the page can hardly be
+ * told apart by its background colour alone.
  */
 function reportStrata(): void {
   for (const themeName of ['dark', 'light'] as ThemeName[]) {
@@ -227,7 +227,7 @@ function reportContrast(checks: Check[]): boolean {
   return failed.length === 0
 }
 
-// ------------------------------------------------------------------ générateurs
+// ------------------------------------------------------------------- generators
 
 function buildJson(): string {
   return (
@@ -236,9 +236,9 @@ function buildJson(): string {
         dark: flatten(themes.dark),
         light: flatten(themes.light),
         tags: tagPalette,
-        // La feuille de style complète voyage dans le JSON pour qu'app/+html.tsx
-        // l'injecte directement, sans dépendre du traitement des imports CSS par
-        // Metro et sans réimplémenter la génération côté application.
+        // The complete stylesheet travels in the JSON so app/+html.tsx injects
+        // it directly, without depending on how Metro handles CSS imports and
+        // without reimplementing the generation on the app side.
         css: buildCss(),
       },
       null,
@@ -253,12 +253,12 @@ function buildCss(): string {
       .map(([k, v]) => `  --cairn-${k}: ${v};`)
       .join('\n')
 
-  // Le sombre est la valeur de :root parce que c'est le défaut de l'application,
-  // indépendamment du réglage du système. Quand l'utilisateur choisit « système »,
-  // c'est le JS qui résout la préférence et pose data-theme avant l'hydratation.
-  // Une règle prefers-color-scheme ici entrerait en conflit avec ce choix.
+  // Dark is the :root value because it is the app's default, regardless of the
+  // system setting. When the user picks "system", JS resolves the preference and
+  // sets data-theme before hydration. A prefers-color-scheme rule here would
+  // conflict with that choice.
   return [
-    '/* Généré par scripts/gen-theme.ts. Ne pas modifier à la main. */',
+    '/* Generated by scripts/gen-theme.ts. Do not edit by hand. */',
     ':root {',
     '  color-scheme: dark;',
     vars(themes.dark),
@@ -278,7 +278,7 @@ function buildXml(theme: Theme): string {
     .join('\n')
   return [
     '<?xml version="1.0" encoding="utf-8"?>',
-    '<!-- Généré par scripts/gen-theme.ts. Ne pas modifier à la main. -->',
+    '<!-- Generated by scripts/gen-theme.ts. Do not edit by hand. -->',
     '<resources>',
     entries,
     '</resources>',
@@ -296,18 +296,17 @@ const artifacts: Record<string, string> = {
 }
 
 /**
- * Les mêmes couleurs, posées dans le module du widget.
+ * The same colours, placed in the widget module.
  *
- * Ce n'est pas une redite de confort : une bibliothèque Android est compilée
- * contre ses propres ressources, pas contre celles de l'application qui
- * l'embarque. Une mise en page du widget qui dirait `@color/cairn_surface_page`
- * sans que la couleur existe *dans le module* ne compilerait pas — l'erreur
- * arrive à la construction du paquet, longtemps après qu'on a cru le travail
- * fini.
+ * It is not a convenience copy: an Android library is compiled against its own
+ * resources, not those of the app that embeds it. A widget layout saying
+ * `@color/cairn_surface_page` without the colour existing *in the module* would
+ * not compile — the error arrives when the package is built, long after the
+ * work was thought to be done.
  *
- * Les écrire ici plutôt qu'à la main garde une seule source : une teinte
- * modifiée dans theme.ts se propage au widget par `npm run theme`, et
- * `npm run theme:check` refuse de laisser les deux diverger.
+ * Writing them here rather than by hand keeps a single source: a tint changed
+ * in theme.ts spreads to the widget through `npm run theme`, and
+ * `npm run theme:check` refuses to let the two diverge.
  */
 const widgetRes = join(root, 'modules', 'cairn-widget', 'android', 'src', 'main', 'res')
 const widgetArtifacts: Record<string, string> = {

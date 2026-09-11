@@ -2,59 +2,59 @@ import type { ColorValue } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 
 /**
- * Pictogrammes fonctionnels que Feather ne fournit pas, tracés dans sa grille.
+ * Functional pictograms Feather does not provide, drawn on its grid.
  *
- * Rien à voir avec les runes de src/ui/runes.tsx, qui sont ornementales et ne
- * portent jamais de sens : ceux-ci sont des icônes d'interface au même titre que
- * la corbeille, et se lisent comme telles.
+ * Nothing to do with the runes of src/ui/runes.tsx, which are ornamental and
+ * never carry meaning: these are interface icons in the same way as the trash,
+ * and read as such.
  *
- * ── Pourquoi les dessiner plutôt qu'emprunter une autre famille ──────────────
- * MaterialCommunityIcons a bien un coffre, et @expo/vector-icons l'embarque
- * déjà. Mais son trait est plus gras et ses formes plus pleines : posé à côté
- * d'un `check-circle` de Feather dans la même barre, il ne se lit pas comme un
- * voisin, il se lit comme une pièce rapportée. Une icône de plus ne vaut pas de
- * casser l'unité d'une famille.
+ * ── Why draw them rather than borrow another family ──────────────────────────
+ * MaterialCommunityIcons does have a chest, and @expo/vector-icons already
+ * bundles it. But its stroke is bolder and its shapes fuller: set next to a
+ * Feather `check-circle` in the same bar, it does not read as a neighbour, it
+ * reads as a patch. One more icon is not worth breaking a family's unity.
  *
- * La grille de Feather est reproductible : boîte de 24, trait de 2, extrémités
- * et jointures arrondies, aucun aplat. Les tracés ci-dessous s'y tiennent, et
- * l'épaisseur suit la taille demandée comme le fait Feather, sinon un glyphe
- * agrandi paraîtrait tracé plus finement que ses voisins.
+ * Feather's grid is reproducible: a 24 box, a stroke of 2, rounded ends and
+ * joins, no fill. The paths below stick to it, and the stroke width follows the
+ * requested size as Feather's does, otherwise an enlarged glyph would look drawn
+ * more finely than its neighbours.
  */
 
 const BOX = 24
 
 const GLYPHS = {
   /**
-   * Coffre. Couvercle bombé, caisse aux angles bas adoucis, moraillon au centre.
+   * Chest. A domed lid, a body with softened bottom corners, a hasp in the
+   * middle.
    *
-   * Le bombé n'est pas décoratif : une caisse à couvercle plat se confond avec
-   * une boîte ou une archive, deux icônes déjà employées ailleurs dans
-   * l'application. C'est la courbe qui fait le coffre.
+   * The dome is not decorative: a box with a flat lid gets confused with a box or
+   * an archive, two icons already used elsewhere in the app. The curve is what
+   * makes it a chest.
    */
   chest: [
-    // Couvercle : arc de (3,9) à (21,9), sommet à 4.
+    // Lid: an arc from (3,9) to (21,9), peaking at 4.
     'M3 9 a9 5 0 0 1 18 0',
-    // Caisse : le bord haut sert de bandeau entre couvercle et corps.
+    // Body: the top edge serves as a band between lid and body.
     'M3 9 h18 v9 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 Z',
-    // Moraillon, sous le bandeau.
+    // Hasp, under the band.
     'M12 9 v4',
   ],
 
   /**
-   * Barré. Construit exactement comme le `underline` de Feather — une arche
-   * surmontée d'un trait — mais le trait passe au milieu au lieu de courir
-   * dessous. C'est la seule différence, et c'est ce qui fait que les deux
-   * boutons se lisent comme une paire dans la barre de mise en forme.
+   * Strikethrough. Built exactly like Feather's `underline` — an arch topped by
+   * a stroke — but the stroke runs through the middle instead of underneath.
+   * That is the only difference, and it is what makes the two buttons read as a
+   * pair in the format bar.
    */
   strikethrough: ['M6 4 v5 a6 6 0 0 0 12 0 V4', 'M4 11 h16'],
 
   /**
-   * Grand titre et sous-titre : la même lettre à deux tailles.
+   * Heading and subheading: the same letter at two sizes.
    *
-   * Un « H1 » et un « H2 » seraient plus précis et illisibles à seize points, la
-   * hauteur du chiffre tombant sous le trait. Deux A de tailles différentes se
-   * comprennent sans être déchiffrés, ce qui est le seul critère qui vaille pour
-   * un pictogramme.
+   * An "H1" and an "H2" would be more precise and unreadable at sixteen points,
+   * the digit's height falling below the stroke width. Two A's of different sizes
+   * are understood without being deciphered, which is the only criterion that
+   * counts for a pictogram.
    */
   letterLarge: ['M4 20 L12 5 L20 20', 'M7.4 14 H16.6'],
   letterSmall: ['M7 19 L12 9 L17 19', 'M9.2 15.4 H14.8'],
@@ -76,16 +76,15 @@ export function Glyph({
   name: GlyphName
   size?: number
   /**
-   * `ColorValue` et non `string` : react-navigation passe la teinte de l'onglet
-   * sous ce type, qui couvre aussi les couleurs opaques de plateforme. C'est
-   * exactement ce que `react-native-svg` attend pour `stroke`, il n'y a donc
-   * rien à convertir.
+   * `ColorValue` and not `string`: react-navigation passes the tab's tint as
+   * that type, which also covers opaque platform colours. It is exactly what
+   * `react-native-svg` expects for `stroke`, so there is nothing to convert.
    */
   color: ColorValue
 }) {
-  // Feather trace à 2 unités sur une boîte de 24, quelle que soit la taille de
-  // rendu : l'épaisseur apparente suit donc l'échelle, et le glyphe reste le
-  // frère de ceux qui l'entourent.
+  // Feather draws at 2 units on a 24 box, whatever the rendered size: so the
+  // apparent thickness follows the scale, and the glyph stays a sibling of
+  // those around it.
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${BOX} ${BOX}`}>
       {GLYPHS[name].map((d) => (

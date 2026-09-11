@@ -22,20 +22,19 @@ import { radius, space } from './theme'
 import { fadeTiming } from './transitions'
 
 /**
- * Infobulles. Un bouton réduit à son glyphe se devine, il ne se lit pas : la
- * bulle donne le nom de l'action sans allonger la barre d'outils.
+ * Tooltips. A button reduced to its glyph is guessed at, not read: the tooltip
+ * gives the action's name without lengthening the toolbar.
  *
- * Elle double le libellé d'accessibilité, elle ne le remplace pas. Un
- * `accessibilityLabel` reste obligatoire sur chaque bouton : la bulle est
- * masquée aux lecteurs d'écran, qui annoncent déjà le libellé de la cible.
+ * It doubles the accessibility label, it does not replace it. An
+ * `accessibilityLabel` stays mandatory on every button: the tooltip is hidden
+ * from screen readers, which already announce the target's label.
  *
- * ── Pourquoi une couche unique à la racine ───────────────────────────────────
- * La bulle est plus large que le bouton qui la déclenche, et déborde donc de son
- * parent. Rendue sur place, elle serait rognée partout où une strate coupe ce
- * qui dépasse : la carte de note, la liste de tags et la corbeille posent toutes
- * un `overflow: 'hidden'`. Elle est donc peinte dans une couche unique posée
- * au-dessus de toute l'application, à des coordonnées écran mesurées sur la
- * cible au moment de l'affichage.
+ * ── Why a single layer at the root ───────────────────────────────────────────
+ * The tooltip is wider than the button that triggers it, so it overflows its
+ * parent. Rendered in place, it would be clipped wherever a stratum cuts off
+ * overflow: the note card, the tag list and the trash all set
+ * `overflow: 'hidden'`. So it is painted in a single layer set above the whole
+ * app, at screen coordinates measured on the target at display time.
  */
 
 type Placement = 'top' | 'bottom'
@@ -43,9 +42,9 @@ type Placement = 'top' | 'bottom'
 type Anchor = { x: number; y: number; width: number; height: number }
 
 type ActiveTip = {
-  /** Numéro d'ouverture. Deux bulles successives ne sont jamais la même, même à texte égal. */
+  /** Opening number. Two successive tooltips are never the same, even with equal text. */
   id: number
-  /** Identité du déclencheur, pour qu'un bouton ne referme pas la bulle d'un autre. */
+  /** The trigger's identity, so one button does not close another's tooltip. */
   token: object
   label: string
   anchor: Anchor
@@ -59,14 +58,14 @@ type TooltipApi = {
 
 const TooltipContext = createContext<TooltipApi | null>(null)
 
-/** Survol : assez long pour ne pas clignoter en traversant une barre d'outils. */
+/** Hover: long enough not to flicker when crossing a toolbar. */
 const HOVER_DELAY = 320
-/** Appui maintenu, seul geste disponible au doigt. Calé sur le long press système. */
+/** Press and hold, the only gesture available to a finger. Matched to the system long press. */
 const TOUCH_DELAY = 480
-/** La bulle survit au relâchement, sinon elle n'aurait pas le temps d'être lue. */
+/** The tooltip outlives the release, otherwise it would not have time to be read. */
 const TOUCH_LINGER = 1400
 
-/** Écart entre la bulle et sa cible, et marge minimale aux bords de l'écran. */
+/** Gap between the tooltip and its target, and minimum margin to the screen edges. */
 const GAP = space.sm
 const EDGE = space.sm
 
@@ -79,9 +78,9 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
     setTip({ id: counter.current, token, label, anchor, placement })
   }, [])
 
-  // Ne referme que sa propre bulle : entre deux boutons voisins, le survol du
-  // second arrive avant la sortie du premier, et une fermeture aveugle
-  // effacerait la bulle qui vient de s'ouvrir.
+  // Only closes its own tooltip: between two neighbouring buttons, hovering the
+  // second arrives before leaving the first, and a blind close would erase the
+  // tooltip that has just opened.
   const hide = useCallback<TooltipApi['hide']>((token) => {
     setTip((current) => (current && current.token !== token ? current : null))
   }, [])
@@ -99,9 +98,9 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
 }
 
 /**
- * Enveloppe un déclencheur. Le composant enveloppé n'a rien à savoir de
- * l'infobulle : les gestes sont captés par la vue parente, qui ne prend pas la
- * main sur le toucher et laisse donc le bouton se comporter normalement.
+ * Wraps a trigger. The wrapped component needs to know nothing about the
+ * tooltip: gestures are picked up by the parent view, which does not take over
+ * the touch and so lets the button behave normally.
  */
 export function Tooltip({
   label,
@@ -139,8 +138,8 @@ export function Tooltip({
       clear()
       timer.current = setTimeout(() => {
         ref.current?.measureInWindow((x, y, width, height) => {
-          // Une cible démontée entre-temps mesure zéro : la bulle n'aurait plus
-          // rien à désigner et se poserait dans le coin de l'écran.
+          // A target unmounted in the meantime measures zero: the tooltip would
+          // have nothing left to point at and would land in the screen's corner.
           if (width === 0 && height === 0) return
           visible.current = true
           api.show(token, label, { x, y, width, height }, placement)
@@ -150,19 +149,19 @@ export function Tooltip({
     [api, clear, label, placement, token],
   )
 
-  // Un écran quitté pendant que la bulle est ouverte l'emporterait avec lui.
+  // A screen left while the tooltip is open would otherwise take it along.
   useEffect(() => hide, [hide])
 
   return (
     <View
       ref={ref}
-      // Sans cela Android peut fondre cette vue dans son parent, et la mesure
-      // renvoie alors les dimensions du parent au lieu de celles du bouton.
+      // Otherwise Android may merge this view into its parent, and the
+      // measurement then returns the parent's size instead of the button's.
       collapsable={false}
       onPointerEnter={() => reveal(HOVER_DELAY)}
       onPointerLeave={hide}
-      // Un clic vaut réponse : garder la bulle après l'action tiendrait de
-      // l'insistance, et masquerait souvent le résultat du geste.
+      // A click counts as an answer: keeping the tooltip after the action would
+      // be insistent, and would often hide the gesture's result.
       onPointerDown={hide}
       onTouchStart={() => reveal(TOUCH_DELAY)}
       onTouchEnd={() => {
@@ -187,18 +186,18 @@ function TooltipLayer({ tip }: { tip: ActiveTip | null }) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const opacity = useSharedValue(0)
 
-  // Chaque ouverture repart d'une mesure vierge et d'un fondu à zéro. Garder la
-  // mesure de la bulle précédente poserait celle-ci de travers le temps d'une
-  // image, et garder son opacité la ferait apparaître sans transition, ou pire,
-  // à mi-course si la précédente a été refermée pendant son fondu.
+  // Every opening starts from a blank measurement and a fade at zero. Keeping
+  // the previous tooltip's measurement would place this one askew for a frame,
+  // and keeping its opacity would make it appear with no transition, or worse,
+  // halfway through if the previous one was closed during its fade.
   useEffect(() => {
     setSize(null)
     opacity.value = 0
   }, [tip?.id, opacity])
 
-  // La bulle n'apparaît qu'une fois mesurée, donc une fois bien placée. C'est ce
-  // décalage qui interdit ici une animation d'entrée déclarative : le montage et
-  // l'apparition ne sont pas le même instant.
+  // The tooltip only appears once measured, so once properly placed. That gap is
+  // what rules out a declarative entering animation here: mounting and
+  // appearing are not the same instant.
   useEffect(() => {
     if (!tip || !size) return
     opacity.value = withTiming(1, fadeTiming)
@@ -211,8 +210,8 @@ function TooltipLayer({ tip }: { tip: ActiveTip | null }) {
   const width = size?.width ?? 0
   const height = size?.height ?? 0
 
-  // Une bulle qui sortirait de l'écran bascule de l'autre côté de sa cible,
-  // plutôt que d'être tronquée par le bord.
+  // A tooltip that would leave the screen flips to the other side of its
+  // target, rather than being cut off by the edge.
   let top =
     tip.placement === 'top' ? tip.anchor.y - height - GAP : tip.anchor.y + tip.anchor.height + GAP
   if (top < EDGE) top = tip.anchor.y + tip.anchor.height + GAP
@@ -224,8 +223,8 @@ function TooltipLayer({ tip }: { tip: ActiveTip | null }) {
   return (
     <View
       pointerEvents="none"
-      // Rien à annoncer : le lecteur d'écran lit déjà le libellé du bouton, dont
-      // la bulle n'est que la transcription à l'écran.
+      // Nothing to announce: the screen reader already reads the button's label,
+      // of which the tooltip is only the on-screen transcription.
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
@@ -251,8 +250,8 @@ function TooltipLayer({ tip }: { tip: ActiveTip | null }) {
             borderRadius: radius.md,
             borderWidth: 1,
             borderColor: theme.line.hairline,
-            // La strate la plus haute de la palette : la bulle flotte au-dessus
-            // de tout le reste, elle doit s'en détacher sans ombre portée.
+            // The palette's highest stratum: the tooltip floats above everything
+            // else, and must stand out from it without a drop shadow.
             backgroundColor: theme.surface.raised,
           },
         ]}

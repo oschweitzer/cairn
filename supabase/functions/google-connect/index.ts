@@ -1,16 +1,16 @@
 /**
- * Second consentement Google : l'accès à l'agenda.
+ * The second Google consent: access to the calendar.
  *
- * Distinct de la connexion à Cairn, et c'est délibéré. Se connecter avec Google
- * n'accorde rien sur l'agenda ; l'autorisation est demandée le jour où elle
- * sert, et se retire sans perdre son compte. Les deux flux ne partagent que le
- * fournisseur.
+ * Separate from signing in to Cairn, and deliberately so. Signing in with
+ * Google grants nothing on the calendar; the authorisation is asked for the day
+ * it is needed, and is withdrawn without losing one's account. The two flows
+ * share nothing but the provider.
  *
- * Le client mène l'autorisation jusqu'au code, puis passe le relais ici :
- * l'échange du code contre un jeton de rafraîchissement exige le `client_secret`
- * de Google, qui n'a rien à faire dans un APK. Le jeton obtenu ne repart jamais
- * vers le client — il est chiffré et rangé dans `google_credentials`, table dont
- * RLS est actif sans aucune politique.
+ * The client carries the authorisation through to the code, then hands over
+ * here: exchanging the code for a refresh token requires Google's
+ * `client_secret`, which has no business in an APK. The token obtained never
+ * goes back to the client — it is encrypted and stored in `google_credentials`,
+ * a table with RLS enabled and no policy at all.
  */
 
 import { withSupabase } from 'npm:@supabase/server@1'
@@ -53,14 +53,14 @@ export default {
     }
 
     /**
-     * Sans jeton de rafraîchissement, il n'y a rien à ranger.
+     * Without a refresh token, there is nothing to store.
      *
-     * Google ne le rend qu'au premier consentement, sauf à redemander
-     * explicitement `prompt=consent`. Une seconde autorisation faite sans ce
-     * paramètre revient donc avec un jeton d'accès valide une heure et rien
-     * d'autre — et l'enregistrer laisserait croire à une connexion durable qui
-     * s'éteindrait sans prévenir. Le client demande `prompt=consent` ; ce garde
-     * existe pour le cas où il oublierait.
+     * Google only returns it on the first consent, unless `prompt=consent` is
+     * explicitly asked for again. So a second authorisation made without that
+     * parameter comes back with an access token valid for an hour and nothing
+     * else — and recording it would suggest a lasting connection that would die
+     * without warning. The client asks for `prompt=consent`; this guard exists
+     * for the case where it forgets.
      */
     if (!jetons.refresh_token) {
       return Response.json(
@@ -80,10 +80,10 @@ export default {
       )
     }
 
-    // Le secret d'abord, les métadonnées ensuite. Dans cet ordre, une panne
-    // entre les deux laisse un jeton utilisable sans bannière de connexion, ce
-    // qui se rattrape à la prochaine tentative. L'ordre inverse afficherait une
-    // connexion établie sans jeton derrière, c'est-à-dire un mensonge.
+    // The secret first, the metadata second. In that order, a failure between
+    // the two leaves a usable token without a connection banner, which is made
+    // up for on the next attempt. The reverse order would show an established
+    // connection with no token behind it, that is to say a lie.
     const { error: erreurSecret } = await ctx.supabaseAdmin
       .from('google_credentials')
       .upsert({
@@ -97,13 +97,13 @@ export default {
     }
 
     /**
-     * Sept jours, en mode test Google.
+     * Seven days, in Google's test mode.
      *
-     * Ce n'est pas une valeur devinée : Google fait expirer les jetons de
-     * rafraîchissement des projets non vérifiés au bout d'une semaine. La date
-     * est posée ici pour que l'interface puisse prévenir avant la panne, plutôt
-     * que de laisser découvrir la coupure au moment d'envoyer une note. Un
-     * projet vérifié n'expire pas : la colonne accepte donc null.
+     * It is not a guessed value: Google expires the refresh tokens of
+     * unverified projects after a week. The date is set here so the interface
+     * can warn before the failure, rather than letting the cut be discovered at
+     * the moment of sending a note. A verified project does not expire: so the
+     * column accepts null.
      */
     const expiration = new Date()
     expiration.setDate(expiration.getDate() + 7)

@@ -45,24 +45,24 @@ export default function Notes() {
   const updateNote = useUpdateNote()
   const reorderNotes = useReorderNotes()
 
-  // Une panne nommée plutôt que citée : voir src/db/errors.ts.
+  // A failure named rather than quoted: see src/db/errors.ts.
   const failure = isError ? describeDbError(error) : null
 
   const [creating, setCreating] = useState(false)
   const searchFocus = useFocusRing()
   const filtering = search.trim().length > 0 || tagIds.length > 0
 
-  // Sélection multiple. Le mode s'active dès qu'une note est retenue, et se
-  // termine tout seul quand la dernière est désélectionnée : pas de bouton
-  // « quitter » à trouver, et impossible de rester coincé dans un mode vide.
+  // Multiple selection. The mode turns on as soon as a note is picked, and ends
+  // by itself when the last one is deselected: no "leave" button to find, and no
+  // way to get stuck in an empty mode.
   const [rawSelectedIds, setRawSelectedIds] = useState<string[]>([])
   /**
-   * Mode explicitement armé, indépendamment de ce qui est déjà retenu.
+   * Mode explicitly armed, regardless of what is already picked.
    *
-   * L'appui long suffit au doigt mais se découvre mal à la souris, où maintenir
-   * le bouton 350 millisecondes n'est pas un geste que l'on essaie spontanément.
-   * Un bouton dédié rend l'entrée dans le mode visible sur les deux surfaces, et
-   * permet d'armer la sélection avant d'avoir choisi la première note.
+   * A long press is enough for a finger but is hard to discover with a mouse,
+   * where holding the button for 350 milliseconds is not a gesture anyone tries
+   * spontaneously. A dedicated button makes entering the mode visible on both
+   * surfaces, and lets selection be armed before the first note is chosen.
    */
   const [selectionArmed, setSelectionArmed] = useState(false)
   const trashNotes = useTrashNotes()
@@ -70,12 +70,12 @@ export default function Notes() {
   const setNotesPinned = useSetNotesPinned()
 
   /**
-   * La sélection effective est dérivée, jamais élaguée dans un état.
+   * The effective selection is derived, never pruned in state.
    *
-   * Une note retenue puis filtrée hors de la vue par une recherche resterait
-   * sinon sélectionnée invisiblement, et une action en masse la toucherait sans
-   * que rien ne l'annonce. La déduire à chaque rendu règle le problème sans
-   * appeler setState pendant le rendu, ce qui bouclerait.
+   * A note picked and then filtered out of view by a search would otherwise stay
+   * invisibly selected, and a bulk action would touch it with nothing announcing
+   * it. Deriving it on every render solves the problem without calling setState
+   * during render, which would loop.
    */
   const selectedIds = useMemo(() => {
     const visible = new Set(notes.map((n) => n.id))
@@ -96,8 +96,8 @@ export default function Notes() {
     setSelectionArmed(false)
   }, [])
 
-  // Après une action en masse, la sélection n'a plus d'objet : les notes visées
-  // ont changé d'état ou quitté la vue.
+  // After a bulk action, the selection has no purpose left: the targeted notes
+  // have changed state or left the view.
   const runOnSelection = useCallback(
     (action: (ids: string[]) => void) => {
       action(selectedIds)
@@ -107,19 +107,19 @@ export default function Notes() {
   )
 
   const selectedNotes = notes.filter((n) => selectedIds.includes(n.id))
-  // Un lot déjà entièrement épinglé propose le dépinglage, pas l'inverse.
+  // A batch that is already entirely pinned offers unpinning, not the reverse.
   const allPinned = selectionMode && selectedNotes.every((n) => n.is_pinned)
 
   /**
-   * Dépôt d'une carte sur une autre : la note prend la place de sa cible.
+   * Dropping one card on another: the note takes its target's place.
    *
-   * La décision est dans `moveNote`, où elle est testée — c'est là que vit la
-   * règle des épinglées en tête, et une règle d'ordre se vérifie bien mieux sur
-   * un tableau que sur un écran.
+   * The decision is in `moveNote`, where it is tested — that is where the
+   * pinned-first rule lives, and an ordering rule is far easier to check on an
+   * array than on a screen.
    *
-   * L'ordre complet est renvoyé au serveur, pas seulement les deux notes qui ont
-   * bougé : déplacer une carte décale toutes celles qui la suivent, et n'écrire
-   * que les extrémités laisserait des rangs en double.
+   * The complete order is sent back to the server, not just the two notes that
+   * moved: moving a card shifts every card after it, and writing only the ends
+   * would leave duplicate ranks.
    */
   const reorder = useCallback(
     (from: number, to: number) => {
@@ -147,8 +147,8 @@ export default function Notes() {
       <ScrollView
         contentContainerStyle={{
           padding: space.lg,
-          // De la place sous la grille pour que les boutons de création ne
-          // recouvrent jamais la dernière carte.
+          // Room under the grid so the create buttons never cover the last
+          // card.
           paddingBottom: space.lg + 72,
           gap: space.md,
         }}
@@ -192,8 +192,8 @@ export default function Notes() {
           </View>
         )}
 
-        {/* Recherche instantanée sur le cache : pas de latence par frappe, et
-            elle continue de fonctionner hors ligne. */}
+        {/* Instant search over the cache: no latency per keystroke, and it keeps
+            working offline. */}
         <View
           style={{
             flexDirection: 'row',
@@ -202,9 +202,9 @@ export default function Notes() {
             minHeight: 48,
             paddingHorizontal: space.md,
             borderRadius: radius.md,
-            // L'anneau de focus est repris en aurore : le bleu par défaut du
-            // navigateur n'a rien à faire dans cette palette, mais la
-            // navigation au clavier doit rester visible.
+            // The focus ring is redone in aurora: the browser's default blue has
+            // no place in this palette, but keyboard navigation must stay
+            // visible.
             borderWidth: searchFocus.focused ? 2 : 1,
             borderColor: searchFocus.focused ? theme.accent.default : theme.line.hairline,
             backgroundColor: theme.surface.recessed,
@@ -295,10 +295,10 @@ export default function Notes() {
           </ScrollView>
         ) : null}
 
-        {/* Une revalidation qui échoue alors que le cache contient des notes ne
-            doit pas vider l'écran : hors ligne, le contenu déjà chargé reste la
-            meilleure chose à montrer. L'erreur se signale alors par un bandeau,
-            et ne prend toute la place que s'il n'y a réellement rien à afficher. */}
+        {/* A revalidation that fails while the cache holds notes must not empty
+            the screen: offline, the content already loaded is still the best
+            thing to show. The error then shows as a banner, and only takes the
+            whole space if there is really nothing to display. */}
         {failure && notes.length > 0 ? (
           <View
             style={{
@@ -312,9 +312,9 @@ export default function Notes() {
               borderColor: theme.state.danger,
             }}
           >
-            {/* L'antenne barrée ne convient qu'à une panne de réseau. Elle
-                promettait le retour du contenu à la prochaine connexion, ce qu'une
-                base en retard ne tiendra jamais. */}
+            {/* The crossed-out antenna only suits a network failure. It promised
+                the content back at the next connection, which a database that
+                is behind will never deliver. */}
             <Feather
               name={failure.kind === 'network' ? 'wifi-off' : 'alert-triangle'}
               size={14}
@@ -336,8 +336,8 @@ export default function Notes() {
             <Txt variant="body" tone="secondary">
               {failure.message}
             </Txt>
-            {/* Le message brut reste à l'écran, en dessous et en plus petit :
-                c'est la ligne que l'on recopie dans un rapport de bug. */}
+            {/* The raw message stays on screen, below and smaller: it is the
+                line people copy into a bug report. */}
             {failure.detail ? (
               <Txt variant="caption" tone="muted">
                 {failure.detail}
@@ -349,10 +349,10 @@ export default function Notes() {
         ) : notes.length === 0 ? (
           <Card style={{ alignItems: 'center', paddingVertical: space.xxxl, gap: space.md }}>
             {/**
-             * Deux vides très différents, deux images différentes. Un filtre sans
-             * résultat est un problème de recherche, l'icône de loupe est donc la
-             * bonne réponse. Un espace réellement vide est une invitation à poser
-             * la première pierre : c'est la pierre levée, pas un pictogramme.
+             * Two very different kinds of empty, two different images. A filter
+             * with no result is a search problem, so the magnifier icon is the
+             * right answer. A truly empty space is an invitation to lay the
+             * first stone: that is the standing stone, not a pictogram.
              */}
             {filtering ? (
               <Feather name="search" size={28} color={theme.text.muted} />
@@ -392,14 +392,13 @@ export default function Notes() {
             keyExtractor={(n) => n.id}
             estimateHeight={estimateCardHeight}
             /**
-             * Pas de poignée pendant la sélection multiple ni sous un filtre.
+             * No handle during multiple selection or under a filter.
              *
-             * En sélection, les cartes sont des cases à cocher : une poignée y
-             * serait une troisième façon de toucher la même carte. Sous un
-             * filtre, la grille ne montre qu'une partie des notes, et réordonner
-             * une partie ne dit rien de l'ordre du tout — on écrirait des rangs
-             * sur une vue incomplète, en déplaçant sans le voir des notes
-             * absentes de l'écran.
+             * In selection, the cards are checkboxes: a handle there would be a
+             * third way to touch the same card. Under a filter, the grid only
+             * shows part of the notes, and reordering a part says nothing about
+             * the order of the whole — we would write ranks on an incomplete
+             * view, moving notes that are not on screen without seeing it.
              */
             onReorder={selectionMode || filtering ? undefined : reorder}
             reorderLabel={(note) => `Déplacer ${displayTitle(note) ?? 'la note'}`}
@@ -409,9 +408,9 @@ export default function Notes() {
                 reserveHandle={!selectionMode && !filtering}
                 selectionMode={selectionMode}
                 selected={selectedIds.includes(note.id)}
-                // En mode sélection, toucher une carte la retient au lieu de
-                // l'ouvrir : c'est le comportement attendu, et cela évite d'ouvrir
-                // une note par erreur en cochant la suivante.
+                // In selection mode, touching a card picks it instead of opening
+                // it: that is the expected behaviour, and it avoids opening a
+                // note by mistake while ticking the next one.
                 onPress={() =>
                   selectionMode ? toggleSelected(note.id) : router.push(`/note/${note.id}`)
                 }
@@ -431,13 +430,12 @@ export default function Notes() {
 }
 
 /**
- * Barre d'actions du mode sélection. Elle prend la place du logotype plutôt que
- * de s'ajouter en surplomb : rien ne se décale, et l'écran indique clairement
- * qu'il a changé de mode.
+ * Selection mode action bar. It takes the logotype's place rather than being
+ * added on top: nothing shifts, and the screen clearly shows it has changed
+ * mode.
  *
- * La suppression ne demande aucune confirmation, et c'est délibéré : elle envoie à
- * la corbeille, donc elle est réversible. Une boîte de dialogue pour une action
- * annulable est du bruit.
+ * Deleting asks for no confirmation, and that is deliberate: it sends to the
+ * trash, so it can be undone. A dialog for an undoable action is noise.
  */
 function SelectionBar({
   count,
@@ -458,9 +456,9 @@ function SelectionBar({
   onArchive: () => void
   onDelete: () => void
 }) {
-  // Le mode peut être armé sans qu'aucune note ne soit encore retenue : les
-  // actions sont alors désactivées plutôt que masquées, pour que la barre ne
-  // change pas de forme dès la première case cochée.
+  // The mode can be armed before any note is picked: the actions are then
+  // disabled rather than hidden, so the bar does not change shape at the first
+  // box ticked.
   const nothingSelected = count === 0
 
   return (
@@ -509,9 +507,9 @@ function SelectionBar({
 }
 
 /**
- * Deux boutons de création plutôt qu'un seul suivi d'un choix de type : créer une
- * liste est aussi fréquent que créer une note, l'un ne mérite pas d'être caché
- * derrière l'autre.
+ * Two create buttons rather than one followed by a choice of type: creating a
+ * list is as frequent as creating a note, and neither deserves to be hidden
+ * behind the other.
  */
 function Composer({ busy, onCreate }: { busy: boolean; onCreate: (kind: NoteKind) => void }) {
   return (

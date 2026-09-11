@@ -40,8 +40,8 @@ export default function TagsScreen() {
     try {
       await createTag.mutateAsync({ name, colorKey: draftColor })
       setDraftName('')
-      // La couleur avance dans la palette : créer plusieurs tags d'affilée ne
-      // donne pas dix fois la même teinte.
+      // The colour moves on through the palette: creating several tags in a row
+      // does not give the same hue ten times.
       const next = tagColorKeys[(tagColorKeys.indexOf(draftColor) + 1) % tagColorKeys.length]
       setDraftColor(next)
     } catch (e) {
@@ -66,7 +66,7 @@ export default function TagsScreen() {
         </Txt>
       </View>
 
-      {/* Création */}
+      {/* Creation */}
       <Card style={{ gap: space.sm }}>
         <Txt variant="title">Nouveau tag</Txt>
         <View style={{ flexDirection: 'row', gap: space.sm, alignItems: 'center' }}>
@@ -126,7 +126,7 @@ export default function TagsScreen() {
         ) : null}
       </Card>
 
-      {/* Liste */}
+      {/* List */}
       {tags.length === 0 ? (
         <Card style={{ alignItems: 'center', paddingVertical: space.xxl, gap: space.sm }}>
           <Feather name="tag" size={24} color={theme.text.muted} />

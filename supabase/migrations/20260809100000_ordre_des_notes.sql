@@ -1,28 +1,28 @@
--- Ordre choisi des notes dans la grille.
+-- The chosen order of notes in the grid.
 --
--- Jusqu'ici l'ordre était subi : épinglées d'abord, puis par date de
--- modification. Écrire un mot dans une note la faisait remonter en tête, et rien
--- ne permettait de ranger une note à une place et de l'y laisser.
+-- Until now the order was imposed: pinned first, then by modification date.
+-- Writing a word in a note brought it back to the top, and nothing allowed
+-- putting a note in a place and leaving it there.
 --
--- ── Pourquoi un défaut à zéro plutôt qu'un rang initial ──────────────────────
--- Toutes les notes existantes démarrent donc à égalité, et le départage se fait
--- comme avant, sur `updated_at` décroissant : la migration ne change l'ordre de
--- personne. C'est aussi ce qui place une note fraîchement créée en tête sans
--- rien avoir à écrire — elle naît à zéro, donc à égalité avec la première, et
--- gagne le départage puisqu'elle est la plus récente.
+-- ── Why a default of zero rather than an initial rank ────────────────────────
+-- So every existing note starts level, and ties are broken as before, on
+-- `updated_at` descending: the migration changes nobody's order. It is also
+-- what puts a freshly created note at the top without writing anything — it is
+-- born at zero, so level with the first, and wins the tie since it is the most
+-- recent.
 --
--- Un rang initial calculé aurait figé l'ordre du jour de la migration, y compris
--- pour qui ne se servira jamais du glisser-déposer.
+-- A computed initial rank would have frozen the order as of the migration's
+-- day, including for people who will never use drag and drop.
 
 alter table notes add column position integer not null default 0;
 
 comment on column notes.position is
   'Rang choisi dans la grille. Zéro par défaut, départagé par updated_at décroissant.';
 
--- L'index de la grille principale porte désormais le rang, entre l'épingle et la
--- date : c'est l'ordre exact du tri d'affichage, donc Postgres le lit sans
--- retrier. Sans cette reprise, la grille repassait par un tri en mémoire à
--- chaque lecture.
+-- The main grid's index now carries the rank, between the pin and the date: it
+-- is the exact order of the display sort, so Postgres reads it without sorting
+-- again. Without this rework, the grid went through an in-memory sort on every
+-- read.
 drop index notes_active_idx;
 create index notes_active_idx
   on notes (user_id, is_pinned desc, position, updated_at desc)
@@ -33,22 +33,22 @@ create index notes_private_idx
   on notes (user_id, position, updated_at desc)
   where deleted_at is null and is_private = true;
 
--- ------------------------------------------------- réordonnancement atomique
+-- ----------------------------------------------------------- atomic reordering
 
 /*
- * Fixe le rang des notes selon l'ordre du tableau fourni.
+ * Sets the notes' ranks according to the order of the given array.
  *
- * Même raisonnement que `reorder_checklist_items`, et pour les mêmes raisons :
- * un upsert depuis le client serait un insert-ou-update, or on ne veut que des
- * updates — sur un identifiant absent il tenterait une insertion et échouerait
- * sur une contrainte sans rapport avec le vrai problème. Une boucle d'updates
- * coûterait un aller-retour réseau par note déplacée, et une coupure au milieu
- * laisserait la grille dans un ordre incohérent.
+ * Same reasoning as `reorder_checklist_items`, and for the same reasons: an
+ * upsert from the client would be an insert-or-update, and we only want
+ * updates — on a missing id it would attempt an insert and fail on a constraint
+ * unrelated to the real problem. A loop of updates would cost a network round
+ * trip per moved note, and a cut in the middle would leave the grid in an
+ * inconsistent order.
  *
- * SECURITY INVOKER, le défaut : la fonction s'exécute avec les droits de
- * l'appelant, donc les politiques RLS de `notes` s'appliquent et personne ne
- * peut réordonner la grille d'autrui. Le `set search_path` reprend le
- * durcissement déjà appliqué aux autres fonctions.
+ * SECURITY INVOKER, the default: the function runs with the caller's rights, so
+ * the RLS policies of `notes` apply and nobody can reorder someone else's grid.
+ * The `set search_path` repeats the hardening already applied to the other
+ * functions.
  */
 create or replace function reorder_notes(p_ids uuid[])
 returns void

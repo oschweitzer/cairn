@@ -1,48 +1,48 @@
 /**
- * Règles du coffre qui ne dépendent ni de la plateforme, ni du stockage, ni de
- * la cryptographie.
+ * Vault rules that depend neither on the platform, nor on storage, nor on
+ * cryptography.
  *
- * Séparé de secret.ts pour la même raison que noteLogic.ts est séparé des
- * hooks : ces fonctions décident si une saisie passe, combien de temps il faut
- * attendre après un échec, et à partir de quand une temporisation court. Ce sont
- * exactement les endroits où une erreur enfermerait quelqu'un hors de ses notes,
- * ou au contraire laisserait le coffre grand ouvert. Elles se testent donc
- * directement sous Node, sans simuler expo-secure-store.
+ * Kept apart from secret.ts for the same reason noteLogic.ts is kept apart from
+ * the hooks: these functions decide whether an entry goes through, how long to
+ * wait after a failure, and from when a cool-down runs. Those are exactly the
+ * places where a mistake would lock someone out of their notes, or on the
+ * contrary leave the vault wide open. So they are tested directly under Node,
+ * without mocking expo-secure-store.
  *
- * Ce fichier ne doit importer aucun module react-native ni expo.
+ * This file must import no react-native or expo module.
  */
 
-/** Longueur minimale. Quatre chiffres, comme un code de carte. */
+/** Minimum length. Four digits, like a card PIN. */
 export const PIN_MIN_LENGTH = 4
 export const PIN_MAX_LENGTH = 12
 
 export type VaultSecret = {
-  /** Aléatoire, en hexadécimal. Empêche deux codes identiques d'avoir la même empreinte. */
+  /** Random, in hexadecimal. Keeps two identical codes from having the same hash. */
   salt: string
   hash: string
-  /** Échecs consécutifs. Remis à zéro par une saisie correcte. */
+  /** Consecutive failures. Reset to zero by a correct entry. */
   failures: number
-  /** Horodatage en millisecondes jusqu'auquel toute saisie est refusée. */
+  /** Timestamp in milliseconds until which every entry is refused. */
   lockedUntil: number | null
-  /** L'utilisateur accepte le déverrouillage biométrique. Sans effet sur le web. */
+  /** The user accepts biometric unlocking. No effect on the web. */
   biometrics: boolean
 }
 
 /**
- * Attente imposée après des échecs consécutifs, en millisecondes.
+ * Wait imposed after consecutive failures, in milliseconds.
  *
- * Les trois premiers essais sont gratuits : se tromper de doigt arrive, et punir
- * la première erreur ne ferait qu'agacer le propriétaire du téléphone. Au-delà,
- * l'attente double à chaque échec et plafonne à cinq minutes, ce qui rend un
- * balayage manuel du clavier fastidieux bien avant d'être fructueux.
+ * The first three attempts are free: hitting the wrong digit happens, and
+ * punishing the first mistake would only annoy the phone's owner. Beyond that,
+ * the wait doubles with every failure and caps at five minutes, which makes a
+ * manual sweep of the keypad tedious long before it pays off.
  *
- * Le plafond n'est pas une faiblesse concédée, c'est la contrepartie du fait
- * que la seule personne réellement gênée par une attente qui grandit sans fin
- * est celle qui a le droit d'entrer et qui s'est trompée.
+ * The cap is not a conceded weakness, it is the counterpart of the fact that
+ * the only person really hindered by a wait that grows without end is the one
+ * who is allowed in and got it wrong.
  *
- * Cette temporisation vit à côté du secret, donc quelqu'un qui sait effacer le
- * stockage la contourne. Il perdrait aussi le coffre en le faisant, ce qui
- * suffit pour la menace visée. Elle n'a jamais eu vocation à arrêter un analyste.
+ * This cool-down lives next to the secret, so someone who knows how to wipe the
+ * storage gets around it. They would also lose the vault by doing so, which is
+ * enough for the threat in view. It was never meant to stop an analyst.
  */
 export const FREE_ATTEMPTS = 3
 const BASE_DELAY_MS = 15_000
@@ -55,26 +55,25 @@ export function delayForFailures(failures: number): number {
 }
 
 /**
- * Fermeture automatique : cinq minutes sans un geste.
+ * Automatic closing: five minutes without a gesture.
  *
- * Le seuil vit ici, avec le reste de ce qui décide quand le coffre se ferme, et
- * la règle qui va avec tient dans la fonction ci-dessous.
+ * The threshold lives here, with the rest of what decides when the vault
+ * closes, and the rule that goes with it fits in the function below.
  */
 export const AUTO_LOCK_MS = 5 * 60_000
 
 /**
- * Temps restant avant la fermeture automatique, en millisecondes. Zéro veut dire
- * « fermer maintenant ».
+ * Time left before automatic closing, in milliseconds. Zero means "close now".
  *
- * Une soustraction, et c'est tout l'intérêt : le compte se fait sur l'horloge et
- * non sur une minuterie. Une minuterie qui dort — onglet caché que le navigateur
- * ralentit, application suspendue par le système — se réveille en retard, et son
- * retard ferait passer une longue absence pour une courte. En repartant de
- * l'heure du dernier geste, une absence d'une heure rend zéro dès le réveil,
- * quel que soit le sommeil de la minuterie entre-temps.
+ * A subtraction, and that is the whole point: the count is kept on the clock and
+ * not on a timer. A sleeping timer — a hidden tab the browser slows down, an app
+ * suspended by the system — wakes up late, and its lateness would pass a long
+ * absence off as a short one. Starting again from the time of the last gesture,
+ * an hour's absence returns zero as soon as it wakes, however the timer slept in
+ * the meantime.
  *
- * Le plancher à zéro n'est pas cosmétique : la valeur sert à reposer la
- * minuterie, et un délai négatif la ferait boucler sans fin.
+ * The floor at zero is not cosmetic: the value is used to set the timer again,
+ * and a negative delay would make it loop forever.
  */
 export function msBeforeAutoLock(lastActivity: number, now: number): number {
   return Math.max(0, lastActivity + AUTO_LOCK_MS - now)
@@ -86,14 +85,14 @@ export type PinVerdict =
   | { ok: false; reason: 'cooling'; secret: VaultSecret; waitMs: number }
 
 /**
- * Décide du sort d'une saisie, à partir de l'empreinte déjà calculée.
+ * Decides the fate of an entry, from the hash already computed.
  *
- * Prendre l'empreinte en entrée plutôt que le code lui-même est ce qui rend
- * cette fonction pure : la dérivation traverse le pont natif, la décision non.
+ * Taking the hash as input rather than the code itself is what makes this
+ * function pure: derivation crosses the native bridge, the decision does not.
  *
- * Rien n'est persisté ici. Le secret mis à jour est renvoyé, et c'est l'appelant
- * qui l'écrit, ce qui laisse le choix du moment et rend la fonction rejouable
- * dans un test sans stockage.
+ * Nothing is persisted here. The updated secret is returned, and the caller is
+ * the one who writes it, which leaves the choice of timing and makes the
+ * function replayable in a test with no storage.
  */
 export function judgePin(
   candidateHash: string,

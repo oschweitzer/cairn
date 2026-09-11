@@ -16,43 +16,42 @@ import { useTheme } from './ThemeProvider'
 import { motion, space, type TagColorKey } from './theme'
 
 /**
- * L'attente, gravée.
+ * Waiting, engraved.
  *
- * ── Pourquoi une rune et pas une ébauche de contenu ──────────────────────────
- * L'ébauche grise avait sa logique — occuper la forme de ce qui vient — mais
- * elle ne ressemblait à rien : c'est le seul écran de l'application qui n'avait
- * aucun caractère. Une pierre gravée dont la couleur passe du gel à la braise
- * dit la même chose, et la dit dans la langue du reste.
+ * ── Why a rune and not a content skeleton ────────────────────────────────────
+ * The grey skeleton had its logic — taking the shape of what is coming — but it
+ * looked like nothing: it was the only screen in the app with no character at
+ * all. An engraved stone whose colour goes from frost to ember says the same
+ * thing, and says it in the language of everything else.
  *
- * ── La couleur vient de la palette, pas de l'imagination ─────────────────────
- * Les cinq teintes traversées sont des clés de `tagPalette`, résolues par le
- * thème actif : le gel du fjord, la braise, le lichen, la bruyère, et l'aurore
- * pour refermer le cycle sur l'accent de l'application. Elles sont donc déjà
- * auditées sur les quatre strates, et elles suivent le passage en thème clair
- * sans qu'on ait un seul hexadécimal à écrire ici.
+ * ── The colour comes from the palette, not from imagination ──────────────────
+ * The five hues it passes through are `tagPalette` keys, resolved by the active
+ * theme: the frost of the fjord, the ember, the lichen, the heather, and the
+ * aurora to close the cycle on the app's accent. So they are already audited on
+ * all four strata, and they follow the switch to the light theme without a
+ * single hexadecimal to write here.
  *
- * ── Ornementale, donc muette ─────────────────────────────────────────────────
- * La rune ne porte aucun sens, conformément au principe posé dans runes.tsx :
- * c'est le texte sous elle qui annonce l'attente, et c'est lui que lit un
- * lecteur d'écran. Le dessin est masqué.
+ * ── Ornamental, so silent ────────────────────────────────────────────────────
+ * The rune carries no meaning, in line with the principle set in runes.tsx: the
+ * text under it is what announces the wait, and it is what a screen reader
+ * reads. The drawing is hidden.
  */
 
 const AnimatedPath = Animated.createAnimatedComponent(Path)
 
 /**
- * Le cycle. Cinq teintes plutôt que deux : un aller-retour entre deux couleurs
- * se lit comme un clignotement, une traversée se lit comme une matière qui
- * change d'état.
+ * The cycle. Five hues rather than two: a back and forth between two colours
+ * reads as blinking, a crossing reads as matter changing state.
  */
 const CYCLE: readonly TagColorKey[] = ['fjord', 'braise', 'lichen', 'bruyere', 'aurore']
 
-/** Temps passé sur chaque teinte. Le fondu est continu, rien ne s'arrête dessus. */
+/** Time spent on each hue. The fade is continuous, nothing stops on it. */
 const STEP = motion.slow * 3
 
 /**
- * Dagaz, ᛞ. Forme fermée et symétrique, la plus lisible du futhark à grande
- * taille, et déjà le trait de partage de l'éditeur : l'attente reste dans le
- * vocabulaire de l'application au lieu d'y introduire un signe de plus.
+ * Dagaz, ᛞ. A closed, symmetrical shape, the most legible of the futhark at a
+ * large size, and already the editor's dividing line: the wait stays within the
+ * app's vocabulary instead of bringing in one more sign.
  */
 const DEFAULT_RUNE: RuneName = 'dagaz'
 
@@ -61,7 +60,7 @@ export function RuneLoader({
   rune = DEFAULT_RUNE,
   size = 72,
 }: {
-  /** Ce qu'on attend, en toutes lettres. C'est la seule chose qui soit annoncée. */
+  /** What is being waited for, spelled out. It is the only thing announced. */
   message?: string
   rune?: RuneName
   size?: number
@@ -71,17 +70,17 @@ export function RuneLoader({
   const progress = useSharedValue(0)
   const breath = useSharedValue(0)
 
-  // La palette est résolue en JavaScript, puis capturée par les worklets : ce
-  // sont de simples chaînes, et le thème ne change pas en cours d'animation.
+  // The palette is resolved in JavaScript, then captured by the worklets: they
+  // are plain strings, and the theme does not change mid-animation.
   const colors = CYCLE.map((key) => tagColor(key))
-  // La dernière teinte rejoint la première, sinon le cycle claque en revenant à
-  // son début.
+  // The last hue joins the first, otherwise the cycle snaps as it returns to
+  // its start.
   const stops = [...colors, colors[0]]
   const steps = stops.map((_, index) => index)
 
   useEffect(() => {
-    // Linéaire, et c'est voulu : une courbe d'accélération ferait accrocher le
-    // regard sur chaque teinte, alors qu'on veut une dérive continue.
+    // Linear, on purpose: an easing curve would catch the eye on each hue,
+    // whereas we want a continuous drift.
     progress.value = withRepeat(
       withTiming(CYCLE.length, { duration: STEP * CYCLE.length, easing: Easing.linear }),
       -1,
@@ -99,7 +98,7 @@ export function RuneLoader({
   }))
 
   const breathing = useAnimatedStyle(() => ({
-    // Course très courte : la pierre respire, elle ne palpite pas.
+    // A very short travel: the stone breathes, it does not throb.
     transform: [{ scale: 0.97 + breath.value * 0.03 }],
   }))
 
@@ -120,16 +119,16 @@ export function RuneLoader({
         <Svg
           width={width}
           height={size}
-          // La marge d'une unité empêche le trait d'être rogné sur les bords,
-          // comme dans `<Rune>`.
+          // The one-unit margin keeps the stroke from being clipped at the
+          // edges, as in `<Rune>`.
           viewBox={`-1 -1 ${runeBox.width + 2} ${runeBox.height + 2}`}
         >
           <AnimatedPath
             d={runePath(rune)}
-            // Valeur statique de repli : si la propriété animée ne passe pas
-            // jusqu'à l'attribut SVG, la rune reste visible dans la première
-            // teinte du cycle plutôt que de disparaître, un trait sans couleur
-            // n'étant rien du tout.
+            // A static fallback value: if the animated prop does not make it to
+            // the SVG attribute, the rune stays visible in the cycle's first
+            // hue rather than vanishing, a stroke with no colour being nothing
+            // at all.
             stroke={colors[0]}
             animatedProps={strokeProps}
             strokeWidth={size / 12}

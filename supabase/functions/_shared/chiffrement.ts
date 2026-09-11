@@ -1,30 +1,30 @@
 /**
- * Chiffrement du jeton de rafraîchissement Google, côté serveur.
+ * Encryption of the Google refresh token, on the server.
  *
- * À ne pas confondre avec src/vault/crypto.ts, qui chiffre les notes. Les deux
- * n'ont ni la même clé, ni le même détenteur, ni le même but :
+ * Not to be confused with src/vault/crypto.ts, which encrypts the notes. The
+ * two have neither the same key, nor the same holder, nor the same purpose:
  *
- *   coffre    clé dérivée de la clé de secours, détenue par l'utilisateur seul.
- *             Le serveur ne peut pas lire, c'est tout l'intérêt.
+ *   vault        key derived from the recovery key, held by the user alone.
+ *                The server cannot read, that is the whole point.
  *
- *   ce module clé détenue par le serveur, dans les secrets des Edge Functions.
- *             Le serveur doit pouvoir lire — sans le jeton en clair il ne peut
- *             pas appeler Google. Ce chiffrement protège contre une fuite de la
- *             base seule, pas contre le serveur lui-même.
+ *   this module  key held by the server, in the Edge Functions secrets. The
+ *                server has to be able to read — without the plaintext token it
+ *                cannot call Google. This encryption protects against a leak of
+ *                the database alone, not against the server itself.
  *
- * Prétendre l'inverse serait mentir sur la garantie offerte. Un jeton Google
- * autorise à écrire dans l'agenda de quelqu'un ; le laisser en clair dans une
- * table rendrait une sauvegarde égarée immédiatement exploitable, et c'est
- * précisément ce que cette couche empêche.
+ * Claiming otherwise would be lying about the guarantee offered. A Google token
+ * allows writing to someone's calendar; leaving it in plaintext in a table would
+ * make a mislaid backup immediately exploitable, and that is precisely what this
+ * layer prevents.
  *
- * AES-GCM plutôt que XChaCha20 comme le coffre : il est natif dans WebCrypto,
- * donc sans dépendance à importer dans une fonction qui démarre à froid. Le
- * format retenu reste celui du reste du projet — nonce en tête du chiffré, le
- * tout en hexadécimal — parce qu'un nonce rangé à part est un nonce qu'on peut
- * désynchroniser de son chiffré.
+ * AES-GCM rather than XChaCha20 like the vault: it is native in WebCrypto, so
+ * there is no dependency to import in a function that starts cold. The format
+ * kept is the rest of the project's — nonce at the head of the ciphertext, all
+ * in hexadecimal — because a nonce stored apart is a nonce that can fall out of
+ * sync with its ciphertext.
  */
 
-/** 96 bits, taille recommandée pour AES-GCM et la seule qu'accélère le matériel. */
+/** 96 bits, the size recommended for AES-GCM and the only one hardware accelerates. */
 const NONCE_BYTES = 12
 
 function toHex(bytes: Uint8Array): string {
@@ -42,12 +42,12 @@ function fromHex(hex: string): Uint8Array {
 }
 
 /**
- * Charge la clé depuis les secrets.
+ * Loads the key from the secrets.
  *
- * Elle est attendue en hexadécimal sur 64 caractères, soit 256 bits. La
- * longueur est vérifiée ici plutôt que laissée à WebCrypto : son message
- * d'erreur ne dit pas quel secret est en cause, et une clé mal copiée est
- * l'incident le plus probable de toute cette chaîne.
+ * It is expected as 64 hexadecimal characters, that is 256 bits. The length is
+ * checked here rather than left to WebCrypto: its error message does not say
+ * which secret is at fault, and a badly copied key is the most likely incident
+ * in this whole chain.
  */
 async function chargerCle(): Promise<CryptoKey> {
   const brut = Deno.env.get('GOOGLE_TOKEN_KEY')
@@ -78,12 +78,12 @@ export async function chiffrer(clair: string): Promise<string> {
 }
 
 /**
- * Rend null plutôt que de lever, pour un chiffré illisible.
+ * Returns null rather than throwing, for an unreadable ciphertext.
  *
- * Le cas se produit pour de bon le jour où la clé est remplacée : les lignes
- * écrites avec l'ancienne deviennent indéchiffrables. L'appelant doit alors
- * demander une reconnexion, ce qui est une issue normale — pas une erreur 500
- * qui laisserait l'utilisateur devant un échec sans explication.
+ * It really happens the day the key is replaced: rows written with the old one
+ * become undecryptable. The caller must then ask for a reconnection, which is a
+ * normal outcome — not a 500 error that would leave the user facing a failure
+ * with no explanation.
  */
 export async function dechiffrer(chiffre: string): Promise<string | null> {
   try {

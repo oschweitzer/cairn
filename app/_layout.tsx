@@ -19,18 +19,18 @@ import { ToastProvider } from '@/ui/Toast'
 import { TooltipProvider } from '@/ui/Tooltip'
 import { radius, space } from '@/ui/theme'
 
-// L'écran de démarrage reste affiché jusqu'à ce que les polices ET le réglage de
-// thème soient connus. Le masquer plus tôt donnerait un rendu en police système
-// puis un saut typographique, ou un éclair de thème inversé.
+// The splash screen stays up until both the fonts AND the theme setting are
+// known. Hiding it earlier would give a render in the system font and then a
+// typographic jump, or a flash of the inverted theme.
 //
-// Le voile ne fait que cacher : c'est `Boot` qui retient le rendu lui-même, et
-// les deux sont nécessaires — voir la condition `canPaint` plus bas.
+// The splash only hides: `Boot` is what holds back the render itself, and both
+// are needed — see the `canPaint` condition below.
 void SplashScreen.preventAutoHideAsync()
 
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    // Fichiers locaux plutôt que paquets : ni Viking ni Junicode ne vivent sur
+    // Local files rather than packages: neither Viking nor Junicode lives on
     // Google Fonts.
     Viking: require('../assets/fonts/Viking.ttf'),
     Junicode: require('../assets/fonts/Junicode.ttf'),
@@ -39,29 +39,29 @@ export default function RootLayout() {
     Archivo_500Medium,
 
     /**
-     * La police des icônes, déclarée ici alors que `@expo/vector-icons` sait la
-     * charger tout seul. Ce n'est pas une redite : c'est ce qui fait qu'elle
-     * existe aussi au moment de l'export statique.
+     * The icon font, declared here even though `@expo/vector-icons` can load it
+     * by itself. It is not a repeat: it is what makes it exist at static export
+     * time too.
      *
-     * Sans cette ligne, la PWA levait une erreur d'hydratation à chaque
-     * chargement, d'origine peu évidente. Le composant d'icône lit
-     * `Font.isLoaded()` dans son état initial, or cette fonction ne répond pas à
-     * la même question des deux côtés : sous Node elle consulte un registre que
-     * rien n'avait alimenté, dans le navigateur elle cherche une règle
-     * `@font-face` dans le document. Le HTML sortait donc du build avec un
-     * `<Text>` sans `fontFamily` ni glyphe, le navigateur rendait l'icône
-     * complète, et React jetait tout l'arbre pour le refaire côté client.
+     * Without this line, the PWA raised a hydration error on every load, of no
+     * obvious origin. The icon component reads `Font.isLoaded()` in its initial
+     * state, and that function does not answer the same question on both
+     * sides: under Node it looks up a registry nothing had fed, in the browser
+     * it looks for an `@font-face` rule in the document. So the HTML came out of
+     * the build with a `<Text>` with neither `fontFamily` nor glyph, the browser
+     * rendered the complete icon, and React threw away the whole tree to redo
+     * it on the client.
      *
-     * Déclarée ici, `useFonts` l'enregistre pendant le rendu serveur — c'est son
-     * chemin `useStaticFonts` — l'export en tire la règle `@font-face` qu'il
-     * pose dans le HTML, et le premier rendu du navigateur la trouve donc déjà
-     * là. Les deux concordent.
+     * Declared here, `useFonts` registers it during the server render — that is
+     * its `useStaticFonts` path — the export derives the `@font-face` rule it
+     * puts in the HTML from it, and the browser's first render therefore finds
+     * it already there. The two agree.
      *
-     * Un appel au niveau module ne marchait pas : le registre serveur vit dans
-     * un `AsyncLocalStorage` qu'Expo n'ouvre que le temps du rendu, et
-     * l'évaluation du module arrive avant.
+     * A module-level call did not work: the server registry lives in an
+     * `AsyncLocalStorage` that Expo only opens for the duration of the render,
+     * and module evaluation comes before.
      *
-     * Effet de bord bienvenu : les icônes ne clignotent plus au premier rendu.
+     * A welcome side effect: icons no longer flicker on first render.
      */
     ...Feather.font,
   })
@@ -71,18 +71,18 @@ export default function RootLayout() {
       <ThemeProvider>
         <QueryProvider>
           <AuthProvider>
-            {/* Le coffre est sous le fournisseur de requêtes : son état
-                conditionne des requêtes, et refermer doit pouvoir laisser
-                expirer les entrées de cache correspondantes. */}
+            {/* The vault sits under the query provider: its state gates
+                queries, and closing it must be able to let the matching cache
+                entries expire. */}
             <VaultProvider>
-              {/* Infobulles et accusés de réception se peignent au-dessus de
-                  toute l'application, d'où leur place tout en haut de l'arbre :
-                  une bulle rendue sur place serait rognée par la première strate
-                  qui coupe ce qui dépasse, et il y en a partout. */}
+              {/* Tooltips and toasts paint above the whole app, hence their
+                  place at the very top of the tree: a tooltip rendered in place
+                  would be clipped by the first stratum that cuts off overflow,
+                  and there are such strata everywhere. */}
               <TooltipProvider>
                 <ToastProvider>
-                  {/* Une police introuvable ne doit pas bloquer l'application sur
-                      l'écran de démarrage : on continue avec la police système. */}
+                  {/* A missing font must not hold the app on the splash screen:
+                      we carry on with the system font. */}
                   <Boot fontsReady={fontsLoaded || Boolean(fontError)} />
                 </ToastProvider>
               </TooltipProvider>
@@ -99,9 +99,9 @@ function Boot({ fontsReady }: { fontsReady: boolean }) {
   const { session, loading: authLoading, recovering } = useAuth()
   const router = useRouter()
   const segments = useSegments()
-  // Le chemin plutôt qu'un segment indexé : `useSegments` rend un tuple dont la
-  // longueur varie d'une route à l'autre, et un index y est refusé à la
-  // compilation. Le groupe (auth) n'apparaît pas dans le chemin.
+  // The path rather than an indexed segment: `useSegments` returns a tuple whose
+  // length varies from one route to another, and indexing into it is rejected
+  // at compile time. The (auth) group does not appear in the path.
   const pathname = usePathname()
 
   const canPaint = fontsReady && themeReady
@@ -110,19 +110,19 @@ function Boot({ fontsReady }: { fontsReady: boolean }) {
     if (canPaint) void SplashScreen.hideAsync()
   }, [canPaint])
 
-  // Aiguillage entre la zone authentifiée et les écrans de connexion.
+  // Routing between the signed-in area and the sign-in screens.
   useEffect(() => {
     if (!canPaint || authLoading || !isSupabaseConfigured) return
     const inAuthGroup = segments[0] === '(auth)'
 
     /**
-     * La récupération passe avant tout le reste.
+     * Recovery comes before everything else.
      *
-     * Le lien reçu par courriel ouvre une session valide : la règle ordinaire —
-     * une session, donc on entre — enverrait droit dans les notes quelqu'un qui
-     * n'a pas encore choisi son nouveau mot de passe, et l'écran qui le demande
-     * ne serait jamais atteint. On y retient donc la navigation, et on sort tôt
-     * pour que la règle ordinaire ne s'applique pas.
+     * The emailed link opens a valid session: the ordinary rule — a session, so
+     * in you go — would send straight into the notes someone who has not yet
+     * chosen their new password, and the screen asking for it would never be
+     * reached. So navigation is held there, and we return early so the
+     * ordinary rule does not apply.
      */
     if (recovering) {
       if (pathname !== '/new-password') router.replace('/new-password')
@@ -130,15 +130,14 @@ function Boot({ fontsReady }: { fontsReady: boolean }) {
     }
 
     /**
-     * Hors récupération, cet écran n'a plus rien à demander : on en sort.
+     * Outside recovery, this screen has nothing left to ask: we leave it.
      *
-     * Sans cette règle il devenait un cul-de-sac, faute d'être couvert par les
-     * deux règles suivantes — il appartient au groupe (auth), donc « pas de
-     * session et hors du groupe » ne s'y applique pas. Le bouton « Annuler et se
-     * déconnecter » fermait donc bien la session, mais laissait sur place, face
-     * à un formulaire que plus aucune session ne permettait d'envoyer. Vu en
-     * éprouvant le parcours ; le commentaire de ce bouton promettait exactement
-     * l'inverse.
+     * Without this rule it became a dead end, not being covered by the next two
+     * rules — it belongs to the (auth) group, so "no session and outside the
+     * group" does not apply to it. The « Annuler et se déconnecter » button did
+     * close the session, but left you in place, facing a form no session could
+     * submit any more. Seen while walking through the flow; that button's
+     * comment promised exactly the opposite.
      */
     if (pathname === '/new-password') {
       router.replace(session ? '/' : '/sign-in')
@@ -153,67 +152,67 @@ function Boot({ fontsReady }: { fontsReady: boolean }) {
   const [setupDismissed, setSetupDismissed] = useState(false)
 
   /**
-   * Rien n'est rendu tant que les polices manquent — pas même sous le voile.
+   * Nothing is rendered while fonts are missing — not even under the splash.
    *
-   * Retenir l'écran de démarrage ne suffisait pas : il cache le premier rendu,
-   * il ne l'empêche pas. L'arbre était donc mesuré en police système, et Android
-   * garde cette mesure quand la vraie police arrive ensuite. Chaque texte se
-   * retrouvait peint dans une boîte taillée pour un autre dessin : le logotype,
-   * mesuré à 71 points puis tracé en Viking qui en demande 107, se coupait après
-   * « CAI » — le reste passait à une seconde ligne, hors de la hauteur réservée,
-   * donc invisible — et les libellés d'onglets s'abrégeaient en « Not… ».
+   * Holding the splash screen was not enough: it hides the first render, it
+   * does not prevent it. So the tree was measured in the system font, and
+   * Android keeps that measurement when the real font arrives afterwards. Every
+   * text ended up painted in a box cut for another design: the logotype,
+   * measured at 71 points then drawn in Viking which needs 107, broke after
+   * "CAI" — the rest went to a second line, outside the reserved height, so
+   * invisible — and tab labels shortened to « Not… ».
    *
-   * Sur le web la condition est déjà vraie au premier rendu — les règles
-   * @font-face sortent de l'export statique et le réglage de thème s'y lit de
-   * façon synchrone — donc l'hydratation voit le même arbre des deux côtés.
+   * On the web the condition is already true on first render — the @font-face
+   * rules come out of the static export and the theme setting is read
+   * synchronously there — so hydration sees the same tree on both sides.
    */
   if (!canPaint) return <View style={{ flex: 1, backgroundColor: theme.surface.page }} />
 
   /**
-   * L'ordre des deux éléments de configuration n'est pas interchangeable, et
-   * chacun a besoin du sien.
+   * The order of the two setup elements is not interchangeable, and each needs
+   * its own.
    *
-   * Le bandeau réduit vient AVANT la pile pour occuper sa propre place dans la
-   * colonne et pousser le contenu : en superposition il masquait la barre
-   * d'actions de l'éditeur, bouton retour compris.
+   * The collapsed banner comes BEFORE the stack so it takes its own place in
+   * the column and pushes the content down: overlaid, it hid the editor's
+   * action bar, back button included.
    *
-   * Le voile complet vient APRÈS la pile, parce qu'entre frères superposés c'est
-   * le dernier rendu qui est peint au-dessus. Placé avant, il passait sous la
-   * pile et devenait invisible.
+   * The full overlay comes AFTER the stack, because among overlapping siblings
+   * the last rendered is painted on top. Placed before, it went under the stack
+   * and became invisible.
    */
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface.page }}>
       <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
 
-      {/* Rien à l'écran : tient à jour l'instantané que lit le widget Android.
-          Ici plutôt que dans un onglet, pour que la copie suive les notes quel
-          que soit l'écran ouvert — cocher une case depuis l'éditeur doit se voir
-          sur l'écran d'accueil du téléphone. */}
+      {/* Nothing on screen: keeps the snapshot the Android widget reads up to
+          date. Here rather than in a tab, so the copy follows the notes
+          whatever screen is open — ticking a box from the editor has to show
+          on the phone's home screen. */}
       <WidgetSync />
 
       {needsSetup && setupDismissed ? (
         <SetupBanner onPress={() => setSetupDismissed(false)} />
       ) : null}
 
-      {/* Une pile, pas un Slot : l'éditeur de note est poussé par-dessus les
-          onglets et doit pouvoir revenir en arrière.
+      {/* A stack, not a Slot: the note editor is pushed on top of the tabs and
+          must be able to go back.
 
-          Les deux écrans qui s'ouvrent sur autre chose qu'une liste ont leur
-          propre transition. Déclarer une partie des routes seulement est prévu :
-          celles qui ne le sont pas gardent la transition par défaut de la
-          plateforme, elles ne disparaissent pas de la pile. */}
+          The two screens that open onto something other than a list have
+          their own transition. Declaring only some of the routes is supported:
+          the ones left out keep the platform's default transition, they do not
+          drop out of the stack. */}
       <Stack
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: theme.surface.page },
         }}
       >
-        {/* La note monte à sa place plutôt que d'arriver par le côté : on ouvre
-            une pierre de la pile, on ne passe pas à l'écran suivant. */}
+        {/* The note rises into place rather than arriving from the side: you
+            open a stone from the pile, you do not move on to the next screen. */}
         <Stack.Screen name="note/[id]" options={{ animation: 'fade_from_bottom' }} />
-        {/* Le coffre est le seul écran peint sur la strate creusée. Un fondu
-            laisse la lumière changer sur place, ce qu'un glissement latéral
-            raconterait mal : on ne va pas à côté, on entre dans la roche. */}
+        {/* The vault is the only screen painted on the recessed stratum. A fade
+            lets the light change in place, which a sideways slide would tell
+            badly: you do not go next door, you enter the rock. */}
         <Stack.Screen name="vault" options={{ animation: 'fade' }} />
       </Stack>
 
@@ -224,7 +223,7 @@ function Boot({ fontsReady }: { fontsReady: boolean }) {
   )
 }
 
-/** Rappel discret, en flux normal, une fois le voile écarté. */
+/** A discreet reminder, in normal flow, once the overlay is dismissed. */
 function SetupBanner({ onPress }: { onPress: () => void }) {
   const { theme } = useTheme()
   const insets = useSafeAreaInsets()
@@ -255,12 +254,12 @@ function SetupBanner({ onPress }: { onPress: () => void }) {
 }
 
 /**
- * Affiché tant que .env n'est pas rempli. Mieux vaut une consigne claire qu'un
- * écran blanc ou une pile d'erreurs réseau incompréhensibles.
+ * Shown as long as .env is not filled in. A clear instruction beats a blank
+ * screen or a pile of incomprehensible network errors.
  *
- * Écartable volontairement : sans projet Supabase, un voile opaque rendrait la
- * coquille et les thèmes impossibles à inspecter. Le bandeau ci-dessus prend le
- * relais pour que l'avertissement ne disparaisse pas pour autant.
+ * Dismissable on purpose: without a Supabase project, an opaque overlay would
+ * make the shell and the themes impossible to inspect. The banner above takes
+ * over so the warning does not disappear for all that.
  */
 function SetupOverlay({ onDismiss }: { onDismiss: () => void }) {
   const { theme } = useTheme()

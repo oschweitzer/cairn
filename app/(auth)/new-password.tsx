@@ -6,19 +6,19 @@ import { Button, Card, Field, Logotype, Screen, Txt } from '@/ui/components'
 import { space } from '@/ui/theme'
 
 /**
- * Choix du nouveau mot de passe, au retour du lien de récupération.
+ * Choosing the new password, on returning from the recovery link.
  *
- * ── Pourquoi cet écran est un passage obligé ─────────────────────────────────
- * Le lien reçu par courriel ouvre une vraie session : à cet instant, la personne
- * est techniquement connectée sans avoir tapé de mot de passe. Laisser
- * l'aiguillage faire son travail l'enverrait droit dans ses notes, et le mot de
- * passe oublié le resterait — jusqu'au prochain appareil, où elle serait de
- * nouveau bloquée. Le drapeau `recovering` du fournisseur retient donc la
- * navigation ici tant que le nouveau mot de passe n'est pas posé.
+ * ── Why this screen is mandatory ─────────────────────────────────────────────
+ * The emailed link opens a real session: at that moment, the person is
+ * technically signed in without having typed a password. Letting routing do its
+ * job would send them straight into their notes, and the forgotten password
+ * would stay forgotten — until the next device, where they would be locked out
+ * again. So the provider's `recovering` flag holds navigation here until the
+ * new password is set.
  *
- * Deux saisies, comme pour le code du coffre : une faute de frappe dans un champ
- * masqué ne se voit pas, et elle enfermerait dehors celui-là même qui vient de
- * se faire ouvrir la porte.
+ * Two entries, as for the vault code: a typo in a masked field does not show,
+ * and it would lock out the very person who has just had the door opened for
+ * them.
  */
 export default function NewPassword() {
   const { updatePassword, signOut } = useAuth()
@@ -39,9 +39,9 @@ export default function NewPassword() {
     setError(null)
     setBusy(true)
     try {
-      // Le même contrôle qu'à l'inscription : c'est ici que se choisit le mot de
-      // passe de quelqu'un qui vient d'en perdre un, moment où la tentation de
-      // reprendre un classique est la plus forte.
+      // The same check as on sign-up: this is where someone who has just lost a
+      // password picks a new one, the moment the temptation to reuse a classic
+      // is strongest.
       const leaks = await pwnedCount(password)
       if (leaks > 0) {
         setError(pwnedMessage(leaks))
@@ -49,8 +49,8 @@ export default function NewPassword() {
       }
 
       await updatePassword(password)
-      // Rien à faire ensuite : `recovering` retombe, et l'aiguillage du layout
-      // racine emmène vers les notes puisque la session est déjà ouverte.
+      // Nothing to do afterwards: `recovering` drops, and the root layout's
+      // routing leads to the notes since the session is already open.
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -111,8 +111,8 @@ export default function NewPassword() {
         style={{ marginTop: space.sm }}
       />
 
-      {/* Porte de sortie : sans elle, quelqu'un qui a ouvert le lien par erreur
-          resterait retenu sur cet écran, la navigation y étant verrouillée. */}
+      {/* A way out: without it, someone who opened the link by mistake would be
+          held on this screen, navigation being locked there. */}
       <Button
         label="Annuler et se déconnecter"
         variant="ghost"

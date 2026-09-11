@@ -1,25 +1,24 @@
 /**
- * Connexion à Google Agenda, et envoi d'une note vers lui.
+ * Google Calendar connection, and sending a note to it.
  *
- * Ce module ne détient aucun secret et ne voit jamais de jeton durable. Il mène
- * le consentement jusqu'au code d'autorisation, puis passe la main aux Edge
- * Functions — voir supabase/functions/_shared/google.ts, qui explique pourquoi
- * l'échange n'a pas sa place ici.
+ * This module holds no secret and never sees a long-lived token. It carries the
+ * consent through to the authorisation code, then hands over to the Edge
+ * Functions — see supabase/functions/_shared/google.ts, which explains why the
+ * exchange has no place here.
  *
- * Un seul client OAuth, de type « Web », pour l'APK comme pour la PWA.
+ * A single OAuth client, of the "Web" type, for the APK as for the PWA.
  *
- * Un client « Android » aurait semblé plus naturel pour l'APK, mais Google a
- * déprécié les schémas privés de ce côté — « Custom URI schemes are no longer
- * supported on Android » — et refuse la redirection avec un
- * `invalid_request` laconique. La voie qu'il pousse désormais est celle des
- * liens d'application : une redirection `https://` ordinaire, qu'Android remet
- * à l'application installée plutôt qu'au navigateur, parce que le domaine et
- * l'application se reconnaissent par `/.well-known/assetlinks.json`.
+ * An "Android" client would have seemed more natural for the APK, but Google
+ * has deprecated private schemes on that side — "Custom URI schemes are no
+ * longer supported on Android" — and rejects the redirect with a terse
+ * `invalid_request`. The way it now pushes is app links: an ordinary
+ * `https://` redirect, which Android hands to the installed app rather than the
+ * browser, because the domain and the app recognise each other through
+ * `/.well-known/assetlinks.json`.
  *
- * D'où une seule adresse de retour, la même partout, et un seul identifiant de
- * client. Il est public par nature — un identifiant de client n'est pas un
- * secret — d'où le préfixe EXPO_PUBLIC_. Seul le secret associé reste côté
- * Edge Functions.
+ * Hence a single return address, the same everywhere, and a single client id.
+ * It is public by nature — a client id is not a secret — hence the EXPO_PUBLIC_
+ * prefix. Only the matching secret stays on the Edge Functions side.
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -27,7 +26,7 @@ import { AuthRequest, makeRedirectUri, type DiscoveryDocument } from 'expo-auth-
 import { getSupabase, isSupabaseConfigured } from '../db/supabase'
 import { keys } from '../db/queries'
 
-/** Doit rester identique au SCOPE_AGENDA des Edge Functions. */
+/** Must stay identical to the Edge Functions' SCOPE_AGENDA. */
 const SCOPE_AGENDA = 'https://www.googleapis.com/auth/calendar.events'
 
 const DECOUVERTE: DiscoveryDocument = {
@@ -45,40 +44,38 @@ const URL_WEB = lireEnv(process.env.EXPO_PUBLIC_WEB_URL)?.replace(/\/+$/, '') ??
 const CLIENT_WEB = lireEnv(process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB)
 
 /**
- * Vrai quand la fonctionnalité peut fonctionner de bout en bout.
+ * True when the feature can work end to end.
  *
- * L'interface s'en sert pour ne pas proposer un bouton qui échouerait. Trois
- * conditions, et chacune manque pour une raison différente : Supabase absent
- * (projet non configuré), identifiant de client absent (console Google pas
- * encore faite), adresse web absente (PWA pas encore déployée, donc aucun lien
- * à déposer dans l'évènement).
+ * The interface uses it so as not to offer a button that would fail. Three
+ * conditions, and each is missing for a different reason: Supabase absent
+ * (project not configured), client id absent (Google console not done yet),
+ * web address absent (PWA not deployed yet, so no link to put in the event).
  */
 export const agendaConfigure =
   isSupabaseConfigured && URL_WEB !== null && CLIENT_WEB !== null
 
-/** Adresse publique d'une note. C'est tout ce que Cairn confie à Google. */
+/** A note's public address. It is all Cairn hands over to Google. */
 export function lienNote(id: string): string | null {
   return URL_WEB ? `${URL_WEB}/note/${id}` : null
 }
 
 /**
- * Adresse de retour du consentement, identique sur les deux plateformes.
+ * The consent's return address, identical on both platforms.
  *
- * Sur le web, la fenêtre surgissante y atterrit et rend la main à celle qui
- * l'a ouverte — voir app/(auth)/google.tsx.
+ * On the web, the popup lands there and hands control back to the window that
+ * opened it — see app/(auth)/google.tsx.
  *
- * Sur Android, cette même adresse est déclarée en lien d'application dans
- * app.config.js : le système la remet à Cairn au lieu de l'ouvrir dans le
- * navigateur, et la session d'authentification se referme avec le code. Si la
- * vérification du domaine échouait, la page s'ouvrirait dans le navigateur et
- * le consentement n'aboutirait pas — d'où l'importance du fichier produit par
- * `npm run assetlinks`.
+ * On Android, this same address is declared as an app link in app.config.js:
+ * the system hands it to Cairn instead of opening it in the browser, and the
+ * authentication session closes with the code. If domain verification failed,
+ * the page would open in the browser and consent would not go through — hence
+ * the importance of the file produced by `npm run assetlinks`.
  */
 function redirection(): string {
   return `${URL_WEB ?? ''}/google`
 }
 
-// ----------------------------------------------------------------- lecture
+// -------------------------------------------------------------------- read
 
 export type CompteGoogle = {
   google_email: string | null
@@ -89,11 +86,11 @@ export type CompteGoogle = {
 }
 
 /**
- * État de la connexion à l'agenda.
+ * State of the calendar connection.
  *
- * Clé volatile, donc jamais écrite sur le disque. L'adresse Google est une
- * donnée personnelle de plus, et la garder en localStorage pour épargner une
- * requête au démarrage serait un mauvais échange.
+ * A volatile key, so never written to disk. The Google address is one more
+ * piece of personal data, and keeping it in localStorage to spare one request
+ * at startup would be a bad trade.
  */
 export function useCompteGoogle() {
   return useQuery({
@@ -110,7 +107,7 @@ export function useCompteGoogle() {
   })
 }
 
-/** Vrai quand l'autorisation existe et n'a pas expiré. */
+/** True when the authorisation exists and has not expired. */
 export function agendaUtilisable(compte: CompteGoogle | null | undefined): boolean {
   if (!compte || compte.needs_reauth) return false
   if (!compte.scopes.includes(SCOPE_AGENDA)) return false
@@ -118,7 +115,7 @@ export function agendaUtilisable(compte: CompteGoogle | null | undefined): boole
   return true
 }
 
-// -------------------------------------------------------------- connexion
+// -------------------------------------------------------------- connection
 
 export function useConnecterAgenda() {
   const qc = useQueryClient()
@@ -134,14 +131,14 @@ export function useConnecterAgenda() {
       const redirectUri = redirection()
 
       /**
-       * `access_type: 'offline'` et `prompt: 'consent'`, ensemble et pas l'un
-       * sans l'autre.
+       * `access_type: 'offline'` and `prompt: 'consent'`, together and never
+       * one without the other.
        *
-       * Le premier demande un jeton de rafraîchissement, le second force
-       * Google à le redonner même si l'utilisateur a déjà consenti par le
-       * passé. Sans le second, une seconde connexion — après une révocation,
-       * après une expiration de sept jours — revient sans jeton durable, et
-       * l'Edge Function n'a plus qu'à refuser.
+       * The first asks for a refresh token, the second forces Google to hand
+       * it out again even if the user has already consented in the past.
+       * Without the second, a second connection — after a revocation, after a
+       * seven-day expiry — comes back without a long-lived token, and the Edge
+       * Function has no choice but to refuse.
        */
       const requete = new AuthRequest({
         clientId: CLIENT_WEB,
@@ -154,8 +151,8 @@ export function useConnecterAgenda() {
 
       const resultat = await requete.promptAsync(DECOUVERTE)
 
-      // Fermeture de l'onglet ou refus : ce n'est pas une erreur, et l'écran
-      // ne doit pas afficher de bandeau rouge pour un renoncement volontaire.
+      // Closing the tab or refusing: that is not an error, and the screen must
+      // not show a red banner for a deliberate change of mind.
       if (resultat.type !== 'success') return { annule: true as const }
 
       const code = resultat.params.code
@@ -191,7 +188,7 @@ export function useDeconnecterAgenda() {
   })
 }
 
-// ------------------------------------------------------------------ envoi
+// ------------------------------------------------------------------- send
 
 export type EnvoiAgenda = {
   noteId: string
@@ -208,10 +205,10 @@ export function useEnvoyerVersAgenda() {
           note_id: noteId,
           starts_at: debut.toISOString(),
           ends_at: fin.toISOString(),
-          // Le fuseau de l'appareil, pour que 14 h reste 14 h dans l'agenda.
-          // Sans lui, Google interprète l'instant en UTC et l'évènement
-          // apparaît décalé de l'écart horaire, ce qui est le genre de défaut
-          // qu'on ne remarque qu'en hiver.
+          // The device's time zone, so 2 pm stays 2 pm in the calendar.
+          // Without it, Google reads the instant as UTC and the event shows up
+          // shifted by the time difference, the kind of defect nobody notices
+          // until winter.
           time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         },
       })
@@ -219,20 +216,20 @@ export function useEnvoyerVersAgenda() {
       return data as { lien_agenda: string }
     },
     onSuccess: () => {
-      // L'état de connexion a pu changer en chemin : l'Edge Function lève
-      // `needs_reauth` quand le jeton est mort, et la bannière doit suivre.
+      // The connection state may have changed along the way: the Edge Function
+      // sets `needs_reauth` when the token is dead, and the banner must follow.
       void qc.invalidateQueries({ queryKey: keys.googleAccount })
     },
   })
 }
 
 /**
- * Sort le message des Edge Functions plutôt que « Edge Function returned a
- * non-2xx status code », qui ne dit rien à personne.
+ * Pulls out the Edge Functions' message rather than "Edge Function returned a
+ * non-2xx status code", which tells nobody anything.
  *
- * supabase-js range le corps de la réponse dans `context`, un objet Response
- * qu'il faut relire. L'échec de cette relecture n'est pas grave : on retombe
- * alors sur le message d'origine.
+ * supabase-js puts the response body in `context`, a Response object that has
+ * to be read again. Failing to read it is not serious: we then fall back on the
+ * original message.
  */
 async function messageErreur(error: unknown): Promise<string> {
   const contexte = (error as { context?: Response })?.context
@@ -241,7 +238,7 @@ async function messageErreur(error: unknown): Promise<string> {
       const corps = await contexte.json()
       if (corps?.erreur) return String(corps.erreur)
     } catch {
-      /* on garde le message d'origine */
+      /* keep the original message */
     }
   }
   return (error as Error)?.message ?? 'Échec de l’appel au serveur.'

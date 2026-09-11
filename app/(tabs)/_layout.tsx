@@ -16,24 +16,24 @@ import { useTheme } from '@/ui/ThemeProvider'
 import { fonts, radius, space, withAlpha } from '@/ui/theme'
 
 /**
- * La rangée de pierres levées n'existe qu'au pointeur.
+ * The row of standing stones only exists for a pointer.
  *
- * Sur un téléphone, la barre touche les deux bords et chaque cible fait le quart
- * de l'écran : c'est ce qu'il faut pour le pouce, et détacher les cellules ne
- * ferait que rétrécir des cibles déjà justes. Sur le web, la même barre étalée
- * sur toute la largeur n'est plus qu'un bandeau indistinct, et le halo de survol
- * y dessinait un grand rectangle sans forme. Les pierres n'y sont donc posées
- * que là où il y a une souris et de la place.
+ * On a phone, the bar touches both edges and each target is a quarter of the
+ * screen: that is what the thumb needs, and detaching the cells would only
+ * shrink targets that are already just right. On the web, the same bar spread
+ * across the full width is nothing but an indistinct band, and the hover glow
+ * drew a large shapeless rectangle on it. So the stones are only set down where
+ * there is a mouse and room.
  */
 const isWeb = Platform.OS === 'web'
 
-/** Hauteur de la gravure. Assez pour se lire, assez peu pour rester une marque. */
+/** Height of the engraving. Enough to read, little enough to stay a mark. */
 const RUNE_SIZE = 12
 
 /**
- * Une gravure par onglet, purement ornementale — la règle de runes.tsx tient :
- * aucune de ces runes ne porte le sens de l'onglet, l'icône et le mot s'en
- * chargent. Algiz revient au coffre, qui la porte déjà sur sa pierre levée.
+ * One engraving per tab, purely ornamental — the rule of runes.tsx holds: none of
+ * these runes carries the tab's meaning, the icon and the word take care of
+ * that. Algiz goes to the vault, which already bears it on its standing stone.
  */
 const TAB_RUNES: Record<string, RuneName> = {
   index: 'berkanan',
@@ -43,25 +43,24 @@ const TAB_RUNES: Record<string, RuneName> = {
 }
 
 /**
- * Barre d'onglets : halo au survol sur toute la cellule, pastille sur l'onglet
- * actif.
+ * Tab bar: a hover glow across the whole cell, a chip on the active tab.
  *
- * ── Le halo porte sur l'icône ET son libellé ─────────────────────────────────
- * Une première version ne l'appliquait qu'à l'icône, ce qui laissait le mot en
- * dessous éteint : la cible visée par le pointeur est l'onglet entier, la
- * réponse doit couvrir l'onglet entier. D'où la reprise du bouton lui-même
- * plutôt que de son seul pictogramme.
+ * ── The glow covers the icon AND its label ───────────────────────────────────
+ * A first version only applied it to the icon, which left the word below it
+ * dark: the target the pointer aims at is the whole tab, so the response must
+ * cover the whole tab. Hence taking over the button itself rather than just its
+ * pictogram.
  *
- * ── Ce que la reprise ne coûte pas ───────────────────────────────────────────
- * Sur le web, react-native-web rend une vraie ancre dès qu'une vue reçoit un
- * `href` — ce n'est donc pas le bouton par défaut qui apporte le lien, c'est la
- * propriété. En la relayant, on garde l'ancre, son adresse en bas du navigateur
- * et le clic du milieu.
+ * ── What taking it over does not cost ────────────────────────────────────────
+ * On the web, react-native-web renders a real anchor as soon as a view gets an
+ * `href` — so it is not the default button that brings the link, it is the
+ * prop. Passing it on keeps the anchor, its address at the bottom of the
+ * browser, and middle-click.
  *
- * Reste à reproduire ce que le bouton d'origine faisait de ces clics-là : sur un
- * clic modifié on ne fait rien et on laisse le navigateur ouvrir son onglet ;
- * sur un clic simple on l'en empêche, sans quoi la page se rechargerait
- * entièrement au lieu de naviguer.
+ * What remains is to reproduce what the original button did with those clicks:
+ * on a modified click we do nothing and let the browser open its tab; on a plain
+ * click we stop it, otherwise the page would reload entirely instead of
+ * navigating.
  */
 
 type ClickModifiers = {
@@ -89,18 +88,18 @@ function TabButton({
 }: Omit<PressableProps, 'children' | 'style' | 'onPress'> & {
   rune: RuneName
   /**
-   * C'est ainsi, et pas autrement, que la barre dit quel onglet est actif.
+   * This, and nothing else, is how the bar says which tab is active.
    *
-   * La première version lisait `accessibilityState.selected`, qui est la forme
-   * ancienne : react-navigation 7 passe `aria-selected`. Le drapeau valait donc
-   * toujours faux, et l'onglet actif ne recevait aucun de ses styles — ni
-   * contour, ni teinte, ni gravure. Le défaut était invisible en relecture, une
-   * propriété absente ne faisant pas d'erreur.
+   * The first version read `accessibilityState.selected`, which is the old
+   * form: react-navigation 7 passes `aria-selected`. So the flag was always
+   * false, and the active tab received none of its styles — no outline, no
+   * tint, no engraving. The defect was invisible on review, a missing prop
+   * raising no error.
    */
   'aria-selected'?: boolean
-  // Recopié sur ce que la barre passe réellement : un enfant et un style
-  // simples, là où `Pressable` accepterait aussi des formes fonctionnelles, et
-  // un gestionnaire qui reçoit l'événement de souris sur le web.
+  // Copied from what the bar actually passes: a plain child and style, where
+  // `Pressable` would also accept function forms, and a handler that receives
+  // the mouse event on the web.
   children?: React.ReactNode
   style?: StyleProp<ViewStyle>
   href?: string
@@ -110,9 +109,9 @@ function TabButton({
   const { hovered, hoverProps } = useHover()
   const focused = selected === true
 
-  // `href` est une extension de react-native-web, absente des types de React
-  // Native. C'est pourtant elle, et elle seule, qui fait rendre une ancre au
-  // lieu d'un div — d'où la conversion plutôt que l'abandon de la propriété.
+  // `href` is a react-native-web extension, missing from the React Native
+  // types. Yet it, and it alone, is what renders an anchor instead of a div —
+  // hence the cast rather than dropping the prop.
   const anchor = { href } as unknown as PressableProps
 
   return (
@@ -130,25 +129,26 @@ function TabButton({
       aria-selected={selected}
       style={[
         style,
-        // Chaque onglet devient une pierre posée : un contour, une assise, et de
-        // l'air autour. C'est ce qui manquait — quatre cellules jointives sur
-        // toute la largeur ne se lisent pas comme quatre objets.
+        // Each tab becomes a stone set down: an outline, a base, and air around
+        // it. That is what was missing — four cells joined across the full
+        // width do not read as four objects.
         isWeb
           ? {
               marginVertical: space.sm,
               marginHorizontal: space.xs,
               /**
-               * La pierre a une taille ; c'est la case qui s'étire, pas elle.
+               * The stone has a size; it is the cell that stretches, not the
+               * stone.
                *
-               * Sans borne, chaque onglet occupait un quart d'un écran de
-               * bureau — près de cinq cents points pour une icône et un mot,
-               * soit quatre dalles vides plutôt qu'une rangée. La borne est
-               * posée ici et non par `tabBarItemStyle` parce que la rangée n'est
-               * pas atteignable : `tabBarStyle` habille un conteneur en colonne
-               * situé au-dessus d'elle, et le centrage y reste sans effet.
+               * Without a bound, each tab took a quarter of a desktop screen —
+               * nearly five hundred points for an icon and a word, four empty
+               * slabs rather than a row. The bound is set here and not through
+               * `tabBarItemStyle` because the row cannot be reached:
+               * `tabBarStyle` dresses a column container sitting above it, and
+               * centring has no effect there.
                *
-               * Elle ne mord jamais sur un téléphone, où quatre fois cette
-               * largeur dépasse l'écran.
+               * It never bites on a phone, where four times this width exceeds
+               * the screen.
                */
               maxWidth: 168,
               alignSelf: 'center',
@@ -156,14 +156,15 @@ function TabButton({
               paddingTop: space.xs,
               borderRadius: radius.md,
               /**
-               * L'onglet actif se voyait mal, et la mesure le disait : son fond
-               * `accent.subtle` ne tenait que 1,13:1 contre la pierre inactive,
-               * autrement dit rien. C'est un jeton pensé pour une puce sur une
-               * carte, pas pour distinguer deux surfaces voisines.
+               * The active tab was hard to see, and measuring said so: its
+               * `accent.subtle` background held only 1.13:1 against the
+               * inactive stone, in other words nothing. That token is meant for
+               * a chip on a card, not for telling two neighbouring surfaces
+               * apart.
                *
-               * L'accent dilué à 34 % passe à 1,85:1, et le contour double en
-               * accent franc porte le reste : 2,83:1 contre la couture. La pierre
-               * où l'on se tient est éclairée, les autres restent dans l'ombre.
+               * The accent diluted to 34% reaches 1.85:1, and the double outline
+               * in full accent carries the rest: 2.83:1 against the seam. The
+               * stone you stand on is lit, the others stay in shadow.
                */
               borderWidth: focused ? 2 : 1,
               borderColor: focused ? theme.accent.default : theme.line.hairline,
@@ -176,14 +177,14 @@ function TabButton({
       ]}
     >
       {/**
-       * La gravure ne marque que la pierre où l'on se tient.
+       * The engraving only marks the stone you stand on.
        *
-       * Elle était d'abord tracée sur les quatre, éteinte sur trois — ce qui
-       * donnait quatre traits gris serrés contre quatre icônes, illisibles et
-       * concurrents. Une marque qui apparaît partout ne marque plus rien.
+       * It was first drawn on all four, dimmed on three — which gave four grey
+       * strokes pressed against four icons, unreadable and competing. A mark
+       * that appears everywhere no longer marks anything.
        *
-       * La place reste réservée sur les onglets inactifs, sans quoi tout le
-       * contenu se décalerait d'une dizaine de points à chaque changement.
+       * The room stays reserved on inactive tabs, otherwise all the content
+       * would shift by ten points or so at every change.
        */}
       {isWeb ? (
         <View
@@ -200,13 +201,12 @@ function TabButton({
 }
 
 /**
- * Pastille de l'onglet actif, sur mobile uniquement.
+ * Active tab chip, on mobile only.
  *
- * Sur le web, la pierre éclairée et sa gravure disent déjà où l'on se tient :
- * une pastille de plus derrière l'icône ferait un troisième marqueur pour un
- * seul état, et trois signaux pour la même chose se lisent plus mal qu'un.
- * Sur mobile, où il n'y a ni pierre ni gravure, elle reste le seul repère avec
- * la teinte.
+ * On the web, the lit stone and its engraving already say where you stand: one
+ * more chip behind the icon would make a third marker for a single state, and
+ * three signals for the same thing read worse than one. On mobile, where there
+ * is neither stone nor engraving, it stays the only cue besides the tint.
  */
 function TabIcon({ focused, children }: { focused: boolean; children: React.ReactNode }) {
   const { theme } = useTheme()
@@ -229,9 +229,9 @@ function TabIcon({ focused, children }: { focused: boolean; children: React.Reac
 }
 
 /**
- * Le bouton ne connaît pas sa route : c'est la déclaration d'onglet qui lui
- * donne sa gravure. La rune est donc ajoutée ici, aux propriétés que la barre
- * fournit — d'où le paramètre laissé au type que la barre impose.
+ * The button does not know its route: the tab declaration is what gives it its
+ * engraving. So the rune is added here, to the props the bar provides — hence
+ * the parameter left to the type the bar imposes.
  */
 const tabButton =
   (name: keyof typeof TAB_RUNES) =>
@@ -248,25 +248,25 @@ export default function TabsLayout() {
         headerShown: false,
         sceneStyle: { backgroundColor: theme.surface.page },
         tabBarActiveTintColor: theme.accent.default,
-        // Le gris atténué était trop pâle pour une barre qui porte toute la
-        // navigation : un onglet qu'on ne lit pas ne se visite pas.
+        // The muted grey was too pale for a bar that carries all navigation: a
+        // tab you cannot read is a tab you do not visit.
         tabBarInactiveTintColor: theme.text.secondary,
         /**
-         * Le libellé reste sous l'icône, quelle que soit la largeur.
+         * The label stays under the icon, whatever the width.
          *
-         * La barre bascule d'elle-même en disposition horizontale sur un écran
-         * large, et la gravure s'y retrouvait coincée entre le bord et l'icône,
-         * minuscule et illisible — un défaut que seule une capture d'écran a
-         * révélé. La pierre veut sa gravure au-dessus, son icône au milieu et son
-         * mot dessous : c'est un empilement, pas une ligne.
+         * The bar switches to a horizontal layout by itself on a wide screen,
+         * and the engraving got wedged between the edge and the icon there, tiny
+         * and unreadable — a defect only a screenshot revealed. The stone wants
+         * its engraving on top, its icon in the middle and its word below: a
+         * stack, not a line.
          */
         tabBarLabelPosition: 'below-icon',
         tabBarStyle: {
           backgroundColor: theme.surface.card,
-          // De la hauteur pour la gravure, sur le web seulement : le gabarit
-          // mobile n'en a pas et ne doit pas grandir pour rien.
+          // Height for the engraving, on the web only: the mobile layout has
+          // none and must not grow for nothing.
           ...(isWeb ? { height: 88 } : null),
-          // La couture remplace l'ombre portée pour détacher la barre du contenu.
+          // The seam stands in for the drop shadow to set the bar off from the content.
           borderTopWidth: 1,
           borderTopColor: theme.line.hairline,
           elevation: 0,
@@ -289,9 +289,9 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {/* Le coffre est un lieu où vivent des notes, au même rang que la grille,
-          et non un réglage. Il était en haut à droite de celle-ci, ce qui le
-          rendait invisible depuis tous les autres écrans. */}
+      {/* The vault is a place where notes live, on a par with the grid, and not
+          a setting. It used to sit at the grid's top right, which made it
+          invisible from every other screen. */}
       <Tabs.Screen
         name="vault"
         options={{

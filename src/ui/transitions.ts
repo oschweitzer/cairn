@@ -13,36 +13,35 @@ import {
 import { motion } from './theme'
 
 /**
- * Vocabulaire de mouvement de l'application.
+ * The app's vocabulary of motion.
  *
- * Toutes les animations passent par ici, pour la même raison que toutes les
- * couleurs passent par `theme` : une durée écrite à la main dans un écran est
- * une durée qui dérivera de celles des autres. Les valeurs viennent de `motion`,
- * qui reste la source unique.
+ * Every animation goes through here, for the same reason every colour goes
+ * through `theme`: a duration written by hand in a screen is a duration that
+ * will drift from the others. The values come from `motion`, which stays the
+ * single source.
  *
- * ── Le registre ──────────────────────────────────────────────────────────────
- * Départ franc, arrêt net, aucune élasticité : la pierre ne fait pas ressort, et
- * le ciseau ne traîne pas. La course verticale est courte, une dizaine de
- * points. Au-delà, l'animation cesse d'accompagner le contenu et se met à le
- * faire attendre.
+ * ── The register ─────────────────────────────────────────────────────────────
+ * A sharp start, a clean stop, no elasticity: stone does not spring, and the
+ * chisel does not linger. The vertical travel is short, ten points or so.
+ * Beyond that, the animation stops accompanying the content and starts making
+ * it wait.
  *
- * ── Mouvement réduit ─────────────────────────────────────────────────────────
- * Aucun réglage à écrire : les constructeurs de Reanimated sont par défaut en
- * `ReduceMotion.System`, donc le réglage système est déjà respecté partout. Ce
- * n'est pas une politesse : pour une partie des gens le mouvement à l'écran
- * provoque des vertiges, et une animation qu'on ne peut pas couper rend
- * l'application inutilisable.
+ * ── Reduced motion ───────────────────────────────────────────────────────────
+ * No setting to write: Reanimated's builders default to `ReduceMotion.System`,
+ * so the system setting is already respected everywhere. It is not a courtesy:
+ * for some people on-screen motion causes dizziness, and an animation that
+ * cannot be turned off makes the app unusable.
  */
 
-/** La courbe du thème, sous la forme attendue par Reanimated. */
+/** The theme's curve, in the form Reanimated expects. */
 const curve = Easing.bezier(...motion.easing)
 
 /**
- * Ce qui vient de se poser à l'écran : la note ouverte, le coffre déverrouillé.
- * Le contenu monte vers sa place en apparaissant.
+ * What has just settled on screen: the opened note, the unlocked vault. The
+ * content rises into place as it appears.
  *
- * `withInitialValues` plutôt que `FadeInDown` tel quel : la course par défaut de
- * Reanimated est bien plus longue que ce que ce registre autorise.
+ * `withInitialValues` rather than `FadeInDown` as is: Reanimated's default
+ * travel is far longer than this register allows.
  */
 export const rise = (distance = 10) =>
   FadeInDown.duration(motion.base)
@@ -50,28 +49,28 @@ export const rise = (distance = 10) =>
     .withInitialValues({ opacity: 0, transform: [{ translateY: distance }] })
 
 /**
- * La même apparition, en style animé plutôt qu'en animation d'entrée.
+ * The same appearance, as an animated style rather than an entering animation.
  *
- * ── Quand prendre celle-ci, et pourquoi elle existe ──────────────────────────
- * `entering` fait passer la disposition de la vue sous le contrôle de
- * Reanimated. Sur un élément qui ne fait que se placer parmi ses frères — une
- * ligne de liste, un panneau, un bandeau — c'est exactement ce qu'il faut, et
- * c'est le seul moyen d'obtenir aussi une animation de sortie.
+ * ── When to pick this one, and why it exists ─────────────────────────────────
+ * `entering` puts the view's layout under Reanimated's control. On an element
+ * that merely takes its place among its siblings — a list row, a panel, a banner
+ * — that is exactly what is wanted, and it is the only way to also get an
+ * exiting animation.
  *
- * Sur un élément dont la disposition porte celle de l'écran, c'est un piège :
- * la zone défilante de l'éditeur y a perdu sa hauteur, s'est écrasée à rien, et
- * la barre du bas est remontée se poser sur le titre — qu'elle masquait, étant
- * opaque. Un style animé, lui, ne touche qu'à l'opacité et à une translation :
- * la mise en page reste celle que Yoga calcule, et le `flex: 1` tient.
+ * On an element whose layout carries the screen's, it is a trap: the editor's
+ * scrolling area lost its height there, collapsed to nothing, and the bottom bar
+ * rose to sit on the title — which it hid, being opaque. An animated style only
+ * touches opacity and a translation: the layout stays the one Yoga computes, and
+ * `flex: 1` holds.
  *
- * Règle : `entering` pour ce qui se place, `useRise` pour ce qui porte.
+ * Rule: `entering` for what takes a place, `useRise` for what carries one.
  */
 export function useRise({ distance = 10, delay = 0 }: { distance?: number; delay?: number } = {}) {
   const progress = useSharedValue(0)
 
   useEffect(() => {
-    // `withTiming` est par défaut en `ReduceMotion.System` : le réglage système
-    // est respecté sans rien écrire de plus.
+    // `withTiming` defaults to `ReduceMotion.System`: the system setting is
+    // respected without writing anything more.
     progress.value = withDelay(delay, withTiming(1, { duration: motion.base, easing: curve }))
   }, [progress, delay])
 
@@ -81,38 +80,38 @@ export function useRise({ distance = 10, delay = 0 }: { distance?: number; delay
   }))
 }
 
-/** Apparition sans déplacement, pour ce qui n'a pas de « d'où ça vient ». */
+/** An appearance without movement, for what has no "where it comes from". */
 export const appear = FadeIn.duration(motion.fast).easing(curve)
 
 /**
- * Disparition. Plus rapide que l'apparition, délibérément : ce qui s'en va n'a
- * plus rien à faire lire, et le regard est déjà ailleurs.
+ * Disappearance. Faster than the appearance, on purpose: what is leaving has
+ * nothing left to be read, and the eye is already elsewhere.
  */
 export const vanish = FadeOut.duration(motion.fast).easing(curve)
 
 /**
- * Réglage de `withTiming` pour les fondus pilotés à la main, quand l'apparition
- * ne coïncide pas avec le montage : l'infobulle attend d'être mesurée avant de
- * se montrer, sans quoi elle se poserait de travers le temps d'une image.
+ * `withTiming` setting for fades driven by hand, when the appearance does not
+ * coincide with mounting: the tooltip waits to be measured before showing,
+ * otherwise it would sit askew for a frame.
  */
 export const fadeTiming = { duration: motion.fast, easing: curve }
 
 /**
- * Battement d'un contenu en attente.
+ * The pulse of content being waited for.
  *
- * Seul mouvement continu de l'application, et le seul qui sorte du registre
- * franc et net : il ne raconte pas un geste, il dit qu'on patiente. D'où une
- * durée bien plus longue — dérivée des jetons malgré tout, pour qu'un
- * changement de rythme général l'emporte avec lui — et une courbe symétrique :
- * un battement n'a ni départ ni arrivée.
+ * The app's only continuous motion, and the only one that leaves the sharp,
+ * clean register: it does not tell a gesture, it says we are waiting. Hence a
+ * much longer duration — derived from the tokens all the same, so a general
+ * change of rhythm carries it along — and a symmetrical curve: a pulse has
+ * neither start nor arrival.
  */
 export const breath = { duration: motion.slow * 4, easing: Easing.inOut(Easing.quad) }
 
 /**
- * Réarrangement d'une liste : un élément qui change de place y glisse.
+ * Rearranging a list: an item that changes place slides there.
  *
- * C'est la seule animation de ce fichier que React Native ne sait pas produire
- * seul, et c'est elle qui justifie la dépendance : sans elle, monter un élément
- * de liste le fait sauter d'un rang, et rien ne dit lequel a bougé.
+ * It is the only animation in this file React Native cannot produce on its own,
+ * and it is what justifies the dependency: without it, moving a list item up
+ * makes it jump a row, and nothing says which one moved.
  */
 export const reflow = LinearTransition.duration(motion.base).easing(curve)

@@ -1,8 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <!--
-    Le manifeste d'une bibliothèque est fusionné dans celui de l'application par
-    Gradle. C'est ce qui permet à ce module de déclarer son fournisseur de widget
-    sans qu'un plugin de configuration ait à réécrire le manifeste de l'app.
+    A library's manifest is merged into the app's by Gradle. That is what lets
+    this module declare its widget provider without a config plugin having to
+    rewrite the app's manifest.
   -->
   <application>
     <receiver
@@ -18,9 +18,9 @@
     </receiver>
 
     <!--
-      Le service qui alimente la liste. `BIND_REMOTEVIEWS` est une permission de
-      signature système : elle garantit que seul le lanceur peut s'y connecter,
-      et non n'importe quelle application installée.
+      The service that feeds the list. `BIND_REMOTEVIEWS` is a system signature
+      permission: it guarantees that only the launcher can bind to it, and not
+      any installed app.
     -->
     <service
       android:name=".CairnWidgetService"

@@ -12,22 +12,22 @@ import {
 } from './segments'
 
 /**
- * Saisie d'une valeur ponctuée — une heure, une date — moitié par moitié, le
- * séparateur étant dessiné entre elles plutôt que tapé.
+ * Entering a punctuated value — a time, a date — part by part, the separator
+ * being drawn between them rather than typed.
  *
- * ── Pourquoi pas un champ unique ─────────────────────────────────────────────
- * Un seul champ attendant « HH:MM » ou « JJ/MM/AAAA » se tient très bien sur un
- * clavier complet, et pas du tout sur un téléphone : le clavier numérique
- * n'offre ni « : » ni « / ». Effacer le séparateur une fois rendait la valeur
- * impossible à réécrire — le champ restait invalide, le bouton d'envoi grisé,
- * et la seule issue était de fermer le panneau pour repartir de la proposition.
- * Un séparateur qu'on ne peut pas taper ne doit pas être tapé : le clavier n'a
- * plus que des chiffres à fournir.
+ * ── Why not a single field ───────────────────────────────────────────────────
+ * A single field expecting « HH:MM » or « JJ/MM/AAAA » holds up very well on a
+ * full keyboard, and not at all on a phone: the numeric keypad offers neither
+ * ":" nor "/". Deleting the separator once made the value impossible to rewrite
+ * — the field stayed invalid, the send button greyed out, and the only way out
+ * was to close the panel and start again from the suggestion. A separator that
+ * cannot be typed must not have to be typed: the keyboard only has digits left
+ * to provide.
  *
- * ── Ce qui sort d'ici ────────────────────────────────────────────────────────
- * La chaîne complète, dans son format d'origine. Le découpage ne vit que dans
- * ce composant : `lireCreneau` continue de lire un seul format, et ses tests
- * avec lui.
+ * ── What comes out of here ───────────────────────────────────────────────────
+ * The complete string, in its original format. The splitting only lives in
+ * this component: `lireCreneau` keeps reading a single format, and its tests
+ * with it.
  */
 export function SegmentedField({
   label,
@@ -49,13 +49,14 @@ export function SegmentedField({
   const parts = separerSegments(value, separateur, segments)
 
   /**
-   * La dernière valeur émise, que la sortie du champ relit au lieu de la prop.
+   * The last value emitted, which leaving the field reads back instead of the
+   * prop.
    *
-   * Le passage automatique d'une moitié à la suivante déplace le focus dans le
-   * même événement que la frappe : le `onBlur` de la moitié quittée part avant
-   * que le nouvel état soit redescendu, et une complétion calculée sur la prop
-   * réécrirait la valeur avec celle d'avant la frappe — taper « 09 » rendait
-   * « 00 ».
+   * Moving automatically from one part to the next shifts focus in the same
+   * event as the keystroke: the `onBlur` of the part being left fires before the
+   * new state has come back down, and a completion computed on the prop would
+   * rewrite the value with the one from before the keystroke — typing "09" gave
+   * "00".
    */
   const emis = useRef(value)
   emis.current = value
@@ -78,21 +79,21 @@ export function SegmentedField({
           borderRadius: radius.md,
           borderWidth: focused ? 2 : 1,
           borderColor: focused ? theme.accent.default : theme.line.hairline,
-          // Compense l'épaississement de la bordure au focus, comme dans `Field`.
+          // Makes up for the border thickening on focus, as in `Field`.
           paddingHorizontal: focused ? space.sm - 1 : space.sm,
         }}
       >
         {segments.map((segment, i) => {
           const style: TextStyle = {
-            // La place va aux moitiés à proportion de ce qu'elles reçoivent :
-            // une année tient quatre chiffres là où un mois en tient deux.
+            // Room goes to the parts in proportion to what they hold: a year
+            // takes four digits where a month takes two.
             flexGrow: segment.longueur,
             flexShrink: 1,
             flexBasis: 0,
-            // Sur le web, un `input` réclame la largeur de son attribut `size`
-            // — une vingtaine de caractères — et sortait du cadre dès que la
-            // colonne se resserrait, sur un téléphone donc. Yoga n'en tient pas
-            // compte.
+            // On the web, an `input` claims the width of its `size` attribute
+            // — twenty or so characters — and spilled out of the frame as soon
+            // as the column narrowed, so on a phone. Yoga does not account for
+            // it.
             minWidth: 0,
             minHeight: 48,
             textAlign: 'center',
@@ -102,9 +103,9 @@ export function SegmentedField({
           }
 
           return (
-            // Les moitiés et les séparateurs sont frères dans la rangée : un
-            // séparateur enfermé avec sa moitié fausserait le partage de la
-            // largeur, qui se fait au nombre de chiffres.
+            // Parts and separators are siblings in the row: a separator shut in
+            // with its part would skew the sharing of the width, which goes by
+            // the number of digits.
             <Fragment key={segment.label}>
               {i > 0 ? <Txt tone="muted">{separateur}</Txt> : null}
               <TextInput
@@ -122,15 +123,14 @@ export function SegmentedField({
                       segments,
                     ),
                   )
-                  // La moitié est pleine : la frappe continue dans la suivante
-                  // d'elle-même, sans avoir à viser un champ large de deux
-                  // chiffres.
+                  // The part is full: typing carries on into the next one by
+                  // itself, without having to aim at a field two digits wide.
                   if (saisi.length === segment.longueur) refs.current[i + 1]?.focus()
                 }}
                 onKeyPress={(e) => {
-                  // Retour arrière sur une moitié déjà vide : la touche ne
-                  // ferait rien, elle ramène donc à la précédente — le geste
-                  // attendu quand on efface pour tout retaper.
+                  // Backspace on a part that is already empty: the key would do
+                  // nothing, so it goes back to the previous one — the expected
+                  // gesture when erasing to retype everything.
                   if (e.nativeEvent.key === 'Backspace' && parts[i] === '') {
                     refs.current[i - 1]?.focus()
                   }
@@ -145,8 +145,8 @@ export function SegmentedField({
                 inputMode="numeric"
                 keyboardType="number-pad"
                 maxLength={segment.longueur}
-                // Toucher une moitié la sélectionne : on la remplace en tapant,
-                // plutôt que d'effacer ses chiffres avant d'en écrire d'autres.
+                // Touching a part selects it: you replace it by typing, rather
+                // than erasing its digits before writing others.
                 selectTextOnFocus
                 style={[style, noWebOutline]}
               />

@@ -1,15 +1,15 @@
 /**
- * Lecture et validation du créneau saisi, sans rien de React.
+ * Reading and validating the entered slot, with nothing from React.
  *
- * Séparé de l'écran pour être éprouvé par `npm run test:logic`. Les dates sont
- * le genre de sujet où l'on croit avoir raison : 31/02 se laisse construire par
- * `new Date`, qui le décale au 3 mars sans se plaindre, et un créneau à cheval
- * sur minuit finit avant de commencer. Ces cas se testent, ils ne se relisent
- * pas.
+ * Kept apart from the screen to be put to the test by `npm run test:logic`.
+ * Dates are the kind of subject where you think you are right: 31/02 lets
+ * itself be built by `new Date`, which shifts it to 3 March without complaint,
+ * and a slot straddling midnight ends before it starts. These cases are tested,
+ * not proofread.
  *
- * Format français à la saisie — JJ/MM/AAAA et HH:MM — parce que l'application
- * est en français et qu'un champ de date qui attend l'ordre américain sans le
- * dire produit des rendez-vous au mauvais jour onze fois sur douze.
+ * French format on entry — JJ/MM/AAAA and HH:MM — because the app is in French,
+ * and a date field that expects American order without saying so produces
+ * appointments on the wrong day eleven times out of twelve.
  */
 
 import type { Segment } from '../ui/segments'
@@ -17,7 +17,7 @@ import type { Segment } from '../ui/segments'
 export type Creneau = { debut: Date; fin: Date }
 export type LectureCreneau = { ok: true; creneau: Creneau } | { ok: false; erreur: string }
 
-/** Durées proposées, en minutes. La première est le défaut. */
+/** Durations offered, in minutes. The first is the default. */
 export const DUREES = [60, 30, 120] as const
 
 function deuxChiffres(n: number): string {
@@ -33,12 +33,12 @@ export function formaterHeure(d: Date): string {
 }
 
 /**
- * Les moitiés que la saisie présente, séparément.
+ * The parts the entry presents, separately.
  *
- * Elles vivent ici, avec la lecture du format, et non dans le champ qui les
- * affiche : « JJ/MM/AAAA » et « HH:MM » sont décidés dans ce fichier, et deux
- * endroits qui décrivent le même format finissent par ne plus le décrire
- * pareil. Le champ, lui, ne connaît que des moitiés de chiffres.
+ * They live here, with the reading of the format, and not in the field that
+ * displays them: « JJ/MM/AAAA » and « HH:MM » are decided in this file, and two
+ * places describing the same format end up no longer describing it the same
+ * way. The field, for its part, only knows parts made of digits.
  */
 export const SEGMENTS_DATE: readonly Segment[] = [
   { label: 'Jour', longueur: 2, placeholder: 'JJ', zeroDevant: true },
@@ -56,11 +56,11 @@ export const SEGMENTS_HEURE: readonly Segment[] = [
 export const SEPARATEUR_HEURE = ':'
 
 /**
- * Proposition d'ouverture : la prochaine heure ronde.
+ * The opening suggestion: the next round hour.
  *
- * Pas « maintenant », qui donnerait 14:37 et obligerait à corriger deux chiffres
- * avant même de commencer. Pas non plus une heure fixe comme 9:00, qui serait
- * dans le passé une fois sur deux.
+ * Not "now", which would give 14:37 and force two digits to be corrected before
+ * even starting. Nor a fixed hour like 9:00, which would be in the past one time
+ * out of two.
  */
 export function prochainCreneau(maintenant: Date = new Date()): { date: string; heure: string } {
   const d = new Date(maintenant)
@@ -69,7 +69,7 @@ export function prochainCreneau(maintenant: Date = new Date()): { date: string; 
   return { date: formaterDate(d), heure: formaterHeure(d) }
 }
 
-/** Décale une date au format JJ/MM/AAAA d'un nombre de jours. */
+/** Shifts a JJ/MM/AAAA date by a number of days. */
 export function decalerJours(date: string, jours: number): string {
   const parts = analyserDate(date)
   if (!parts) return date
@@ -88,12 +88,12 @@ function analyserDate(
   const annee = Number(m[3])
 
   /**
-   * Le contrôle qui compte : relire la date construite.
+   * The check that matters: read the built date back.
    *
-   * `new Date(2026, 1, 31)` ne lève pas, il rend le 3 mars. Comparer les
-   * composantes après coup est le seul moyen sûr de refuser un 31 février, un
-   * 31 avril ou un 29 février d'année commune — et c'est bien ce qu'on veut,
-   * plutôt qu'un rendez-vous silencieusement déplacé.
+   * `new Date(2026, 1, 31)` does not throw, it returns 3 March. Comparing the
+   * components afterwards is the only safe way to reject a 31 February, a 31
+   * April or a 29 February in a common year — and that is indeed what we want,
+   * rather than an appointment silently moved.
    */
   const d = new Date(annee, mois - 1, jour)
   if (d.getFullYear() !== annee || d.getMonth() !== mois - 1 || d.getDate() !== jour) {
@@ -112,11 +112,11 @@ function analyserHeure(valeur: string): { heures: number; minutes: number } | nu
 }
 
 /**
- * Construit le créneau, ou dit ce qui cloche.
+ * Builds the slot, or says what is wrong.
  *
- * Un seul message à la fois, celui du premier problème rencontré : afficher
- * « date invalide et heure invalide » quand seule la date est fautive envoie
- * corriger ce qui allait déjà bien.
+ * One message at a time, the first problem encountered: showing "invalid date
+ * and invalid time" when only the date is wrong sends people to fix what was
+ * already fine.
  */
 export function lireCreneau(
   date: string,
@@ -136,11 +136,11 @@ export function lireCreneau(
   const fin = new Date(debut.getTime() + dureeMinutes * 60_000)
 
   /**
-   * Le passé est refusé, avec une minute de tolérance.
+   * The past is refused, with one minute of tolerance.
    *
-   * Sans elle, valider à 14:00:30 un créneau saisi à 14:00 échouerait pour une
-   * demi-minute — un refus incompréhensible du point de vue de qui vient de
-   * lire l'heure à l'écran.
+   * Without it, confirming at 14:00:30 a slot entered at 14:00 would fail over
+   * half a minute — a refusal that makes no sense to someone who has just read
+   * the time on screen.
    */
   if (debut.getTime() < maintenant.getTime() - 60_000) {
     return { ok: false, erreur: 'Ce créneau est déjà passé.' }
@@ -149,7 +149,7 @@ export function lireCreneau(
   return { ok: true, creneau: { debut, fin } }
 }
 
-/** « mardi 12 août à 14:00 », pour confirmer ce qui va partir. */
+/** « mardi 12 août à 14:00 », to confirm what is about to be sent. */
 export function decrireCreneau(creneau: Creneau): string {
   const jour = creneau.debut.toLocaleDateString('fr-FR', {
     weekday: 'long',

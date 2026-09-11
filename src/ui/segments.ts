@@ -1,38 +1,38 @@
 /**
- * Découpage d'une saisie en moitiés, pour les champs qui portent un séparateur.
+ * Splitting an entry into parts, for fields that carry a separator.
  *
- * Une heure « HH:MM », une date « JJ/MM/AAAA » : le séparateur y est une
- * ponctuation que le clavier numérique d'un téléphone ne donne pas. Ces champs
- * le dessinent donc au lieu de le faire taper, et chaque moitié se saisit à
- * part. Ce module fait le va-et-vient entre la chaîne complète — le seul format
- * que la lecture du créneau connaisse — et les moitiés affichées.
+ * A time « HH:MM », a date « JJ/MM/AAAA »: the separator there is punctuation a
+ * phone's numeric keypad does not provide. So these fields draw it instead of
+ * having it typed, and each part is entered separately. This module goes back
+ * and forth between the complete string — the only format the slot reader
+ * knows — and the parts on display.
  *
- * Sans React, pour être éprouvé par `npm run test:logic` : c'est de la
- * manipulation de chaînes, et c'est là que se logent les erreurs d'un chiffre.
+ * With no React, to be put to the test by `npm run test:logic`: it is string
+ * handling, and that is where one-digit mistakes hide.
  */
 
 export type Segment = {
-  /** Ce qu'un lecteur d'écran annonce sur cette moitié. */
+  /** What a screen reader announces on this part. */
   label: string
-  /** Nombre de chiffres, qui est aussi la longueur maximale saisissable. */
+  /** Number of digits, which is also the maximum length that can be entered. */
   longueur: number
   placeholder: string
   /**
-   * Vrai si un chiffre seul se complète d'un zéro devant à la sortie du champ.
-   * L'année ne le fait pas : « 26 » n'est pas l'an 26, et le compléter en 2026
-   * choisirait un siècle que personne n'a saisi.
+   * True if a lone digit is completed with a leading zero on leaving the field.
+   * The year does not do it: "26" is not the year 26, and completing it to 2026
+   * would pick a century nobody typed.
    */
   zeroDevant: boolean
 }
 
-/** Ne garde que les chiffres, et pas plus que la moitié n'en accepte. */
+/** Keeps only the digits, and no more than the part accepts. */
 export function chiffres(valeur: string, longueur: number): string {
   return valeur.replace(/\D/g, '').slice(0, longueur)
 }
 
 /**
- * Découpe la chaîne complète en moitiés. Une moitié absente rend une chaîne
- * vide plutôt que rien : le champ correspondant s'affiche vide, pas incontrôlé.
+ * Splits the complete string into parts. A missing part yields an empty string
+ * rather than nothing: the matching field displays empty, not uncontrolled.
  */
 export function separerSegments(
   valeur: string,
@@ -43,7 +43,7 @@ export function separerSegments(
   return segments.map((s, i) => chiffres(parts[i] ?? '', s.longueur))
 }
 
-/** Recompose les moitiés dans le seul format que la lecture du créneau connaît. */
+/** Puts the parts back together in the only format the slot reader knows. */
 export function composerSegments(
   parts: readonly string[],
   separateur: string,
@@ -53,12 +53,12 @@ export function composerSegments(
 }
 
 /**
- * Complète les moitiés laissées à un seul chiffre, une fois la saisie finie.
+ * Completes the parts left at a single digit, once the entry is done.
  *
- * Le zéro va devant, comme sur une horloge ou un calendrier : « 9 » minutes, ce
- * sont neuf minutes après l'heure, pas cinquante. Une moitié restée vide n'est
- * pas devinée — mettre « 00 » à la place choisirait une valeur que personne n'a
- * saisie, alors que la laisser vide fait dire au panneau ce qu'il attend.
+ * The zero goes in front, as on a clock or a calendar: "9" minutes means nine
+ * minutes past the hour, not fifty. A part left empty is not guessed — putting
+ * "00" in its place would pick a value nobody typed, whereas leaving it empty
+ * makes the panel say what it expects.
  */
 export function completerSegments(
   valeur: string,

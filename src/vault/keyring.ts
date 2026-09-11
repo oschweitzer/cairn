@@ -2,22 +2,22 @@ import * as Crypto from 'expo-crypto'
 import { openText, sealText, type RandomBytes } from './crypto'
 
 /**
- * La clé de données pendant qu'elle sert.
+ * The data key while it is in use.
  *
- * ── Pourquoi un module et pas un état React ─────────────────────────────────
- * Les mutations de src/db/queries.ts doivent sceller ce qu'elles écrivent, et
- * ce sont des fonctions, pas des composants : elles ne peuvent pas lire un
- * contexte. Faire descendre la clé en argument depuis chaque écran signifierait
- * la promener à travers toute l'application, et il suffirait d'un appelant
- * distrait pour écrire une note du coffre en clair. Un point d'accès unique
- * rend cet oubli impossible : `sealNote` échoue s'il n'y a pas de clé.
+ * ── Why a module and not React state ─────────────────────────────────────────
+ * The mutations of src/db/queries.ts have to seal what they write, and they are
+ * functions, not components: they cannot read a context. Passing the key down
+ * as an argument from every screen would mean carrying it around the whole app,
+ * and one careless caller would be enough to write a vault note in plaintext. A
+ * single access point makes that oversight impossible: `sealNote` fails if
+ * there is no key.
  *
- * La clé ne vit ici que le temps de l'ouverture. `VaultProvider` la pose au
- * déverrouillage et la retire à la fermeture — cinq minutes sans un geste, ou
- * le bouton « Refermer ».
+ * The key only lives here while the vault is open. `VaultProvider` sets it on
+ * unlocking and removes it on closing — five minutes without a gesture, or the
+ * « Refermer » button.
  */
 
-/** L'aléa de la plateforme. expo-crypto fonctionne sous Hermes comme sur le web. */
+/** The platform's randomness. expo-crypto works under Hermes as on the web. */
 export const platformRandom: RandomBytes = (length) => Crypto.getRandomBytes(length)
 
 let dataKey: Uint8Array | null = null
@@ -27,8 +27,8 @@ export function loadDataKey(key: Uint8Array): void {
 }
 
 export function unloadDataKey(): void {
-  // Le tableau est effacé avant d'être lâché : la référence disparaît, mais
-  // l'octet, lui, resterait en mémoire jusqu'au passage du ramasse-miettes.
+  // The array is wiped before being let go: the reference disappears, but the
+  // bytes themselves would stay in memory until the garbage collector passes.
   dataKey?.fill(0)
   dataKey = null
 }
@@ -38,19 +38,19 @@ export function hasDataKey(): boolean {
 }
 
 /**
- * Charge utile d'une note chiffrée : titre et corps dans un même scellé.
+ * An encrypted note's payload: title and body in the same sealed blob.
  *
- * Un seul chiffré pour les deux, et non un par champ. La taille du chiffré
- * révèle celle du texte ; les réunir noie le titre dans le corps, et surtout
- * ils changent toujours ensemble — deux scellés séparés seraient deux
- * occasions de n'en réécrire qu'un.
+ * A single ciphertext for both, and not one per field. A ciphertext's size
+ * reveals the text's; putting them together drowns the title in the body, and
+ * above all they always change together — two separate blobs would be two
+ * chances to rewrite only one of them.
  */
 type NotePayload = { title: string | null; body: string | null }
 
 /**
- * Scelle le contenu d'une note. Rend `null` si le coffre est fermé, et c'est
- * à l'appelant de refuser d'écrire : il vaut mieux une écriture qui n'a pas
- * lieu qu'une note du coffre posée en clair dans la base.
+ * Seals a note's content. Returns `null` if the vault is closed, and it is up
+ * to the caller to refuse to write: a write that does not happen is better than
+ * a vault note put in plaintext into the database.
  */
 export function sealNote(payload: NotePayload): string | null {
   if (!dataKey) return null
@@ -58,9 +58,9 @@ export function sealNote(payload: NotePayload): string | null {
 }
 
 /**
- * Ouvre le contenu d'une note. Rend un contenu vide plutôt que `null` en cas
- * d'échec : une note illisible doit rester listée, sans quoi elle disparaîtrait
- * sans laisser de trace et donnerait à croire qu'elle a été perdue.
+ * Opens a note's content. Returns empty content rather than `null` on failure:
+ * an unreadable note must stay listed, otherwise it would vanish without a
+ * trace and suggest it had been lost.
  */
 export function openNote(ciphertext: string | null): NotePayload {
   if (!dataKey || !ciphertext) return { title: null, body: null }
