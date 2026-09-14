@@ -7,6 +7,8 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-14
+
 ### Added
 
 - **Copier le contenu**, in a note's action bar between archiving and the trash.
@@ -217,7 +219,8 @@ work happened.
 - Exporting a note to Google Calendar, APK builds, and Expo configuration in
   JavaScript.
 
-[Unreleased]: https://github.com/oschweitzer/cairn/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/oschweitzer/cairn/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/oschweitzer/cairn/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/oschweitzer/cairn/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/oschweitzer/cairn/compare/f630263...v0.2.0
 [#1]: https://github.com/oschweitzer/cairn/issues/1

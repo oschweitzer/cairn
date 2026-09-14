@@ -70,7 +70,7 @@ const hoteWeb = (() => {
 const config = {
   name: 'Cairn',
   slug: 'cairn',
-  version: '0.2.1',
+  version: '0.3.0',
   orientation: 'portrait',
   scheme: 'cairn',
   icon: './assets/icon.png',
