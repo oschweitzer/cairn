@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native'
 import Animated from 'react-native-reanimated'
+import * as Clipboard from 'expo-clipboard'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Feather from '@expo/vector-icons/Feather'
@@ -25,7 +26,13 @@ import {
   useUpdateChecklistItem,
   useUpdateNote,
 } from '@/db/queries'
-import { colorAfterTagChange, findTagNamed, isEmptyNote, nextTagColor } from '@/db/noteLogic'
+import {
+  colorAfterTagChange,
+  copyableText,
+  findTagNamed,
+  isEmptyNote,
+  nextTagColor,
+} from '@/db/noteLogic'
 import type { Tag } from '@/db/types'
 import { useNote } from '@/db/select'
 import { applyFormat, insertLink, linkAt, type Format, type Selection } from '@/text/markup'
@@ -404,6 +411,45 @@ export default function NoteEditor() {
     (id: string, fallback: string) => itemDrafts[id] ?? fallback,
     [itemDrafts],
   )
+
+  /**
+   * The content in the clipboard, to be pasted into a message.
+   *
+   * What is copied is what is on screen, not what the database holds: the body
+   * comes from local state and the items from their drafts, so the last
+   * keystroke travels even when the deferred save has not fired yet. Copying a
+   * version six hundred milliseconds old would be a bug nobody would think to
+   * look for.
+   *
+   * A note from the vault is copied like any other: it is readable on screen,
+   * and refusing to copy what can be read would be theatre. Worth knowing all
+   * the same — the system clipboard belongs to every app, so this is the one
+   * place where the vault's content leaves it, at the user's own request.
+   */
+  const copyContent = useCallback(async () => {
+    if (!note) return
+    markActivity()
+    const text = copyableText({
+      kind: note.kind,
+      body,
+      items: note.items.map((item) => ({
+        content: itemText(item.id, item.content),
+        is_done: item.is_done,
+      })),
+    })
+    // Nothing to copy leaves the clipboard alone: overwriting what was in it
+    // with an empty string would destroy something the user had put there.
+    if (!text) {
+      toast('Rien à copier.')
+      return
+    }
+    try {
+      await Clipboard.setStringAsync(text)
+      toast('Contenu copié.', { tone: 'success' })
+    } catch {
+      toast('Copie impossible, rien n’a été mis dans le presse-papier.', { tone: 'danger' })
+    }
+  }, [note, body, itemText, markActivity, toast])
 
   /**
    * Text fields, by target, so focus can be given back to them.
@@ -867,6 +913,19 @@ export default function NoteEditor() {
             updateNote.mutate({ id: note.id, patch: { is_archived: !note.is_archived } })
             goBack()
           }}
+        />
+        {/**
+         * Copy, between archiving and the trash.
+         *
+         * Its place is not arbitrary: the trash stays last, alone in its danger
+         * tone, so that the destructive gesture keeps the corner the hand
+         * already knows.
+         */}
+        <IconButton
+          icon="copy"
+          label="Copier le contenu"
+          tooltip="Copier pour coller ailleurs"
+          onPress={() => void copyContent()}
         />
         <IconButton
           icon="trash-2"

@@ -250,6 +250,62 @@ export function plainText(source: string | null | undefined): string {
     .join('\n')
 }
 
+/**
+ * The text as it should land in the clipboard, to be pasted into a message.
+ *
+ * Two things separate it from `plainText`, and both come from where the text is
+ * headed rather than from what it says:
+ *
+ * - a bullet is written `- `, not `• `. WhatsApp, Signal and mail clients read a
+ *   dash as a list; a bullet gives a paragraph opening on an odd character;
+ * - a named link keeps its address: `[le menu](https://exemple.fr)` becomes
+ *   `le menu (https://exemple.fr)`. `plainText` keeps the label alone, which is
+ *   right for search — nobody searches for a URL — and wrong here, where the
+ *   address is usually the whole reason for sending the text.
+ *
+ * An address written mid-sentence is left exactly as typed: it is its own label,
+ * and repeating it in parentheses would say the same thing twice.
+ */
+export function flatText(source: string | null | undefined): string {
+  return parseMarkup(source)
+    .map((block) => {
+      const text = flatSpans(block.spans)
+      return block.kind === 'bullet' ? `- ${text}` : text
+    })
+    .join('\n')
+}
+
+/** One line of markup, flattened. Used for a checklist item, which is one line. */
+export function flatLine(line: string): string {
+  return flatSpans(parseInline(line))
+}
+
+/**
+ * Spans joined back into text, links keeping their address.
+ *
+ * Consecutive spans sharing an address are gathered first: every run coming out
+ * of a link's label carries that address, so `[le **menu**](…)` arrives as two
+ * spans and has to come out as one link, not two.
+ */
+function flatSpans(spans: Span[]): string {
+  let out = ''
+  for (let i = 0; i < spans.length; i++) {
+    const href = spans[i].href
+    if (!href) {
+      out += spans[i].text
+      continue
+    }
+    let label = ''
+    while (i < spans.length && spans[i].href === href) {
+      label += spans[i].text
+      i++
+    }
+    i--
+    out += normalizeHref(label) === href ? label : `${label} (${href})`
+  }
+  return out
+}
+
 // --------------------------------------------------------------- editing
 
 export type Format = 'bold' | 'italic' | 'underline' | 'strike' | 'bullet' | 'title' | 'subtitle'

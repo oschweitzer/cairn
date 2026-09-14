@@ -1,10 +1,10 @@
-import type { Note, PlainChecklistItem, Tag } from './types'
+import type { Note, NoteKind, PlainChecklistItem, Tag } from './types'
 // Type only, erased at compile time: no runtime dependency on the UI, and
 // src/ui/theme.ts imports no react-native module anyway.
 import type { TagColorKey } from '../ui/theme'
 // A pure module too, without React or react-native: stripping markup is a text
 // operation, and it belongs on the logic side.
-import { plainText } from '../text/markup'
+import { flatLine, flatText, plainText } from '../text/markup'
 
 /**
  * Pure composition, sorting, filtering and search logic.
@@ -173,6 +173,48 @@ export function isEmptyNote(note: {
     note.tags.length === 0 &&
     note.color_key === null
   )
+}
+
+/**
+ * A note's content, as text to paste into a message.
+ *
+ * What is copied is what someone would want to send, not a faithful export:
+ *
+ * - the title stays out. Copying aims at a conversation where you have already
+ *   said what this is about;
+ * - a checklist loses its checkboxes — there is nothing sensible to paste — and
+ *   its ticked items. A list is shared to say what is left to do, and the six
+ *   things already bought are noise in the message;
+ * - the line breaks stay, blank lines included. A shopping list that arrives as
+ *   one long line is no longer a list.
+ *
+ * An empty string when there is nothing to copy, and the caller has to honour
+ * it: silently replacing what the user had in their clipboard with nothing is
+ * the one outcome worse than doing nothing.
+ */
+export function copyableText(note: {
+  kind: NoteKind
+  body: string | null
+  items: { content: string; is_done: boolean }[]
+}): string {
+  if (note.kind === 'checklist') {
+    return note.items
+      .filter((item) => !item.is_done)
+      // Item by item, and never on the joined text: the dashes are ours, and
+      // running them through the flattener alongside the content invited it to
+      // read them back as list syntax. The same reason as in the widget
+      // snapshot, which joins its items the same way.
+      //
+      // Whitespace is collapsed because an item is one line: the editor turns a
+      // pasted line break into a space, but rows written before it did keep
+      // theirs, and one of them would split the list in two.
+      .map((item) => flatLine(item.content).replace(/\s+/g, ' ').trim())
+      // An item left blank produces a lone dash, which says nothing.
+      .filter((text) => text.length > 0)
+      .map((text) => `- ${text}`)
+      .join('\n')
+  }
+  return flatText(note.body).trim()
 }
 
 /**

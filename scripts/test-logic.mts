@@ -16,6 +16,7 @@ import {
   colorAfterTagChange,
   columnsForWidth,
   composeNotes,
+  copyableText,
   displayTitle,
   distributeIntoColumns,
   filterNotes,
@@ -33,6 +34,7 @@ import { describeDbError } from '../src/db/errors'
 import type { Note, PlainChecklistItem, Tag } from '../src/db/types'
 import {
   applyFormat,
+  flatText,
   insertLink,
   linkAt,
   normalizeHref,
@@ -485,6 +487,64 @@ test('le texte nu retire le balisage', () => {
   assert.equal(plainText('**gras** et [libellé](https://x.fr)'), 'gras et libellé')
   assert.equal(plainText('- courses\n- pain'), '• courses\n• pain')
   assert.equal(plainText(null), '')
+})
+
+// ------------------------------------------------------- copie vers un message
+
+test('le texte à copier perd son balisage et garde ses tirets', () => {
+  // A dash and not a bullet: that is what the messaging apps this is aimed at
+  // read as a list.
+  assert.equal(flatText('# Samedi\n- **pain**\n- lait'), 'Samedi\n- pain\n- lait')
+  assert.equal(flatText(null), '')
+})
+
+test('un lien nommé garde son adresse dans le texte à copier', () => {
+  // The label alone would drop the address, which is usually the very reason
+  // for sending the text. `plainText`, made for search, does drop it.
+  assert.equal(
+    flatText('voir [le menu](https://exemple.fr/x)'),
+    'voir le menu (https://exemple.fr/x)',
+  )
+  assert.equal(flatText('[le **menu**](https://exemple.fr/x)'), 'le menu (https://exemple.fr/x)')
+  // An address written mid-sentence is its own label: nothing to repeat.
+  assert.equal(flatText('voir https://exemple.fr ici'), 'voir https://exemple.fr ici')
+  assert.equal(flatText('www.exemple.fr'), 'www.exemple.fr')
+})
+
+test('le corps copié garde ses sauts de ligne, le titre reste dehors', () => {
+  const n = composed({ title: 'Courses', body: 'premier\n\nsecond' })
+  assert.equal(copyableText(n), 'premier\n\nsecond')
+})
+
+test('une liste copiée ne garde que ce qui reste à faire', () => {
+  const n = composed({
+    kind: 'checklist',
+    items: [
+      item({ id: 'i1', content: 'pain', is_done: true, position: 0 }),
+      item({ id: 'i2', content: '**lait**', position: 1 }),
+      item({ id: 'i3', content: '   ', position: 2 }),
+      item({ id: 'i4', content: 'café', position: 3 }),
+    ],
+  })
+  // Order kept, markup gone, the ticked item and the blank one dropped.
+  assert.equal(copyableText(n), '- lait\n- café')
+})
+
+test('un élément écrit sur plusieurs lignes reste une seule ligne', () => {
+  // An item is one row. A line break inside it would split the list in two for
+  // whoever receives it.
+  const n = composed({ kind: 'checklist', items: [item({ content: 'pain\nde mie' })] })
+  assert.equal(copyableText(n), '- pain de mie')
+})
+
+test('il n’y a rien à copier dans une note vide ou une liste tout cochée', () => {
+  // The caller has to honour this: writing an empty string to the clipboard
+  // would destroy what the user had put there.
+  assert.equal(copyableText(composed({ body: '   ' })), '')
+  assert.equal(
+    copyableText(composed({ kind: 'checklist', items: [item({ is_done: true })] })),
+    '',
+  )
 })
 
 test('la recherche traverse la mise en forme', () => {

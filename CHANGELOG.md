@@ -7,6 +7,17 @@ and the project follows [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Copier le contenu**, in a note's action bar between archiving and the trash.
+  One tap puts what the note says into the clipboard, ready to be pasted into a
+  message: no title, no markup — `**pain**` arrives as `pain` — line breaks
+  kept, and a named link keeps its address beside its label. A list arrives as
+  dashed lines, which WhatsApp, Signal and mail clients read as a list; its
+  checkboxes stay behind and so do the items already ticked, a list being shared
+  to say what is left to do. Nothing to copy leaves the clipboard untouched
+  rather than emptying it. ([#54])
+
 ### Fixed
 
 - A long list item is shown in full on a phone. It used to be a single line
@@ -232,3 +243,4 @@ work happened.
 [#47]: https://github.com/oschweitzer/cairn/issues/47
 [#49]: https://github.com/oschweitzer/cairn/issues/49
 [#51]: https://github.com/oschweitzer/cairn/issues/51
+[#54]: https://github.com/oschweitzer/cairn/issues/54
