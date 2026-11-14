@@ -50,7 +50,7 @@
 # ------------------------------------------------------------- en-têtes
 
 # L'application est un client statique qui ne parle qu'à Supabase et à Google.
-# Ces trois en-têtes ferment ce qui n'a aucune raison d'être ouvert.
+# Ces en-têtes ferment ce qui n'a aucune raison d'être ouvert.
 [[headers]]
   for = "/*"
   [headers.values]
@@ -59,6 +59,26 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    # Liste blanche de ce que la page a le droit de charger ou d'appeler.
+    #
+    # connect-src : l'origine elle-même, le projet Supabase (REST, Auth,
+    # Realtime en wss://) et l'API Pwned Passwords (src/auth/pwned.ts, vérifie
+    # un mot de passe par préfixe de hachage, en k-anonymat). Ni
+    # oauth2.googleapis.com ni www.googleapis.com : ces appels vivent dans les
+    # Edge Functions, jamais dans le client (voir supabase/functions/_shared/
+    # google.ts) ; src/google/agenda.ts ne fait que déclarer leurs adresses
+    # pour la forme attendue par expo-auth-session, sans jamais les appeler.
+    #
+    # form-action : accounts.google.com, le seul endroit vers lequel la page
+    # redirige pour le consentement Google.
+    #
+    # img-src : 'self' et data: pour les images embarquées au build ; aucune
+    # image distante n'est chargée.
+    #
+    # style-src/script-src avec 'unsafe-inline' : expo-router écrit le CSS et
+    # le script anti-flash du thème en ligne dans le HTML généré au build (voir
+    # app/+html.tsx) ; aucun des deux ne vient d'une entrée utilisateur.
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://accounts.google.com; img-src 'self' data:; font-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.pwnedpasswords.com; upgrade-insecure-requests"
 
 # Le fichier qui autorise l'application Android à ouvrir les liens de notes.
 # Android exige le type MIME JSON ; servi autrement, la vérification échoue en
