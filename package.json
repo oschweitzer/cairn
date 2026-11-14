@@ -64,5 +64,6 @@
     "test:logic": "tsx --test scripts/test-logic.mts",
     "verify": "npm run typecheck && npm run theme:check && npm run test:logic && npm run db:test"
   },
-  "private": true
+  "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0"
 }

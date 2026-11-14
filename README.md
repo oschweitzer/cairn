@@ -642,3 +642,7 @@ supabase/functions/     Deno Edge Functions: OAuth exchange and Google calls
 generated/              theme-derived artefacts, committed
 public/                 files served as-is by the PWA (assetlinks.json)
 ```
+
+## License
+
+Released under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may read, run, modify and share the code for any noncommercial purpose. Any commercial use requires the author's prior agreement.\n
